@@ -1,0 +1,7 @@
+bullmq
+diffusers
+transformers
+torch
+pillow
+accelerate
+requests

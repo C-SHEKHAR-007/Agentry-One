@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["prompt"],
+  "properties": {
+    "prompt": { "type": "string", "title": "Prompt", "minLength": 1 },
+    "negativePrompt": { "type": "string", "title": "Negative prompt" },
+    "steps": { "type": "integer", "title": "Inference steps", "default": 2, "minimum": 1, "maximum": 4 },
+    "seed": { "type": "integer", "title": "Seed" },
+    "width": { "type": "integer", "title": "Width", "default": 512 },
+    "height": { "type": "integer", "title": "Height", "default": 512 }
+  }
+}

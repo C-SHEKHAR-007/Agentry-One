@@ -1,0 +1,26 @@
+{
+  "id": "sketch-agent",
+  "name": "Sketch Agent",
+  "version": "1.0.0",
+  "description": "Generates an image from a text prompt using a local or configured image-generation provider.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.sketch.worker",
+    "queueName": "agent.sketch"
+  },
+  "steps": [
+    {
+      "key": "generate",
+      "requiresCapability": "image-generation",
+      "inputSchema": { "$ref": "./schemas/generate.input.json" },
+      "outputSchema": { "$ref": "./schemas/generate.output.json" },
+      "humanGate": false,
+      "producesArtifactKinds": ["image"]
+    }
+  ],
+  "resources": { "cpu": 4, "memoryMb": 6144, "gpu": false },
+  "concurrency": 1,
+  "timeoutSec": 300,
+  "attempts": 2,
+  "backoff": { "type": "exponential", "delayMs": 5000 }
+}
