@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens. Dark is the flagship theme (matches the reference design);
+   light derives from the same scale. All components consume these through
+   the tailwind color mapping -- never hardcode palette classes. */
+:root {
+  --background: 240 10% 98%;
+  --foreground: 240 10% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 8%;
+  --primary: 255 85% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 93%;
+  --secondary-foreground: 240 8% 20%;
+  --muted: 240 6% 94%;
+  --muted-foreground: 240 5% 42%;
+  --accent: 255 85% 96%;
+  --accent-foreground: 255 70% 40%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 60% 38%;
+  --warning: 38 92% 44%;
+  --border: 240 6% 88%;
+  --input: 240 6% 84%;
+  --ring: 255 85% 62%;
+  /* Categorical chart hues -- validated (lightness band, chroma floor, CVD
+     separation, 3:1 contrast) against the white card surface. Fixed
+     assignment order 1..4; never cycle or generate extra hues. */
+  --chart-1: 255 85% 62%;
+  --chart-2: 152 70% 36%;
+  --chart-3: 210 90% 58%;
+  --chart-4: 175 85% 34%;
+  --radius: 0.75rem;
+  color-scheme: light;
+}
+
+.dark {
+  --background: 240 12% 4%;
+  --foreground: 240 8% 95%;
+  --card: 240 10% 7%;
+  --card-foreground: 240 8% 95%;
+  --popover: 240 10% 8%;
+  --popover-foreground: 240 8% 95%;
+  --primary: 255 85% 66%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 8% 13%;
+  --secondary-foreground: 240 6% 85%;
+  --muted: 240 8% 12%;
+  --muted-foreground: 240 5% 58%;
+  --accent: 255 60% 18%;
+  --accent-foreground: 255 80% 82%;
+  --destructive: 0 68% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 60% 48%;
+  --warning: 38 92% 55%;
+  --border: 240 8% 14%;
+  --input: 240 8% 18%;
+  --ring: 255 85% 66%;
+  /* Validated against the dark card surface (#101014) -- own steps, not an
+     automatic flip of the light palette. */
+  --chart-1: 255 85% 66%;
+  --chart-2: 152 65% 38%;
+  --chart-3: 210 90% 52%;
+  --chart-4: 175 70% 36%;
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+}
+
+/* rjsf generates unstyled plain-HTML forms; theme them through the tokens so
+   generated agent-submission forms follow light/dark like everything else. */
+.rjsf-form fieldset {
+  @apply border-0 p-0 m-0 grid gap-3;
+}
+.rjsf-form legend {
+  @apply hidden;
+}
+.rjsf-form label {
+  @apply block text-sm text-muted-foreground mb-1;
+}
+.rjsf-form input,
+.rjsf-form select,
+.rjsf-form textarea {
+  @apply bg-transparent border border-input rounded-md px-3 py-2 text-sm w-full text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+}
+.rjsf-form input[type="checkbox"] {
+  @apply w-auto;
+}
+.rjsf-form button[type="submit"] {
+  @apply bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md text-sm mt-2 font-medium transition-colors;
+}
+.rjsf-form .field-description,
+.rjsf-form .help-block {
+  @apply text-xs text-muted-foreground/80;
+}
+.rjsf-form .text-danger,
+.rjsf-form .error-detail {
+  @apply text-destructive text-xs list-none p-0;
+}
+
+/* React Flow chrome follows the theme tokens. */
+.react-flow__controls {
+  @apply !shadow-none rounded-md overflow-hidden border border-border;
+}
+.react-flow__controls-button {
+  @apply !bg-card !border-border;
+}
+.react-flow__controls-button svg {
+  @apply !fill-foreground;
+}
+.react-flow__edge-textbg {
+  fill: hsl(var(--card));
+}
