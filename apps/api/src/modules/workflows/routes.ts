@@ -1,0 +1,144 @@
+import type { FastifyInstance } from "fastify";
+import { prisma } from "../../db/client.js";
+import { getQueue } from "../../queue/queues.js";
+import { advanceStep, startWorkflow, WorkflowError } from "./service.js";
+
+export async function workflowsRoutes(app: FastifyInstance) {
+  app.post<{ Params: { id: string }; Body: { agentId: string; input: unknown; providerConfigId?: string } }>(
+    "/projects/:id/workflows",
+    async (req, reply) => {
+      try {
+        const workflow = await startWorkflow(req.params.id, req.body.agentId, req.body.input, {
+          providerConfigId: req.body.providerConfigId,
+        });
+        const steps = await prisma.workflowStep.findMany({ where: { workflowId: workflow.id }, orderBy: { sequence: "asc" } });
+        return reply.code(201).send({ ...workflow, steps });
+      } catch (err) {
+        if (err instanceof WorkflowError) return reply.code(err.statusCode).send({ error: err.message });
+        throw err;
+      }
+    },
+  );
+
+  // Cross-project listing for the dashboard/executions views. The static
+  // "recent" segment wins over the :id param route in Fastify's router.
+  app.get<{ Querystring: { limit?: string; status?: string } }>(
+    "/workflows/recent",
+    async (req) => {
+      const limit = Math.min(Number(req.query.limit ?? 10) || 10, 100);
+      const workflows = await prisma.workflow.findMany({
+        where: req.query.status ? { status: req.query.status } : undefined,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        include: {
+          project: { select: { id: true, name: true } },
+          agent: { select: { name: true } },
+          steps: {
+            orderBy: { sequence: "asc" },
+            include: {
+              job: { select: { runs: { select: { startedAt: true, finishedAt: true, status: true } } } },
+              artifacts: {
+                where: { mimeType: { startsWith: "image/" } },
+                orderBy: { createdAt: "asc" },
+                take: 1,
+                select: { id: true },
+              },
+            },
+          },
+        },
+      });
+
+      return workflows.map((w) => {
+        let durationMs: number | null = null;
+        const runs = w.steps.flatMap((s) => s.job?.runs ?? []);
+        const started = runs.map((r) => r.startedAt).filter(Boolean) as Date[];
+        const finished = runs
+          .filter((r) => r.status === "completed" || r.status === "failed")
+          .map((r) => r.finishedAt)
+          .filter(Boolean) as Date[];
+        if (started.length && finished.length) {
+          durationMs =
+            Math.max(...finished.map((d) => d.getTime())) -
+            Math.min(...started.map((d) => d.getTime()));
+          if (durationMs < 0) durationMs = null;
+        }
+        const thumbArtifactId = w.steps.flatMap((s) => s.artifacts)[0]?.id ?? null;
+        return {
+          id: w.id,
+          agentId: w.agentId,
+          agentName: w.agent.name,
+          agentVersion: w.agentVersion,
+          status: w.status,
+          createdAt: w.createdAt,
+          updatedAt: w.updatedAt,
+          project: w.project,
+          durationMs,
+          thumbArtifactId,
+        };
+      });
+    },
+  );
+
+  app.get<{ Params: { id: string } }>("/workflows/:id", async (req, reply) => {
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: req.params.id },
+      include: { steps: { orderBy: { sequence: "asc" }, include: { job: true, artifacts: true } } },
+    });
+    if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
+    return workflow;
+  });
+
+  app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req) =>
+    prisma.workflowStep.findMany({ where: { workflowId: req.params.id }, orderBy: { sequence: "asc" } }),
+  );
+
+  app.post<{ Params: { id: string; stepKey: string }; Body: unknown }>(
+    "/workflows/:id/steps/:stepKey/advance",
+    async (req, reply) => {
+      try {
+        const job = await advanceStep(req.params.id, req.params.stepKey, req.body);
+        return reply.code(202).send({ stepKey: req.params.stepKey, status: "queued", jobId: job.id });
+      } catch (err) {
+        if (err instanceof WorkflowError) return reply.code(err.statusCode).send({ error: err.message });
+        throw err;
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string } }>("/workflows/:id/cancel", async (req, reply) => {
+    const workflow = await prisma.workflow.findUnique({
+      where: { id: req.params.id },
+      include: { steps: { include: { job: true } }, agent: true },
+    });
+    if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
+
+    // Remove any queued-but-not-started BullMQ jobs so they never run.
+    // A job already mid-execution is not interrupted (see docs/06-api-surface.md);
+    // once it settles, the workflow stays cancelled rather than progressing.
+    const manifest = workflow.agent.manifest as { entrypoint: { queueName: string } };
+    const queue = getQueue(manifest.entrypoint.queueName);
+    let removedQueued = 0;
+    let stillRunning = false;
+
+    for (const step of workflow.steps) {
+      if (!step.job || step.job.status !== "queued") {
+        if (step.status === "running") stillRunning = true;
+        continue;
+      }
+      const bullJob = await queue.getJob(step.job.id);
+      const state = bullJob ? await bullJob.getState() : null;
+      if (bullJob && (state === "waiting" || state === "delayed" || state === "prioritized")) {
+        await bullJob.remove();
+        await prisma.job.update({ where: { id: step.job.id }, data: { status: "cancelled" } });
+        await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "failed" } });
+        removedQueued++;
+      } else if (state === "active") {
+        stillRunning = true;
+      }
+    }
+
+    const status = stillRunning ? "cancelling" : "cancelled";
+    await prisma.workflow.update({ where: { id: req.params.id }, data: { status } });
+    return reply.code(202).send({ status, removedQueued });
+  });
+}
