@@ -1,0 +1,34 @@
+{
+  "id": "echo-agent",
+  "name": "Echo Agent",
+  "version": "0.1.0",
+  "description": "Echoes its input into a text artifact — Agent Studio demo.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.echo-agent.worker",
+    "queueName": "agent.echo-agent"
+  },
+  "steps": [
+    {
+      "key": "run",
+      "inputSchema": {
+        "$ref": "./schemas/run.input.json"
+      },
+      "outputSchema": {
+        "$ref": "./schemas/run.output.json"
+      },
+      "humanGate": false,
+      "producesArtifactKinds": [
+        "text"
+      ]
+    }
+  ],
+  "resources": {
+    "cpu": 1,
+    "memoryMb": 512,
+    "gpu": false
+  },
+  "concurrency": 1,
+  "timeoutSec": 120,
+  "attempts": 1
+}
