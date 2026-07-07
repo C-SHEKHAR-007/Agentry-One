@@ -1,11 +1,11 @@
 # 05 — Database Schema
 
-Thirteen tables — right-sized for two real agents and a single-operator deployment, not the 30-50 table schema from the original brainstorm. Every table here is either used directly by the walkthroughs in [`04-workflow-and-job-execution.md`](04-workflow-and-job-execution.md), or exists to keep the schema forward-compatible with the roadmap without requiring a rewrite (e.g. `users` is minimal today but shaped to grow into multi-tenancy later).
+Thirteen tables — right-sized for two real agents and a single-operator deployment, not the 30-50 table schema from the original brainstorm. Every table here is either used directly by the walkthroughs in [04-workflow-and-job-execution.md](04-workflow-and-job-execution.md), or exists to keep the schema forward-compatible with the roadmap without requiring a rewrite (e.g. `users` is minimal today but shaped to grow into multi-tenancy later).
 
 ## Table list
 
 ### `users`
-Minimal in Phase 1 — effectively one row for the solo operator — but shaped so a future auth system (see [`14-roadmap.md`](14-roadmap.md)) can add rows without restructuring anything downstream that references `user_id`.
+Minimal in Phase 1 — effectively one row for the solo operator — but shaped so a future auth system (see [14-roadmap.md](14-roadmap.md)) can add rows without restructuring anything downstream that references `user_id`.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -24,7 +24,7 @@ A workspace grouping for workflows — lets the same operator keep, say, "Weekly
 | `created_at` | timestamptz | |
 
 ### `agents`
-The registry's cache of every agent the API discovered by scanning `agents/*/manifest.json` at boot (see [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md) and [`07-agent-implementation-guide.md`](07-agent-implementation-guide.md)).
+The registry's cache of every agent the API discovered by scanning `agents/*/manifest.json` at boot (see [03-agent-sdk-contract.md](03-agent-sdk-contract.md) and [07-agent-implementation-guide.md](07-agent-implementation-guide.md)).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -45,7 +45,7 @@ One row per submitted job run (one agent invocation).
 | `project_id` | uuid, FK → `projects.id` | |
 | `agent_id` | text, FK → `agents.id` | |
 | `agent_version` | text | pinned at creation time, even if the agent is later upgraded |
-| `status` | text | `running` / `awaiting_review` / `cancelling` / `completed` / `failed` / `cancelled` — see [`06-api-surface.md`](06-api-surface.md) for why `cancelling` (requested, current step still finishing) is distinct from `cancelled` (fully stopped) |
+| `status` | text | `running` / `awaiting_review` / `cancelling` / `completed` / `failed` / `cancelled` — see [06-api-surface.md](06-api-surface.md) for why `cancelling` (requested, current step still finishing) is distinct from `cancelled` (fully stopped) |
 | `input_params` | jsonb | the original submission payload |
 | `created_at` / `updated_at` | timestamptz | |
 
@@ -75,7 +75,7 @@ One per `workflow_step` — the unit actually enqueued to BullMQ.
 | `created_at` | timestamptz | |
 
 ### `job_runs`
-One row per **attempt** — matches BullMQ's native `attempts`/backoff model directly, so retry history is never overwritten (see [`04-workflow-and-job-execution.md`](04-workflow-and-job-execution.md)).
+One row per **attempt** — matches BullMQ's native `attempts`/backoff model directly, so retry history is never overwritten (see [04-workflow-and-job-execution.md](04-workflow-and-job-execution.md)).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -97,7 +97,7 @@ Generic output row — deliberately not typed per-agent (no `video_clips` / `ske
 | `workflow_step_id` | uuid, FK → `workflow_steps.id` | which step produced it |
 | `kind` | text | e.g. `"candidate_list"`, `"transcript"`, `"video_clip"`, `"manifest"`, `"image"` — see per-agent `producesArtifactKinds` in each manifest |
 | `mime_type` | text | e.g. `"video/mp4"`, `"application/json"`, `"image/png"` |
-| `storage_backend` | text | `"local_fs"` in Phase 1 (see [`10-deployment.md`](10-deployment.md); `"s3"` is roadmap) |
+| `storage_backend` | text | `"local_fs"` in Phase 1 (see [10-deployment.md](10-deployment.md); `"s3"` is roadmap) |
 | `storage_key` | text | path/key within that backend |
 | `size_bytes` | bigint | |
 | `checksum` | text | sha256, for integrity/dedup checks |
@@ -129,7 +129,7 @@ Versioned templates — both the Ollama highlight-re-rank prompt VSplitter alrea
 | `created_at` | timestamptz | |
 
 ### `logs`
-Structured per-`job_run` log lines — the operator's primary debugging surface in Phase 1 (see [`13-observability-and-ops.md`](13-observability-and-ops.md)).
+Structured per-`job_run` log lines — the operator's primary debugging surface in Phase 1 (see [13-observability-and-ops.md](13-observability-and-ops.md)).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -167,32 +167,30 @@ Overridable tunables — e.g. Video Agent's signal weights (`transcript`/`audio`
 
 ## ER relationship summary
 
-```text
-users 1──* projects 1──* workflows *──1 agents
-                              │
-                              1
-                              │
-                              *
-                       workflow_steps
-                              │
-                    ┌─────────┴─────────┐
-                    1                   1
-                    │                   │
-                    *                   *
-                  jobs              artifacts ──* artifact_versions
-                    │
-                    1
-                    │
-                    *
-                job_runs ──* logs
-
-events references workflows/jobs loosely (nullable FKs, audit-only)
-prompts references agents (template ownership)
-settings references projects/agents optionally (scoping)
+```mermaid
+erDiagram
+    users ||--o{ projects : owns
+    projects ||--o{ workflows : contains
+    agents ||--o{ workflows : executes
+    workflows ||--o{ workflow_steps : defines
+    workflow_steps ||--o{ jobs : schedules
+    workflow_steps ||--o{ artifacts : produces
+    artifacts ||--o{ artifact_versions : versions
+    jobs ||--o{ job_runs : attempts
+    job_runs ||--o{ logs : records
+    workflows ||--o{ events : logs
+    jobs ||--o{ events : logs
+    agents ||--o{ prompts : scopes
+    projects ||--o{ settings : overrides
+    agents ||--o{ settings : scopes
 ```
+
+- `events` references workflows/jobs loosely (nullable FKs, audit-only)
+- `prompts` references agents (template ownership)
+- `settings` references projects/agents optionally (scoping)
 
 ## What's deliberately not here
 
-- **No `sessions` or `api_keys` table** — Phase 1's auth is a stub (see [`12-security-and-auth.md`](12-security-and-auth.md)); these arrive with real auth in the roadmap.
+- **No `sessions` or `api_keys` table** — Phase 1's auth is a stub (see [12-security-and-auth.md](12-security-and-auth.md)); these arrive with real auth in the roadmap.
 - **No per-agent-type tables** (`video_jobs`, `sketch_jobs`, etc.) — the entire point of the `agents`/`workflows`/`artifacts` generic model is that adding a third agent never means a schema migration for a new table, only new rows.
 - **No workflow-graph/edge table** — since Phase-1 workflows are a fixed, manifest-declared sequence (`workflow_steps.sequence` is just an integer), there's no need for a graph structure. A DAG-capable schema is explicit future roadmap work, not a Phase-1 concern (see ADR-0005).

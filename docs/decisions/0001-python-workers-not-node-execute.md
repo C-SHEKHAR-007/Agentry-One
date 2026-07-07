@@ -10,7 +10,7 @@ Every agent's actual logic runs in a **separate Python worker process**, communi
 
 ## Why
 
-Both current agents (video processing via Whisper/ffmpeg/MediaPipe, image generation via diffusers) and every plausible future agent (OCR, PDF summarization, voice cloning, translation) are fundamentally Python AI workloads. Reimplementing that logic in Node, or shelling out to Python scripts ad hoc from Node, would either duplicate work or produce an unsafe, unstructured integration. A declarative manifest + JSON Schema contract (see [`03-agent-sdk-contract.md`](../03-agent-sdk-contract.md)) plus a well-defined BullMQ wire protocol gives both sides a real, language-neutral contract without forcing either side to run code written for the other.
+Both current agents (video processing via Whisper/ffmpeg/MediaPipe, image generation via diffusers) and every plausible future agent (OCR, PDF summarization, voice cloning, translation) are fundamentally Python AI workloads. Reimplementing that logic in Node, or shelling out to Python scripts ad hoc from Node, would either duplicate work or produce an unsafe, unstructured integration. A declarative manifest + JSON Schema contract (see [03-agent-sdk-contract.md](../03-agent-sdk-contract.md)) plus a well-defined BullMQ wire protocol gives both sides a real, language-neutral contract without forcing either side to run code written for the other.
 
 ## Consequences
 

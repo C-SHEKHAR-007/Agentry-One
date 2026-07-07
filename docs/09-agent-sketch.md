@@ -103,4 +103,4 @@ Like Video Agent's `render` step, Sketch Agent's single `generate` step reports 
 
 ## Prompt versioning
 
-Default negative prompts and any prompt-engineering templates (e.g. a style-prefix template) live in the `prompts` table (see [`05-database-schema.md`](05-database-schema.md)), scoped to `agent_id: "sketch-agent"` — so refining the default negative prompt is a data change, not a code deploy.
+Default negative prompts and any prompt-engineering templates (e.g. a style-prefix template) live in the `prompts` table (see [05-database-schema.md](05-database-schema.md)), scoped to `agent_id: "sketch-agent"` — so refining the default negative prompt is a data change, not a code deploy.

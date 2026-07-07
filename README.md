@@ -4,7 +4,7 @@ An AI Agent Platform: a single system for running self-contained AI "Agents" beh
 
 **Status: the platform is built and running**, with one real agent registered (Sketch Agent — local SD-Turbo image generation, swappable to a premium provider like Stability AI through the UI with zero code changes). Video Agent is designed (`docs/08-agent-video.md`) but intentionally not implemented — the existing [VSplitter](../VSplitter) project stays a separate, untouched standalone app for now.
 
-> **Taking ownership of this project? Start with [`HANDOVER.md`](HANDOVER.md)** — the single as-built reference: architecture, full API reference, configuration, runbook, data model, known limitations, and verification status. The `docs/` tree is the design blueprint the build followed; [`docs/15-as-built-deltas.md`](docs/15-as-built-deltas.md) lists exactly where the implementation differs from it. Where they disagree, `HANDOVER.md` and the code win.
+> **Taking ownership of this project? Start with [docs/00-handover.md](docs/00-handover.md)** — the single as-built reference: architecture, full API reference, configuration, runbook, data model, known limitations, and verification status. The `docs/` tree is the design blueprint the build followed; [docs/15-as-built-deltas.md](docs/15-as-built-deltas.md) lists exactly where the implementation differs from it. Where they disagree, `00-handover.md` and the code win.
 
 ## Running it
 
@@ -33,30 +33,32 @@ Tests: `cd apps/api && npx vitest run` (pure logic, no infra needed) and `python
 
 ## Adding a new agent
 
-Drop a directory under `agents/<id>/` with a `manifest.json`, JSON Schemas, and a worker built on `python/sdk` — then restart the API. The registry, submission forms, template builder, and artifact viewers pick it up with no platform code changes. Full guide: [`docs/07-agent-implementation-guide.md`](docs/07-agent-implementation-guide.md).
+Drop a directory under `agents/<id>/` with a `manifest.json`, JSON Schemas, and a worker built on `python/sdk` — then restart the API. The registry, submission forms, template builder, and artifact viewers pick it up with no platform code changes. Full guide: [docs/07-agent-implementation-guide.md](docs/07-agent-implementation-guide.md).
 
 ## Reading order
 
-If you're picking this up cold: read [`HANDOVER.md`](HANDOVER.md) first (the as-built system), then the design blueprint in this order:
+If you're picking this up cold: read [00-handover.md](docs/00-handover.md) first (the as-built system), then the design blueprint in this order:
 
-1. [`01-product-vision.md`](docs/01-product-vision.md) — what Agentry is and isn't, why a platform instead of an app
-2. [`02-architecture-overview.md`](docs/02-architecture-overview.md) — the system end to end
-3. [`03-agent-sdk-contract.md`](docs/03-agent-sdk-contract.md) — the core abstraction every agent implements
-4. [`04-workflow-and-job-execution.md`](docs/04-workflow-and-job-execution.md) — how a job actually runs, start to finish
-5. [`05-database-schema.md`](docs/05-database-schema.md) — the data model
-6. [`06-api-surface.md`](docs/06-api-surface.md) — the HTTP contract
-7. [`07-agent-implementation-guide.md`](docs/07-agent-implementation-guide.md) — how to add a new agent (the core value proposition of the platform)
-8. [`08-agent-video.md`](docs/08-agent-video.md) / [`09-agent-sketch.md`](docs/09-agent-sketch.md) — the two concrete agents designed in depth
-9. [`10-deployment.md`](docs/10-deployment.md), [`11-testing-strategy.md`](docs/11-testing-strategy.md) — how it runs and how it's tested
-10. [`12-security-and-auth.md`](docs/12-security-and-auth.md), [`13-observability-and-ops.md`](docs/13-observability-and-ops.md) — short stubs describing Phase-1 reality, pointing to the roadmap
-11. [`14-roadmap.md`](docs/14-roadmap.md) — everything deferred, in order, with rationale
-12. [`decisions/`](docs/decisions/) — a short ADR log recording where and why this design deviates from the original brainstorm
+1. [01-product-vision.md](docs/01-product-vision.md) — what Agentry is and isn't, why a platform instead of an app
+2. [02-architecture-overview.md](docs/02-architecture-overview.md) — the system end to end
+3. [03-agent-sdk-contract.md](docs/03-agent-sdk-contract.md) — the core abstraction every agent implements
+4. [04-workflow-and-job-execution.md](docs/04-workflow-and-job-execution.md) — how a job actually runs, start to finish
+5. [05-database-schema.md](docs/05-database-schema.md) — the data model
+6. [06-api-surface.md](docs/06-api-surface.md) — the HTTP contract
+7. [07-agent-implementation-guide.md](docs/07-agent-implementation-guide.md) — how to add a new agent (the core value proposition of the platform)
+8. [08-agent-video.md](docs/08-agent-video.md) / [09-agent-sketch.md](docs/09-agent-sketch.md) — the two concrete agents designed in depth
+9. [10-deployment.md](docs/10-deployment.md), [11-testing-strategy.md](docs/11-testing-strategy.md) — how it runs and how it's tested
+10. [12-security-and-auth.md](docs/12-security-and-auth.md), [13-observability-and-ops.md](docs/13-observability-and-ops.md) — short stubs describing Phase-1 reality, pointing to the roadmap
+11. [14-roadmap.md](docs/14-roadmap.md) — everything deferred, in order, with rationale
+12. [decisions/](docs/decisions/) — a short ADR log recording where and why this design deviates from the original brainstorm
 
 ## Full document index
 
 | Doc | Covers |
 |---|---|
-| [HANDOVER.md](HANDOVER.md) | **As-built reference: architecture, API, config, runbook, limitations** |
+| [00-handover.md](docs/00-handover.md) | **As-built reference: architecture, API, config, runbook, limitations** |
+| [16-step-by-step-user-guide.md](docs/16-step-by-step-user-guide.md) | **End-User Step-by-Step Guide: complete usage walkthrough** |
+| [README.md](docs/README.md) | **Documentation Index & Table of Contents** |
 | [01-product-vision.md](docs/01-product-vision.md) | Vision, scope, non-goals, success criteria |
 | [02-architecture-overview.md](docs/02-architecture-overview.md) | System diagram, component responsibilities, data flow |
 | [03-agent-sdk-contract.md](docs/03-agent-sdk-contract.md) | Manifest contract, wire protocol, Python SDK, versioning |

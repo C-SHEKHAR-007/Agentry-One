@@ -1,6 +1,6 @@
 # 10 — Deployment
 
-Phase 1 deployment target is **a single machine, via Docker Compose** — the same tool VSplitter already uses successfully. No Kubernetes, no multi-machine orchestration (see [`14-roadmap.md`](14-roadmap.md) for when that might become relevant).
+Phase 1 deployment target is **a single machine, via Docker Compose** — the same tool VSplitter already uses successfully. No Kubernetes, no multi-machine orchestration (see [14-roadmap.md](14-roadmap.md) for when that might become relevant).
 
 ## Service list
 
@@ -71,14 +71,14 @@ VSplitter's existing `docker-compose.yml` uses `network_mode: host` for its one 
 
 ## Storage backend
 
-Phase 1 uses **local filesystem storage only** for artifacts (`storage_backend: "local_fs"` in the `artifacts` table, see [`05-database-schema.md`](05-database-schema.md)). The storage layer is accessed through one internal interface (conceptually, `packages/storage` in the eventual application code) specifically so that adding an S3/MinIO-backed driver later is a new implementation of that interface, not a rewrite of every place that reads or writes an artifact. Object storage itself is explicit roadmap work (see [`14-roadmap.md`](14-roadmap.md)) — not needed until either the artifact volume outgrows a single disk or the platform needs to run across more than one machine.
+Phase 1 uses **local filesystem storage only** for artifacts (`storage_backend: "local_fs"` in the `artifacts` table, see [05-database-schema.md](05-database-schema.md)). The storage layer is accessed through one internal interface (conceptually, `packages/storage` in the eventual application code) specifically so that adding an S3/MinIO-backed driver later is a new implementation of that interface, not a rewrite of every place that reads or writes an artifact. Object storage itself is explicit roadmap work (see [14-roadmap.md](14-roadmap.md)) — not needed until either the artifact volume outgrows a single disk or the platform needs to run across more than one machine.
 
 ## Artifact retention
 
 Nothing in Phase 1 ever deletes an artifact automatically. Video clips and generated images accumulate in `artifact_storage` indefinitely — for a solo operator running both agents personally, this is a real, foreseeable disk-usage problem, not a hypothetical one, so it's worth a plain policy statement rather than silence:
 
 - **Phase 1 policy: manual cleanup only.** The operator is responsible for periodically deleting old workflows/artifacts they no longer need (a `DELETE /workflows/:id` cascading to its artifacts, or a manual `docker exec` cleanup of the volume, is enough for one person).
-- **What's deliberately not built yet:** no TTL/expiry field on `artifacts`, no scheduled cleanup job, no storage-quota enforcement or warning. Automated retention is real future work (see [`14-roadmap.md`](14-roadmap.md)) — it's excluded from Phase 1 specifically because it's easy to get wrong in a way that's much worse than doing nothing (silently deleting an artifact the operator actually wanted), and there's no evidence yet of how much cleanup pressure real usage actually creates.
+- **What's deliberately not built yet:** no TTL/expiry field on `artifacts`, no scheduled cleanup job, no storage-quota enforcement or warning. Automated retention is real future work (see [14-roadmap.md](14-roadmap.md)) — it's excluded from Phase 1 specifically because it's easy to get wrong in a way that's much worse than doing nothing (silently deleting an artifact the operator actually wanted), and there's no evidence yet of how much cleanup pressure real usage actually creates.
 - If disk usage becomes a problem before automated retention is built, the immediate manual mitigation is deleting old `output/<job>/` -equivalent directories directly, the same way VSplitter's own `output/` folder is managed today.
 
 ## What's not here

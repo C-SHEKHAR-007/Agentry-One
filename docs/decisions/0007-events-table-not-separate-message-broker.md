@@ -6,7 +6,7 @@ The original brainstorm described an "Event Bus" as a distinct architectural com
 
 ## Decision
 
-Phase 1 satisfies this need with two things that already exist for other reasons: BullMQ's native `QueueEvents` (for live progress relay from a worker to the Node API to the browser over SSE — see [`03-agent-sdk-contract.md`](../03-agent-sdk-contract.md)), and a durable `events` table (see [`05-database-schema.md`](../05-database-schema.md)) that records every job lifecycle transition as an audit trail independent of Redis's transient in-flight state. No separate message broker is introduced.
+Phase 1 satisfies this need with two things that already exist for other reasons: BullMQ's native `QueueEvents` (for live progress relay from a worker to the Node API to the browser over SSE — see [03-agent-sdk-contract.md](../03-agent-sdk-contract.md)), and a durable `events` table (see [05-database-schema.md](../05-database-schema.md)) that records every job lifecycle transition as an audit trail independent of Redis's transient in-flight state. No separate message broker is introduced.
 
 ## Why
 
@@ -15,4 +15,4 @@ A real message broker earns its operational cost (another piece of infrastructur
 ## Consequences
 
 - The `events` table is what a future "activity feed" UI reads from, and what would need to be joined against by a future notifications service.
-- If genuinely decoupled services with no shared Postgres access, or multiple independent consumers, become real (e.g. a separate analytics pipeline), a real broker becomes worth it — tracked as roadmap item 6 in [`14-roadmap.md`](../14-roadmap.md). Until then, this is a "postpone the infrastructure until a second consumer exists" decision, not a rejection of the original idea.
+- If genuinely decoupled services with no shared Postgres access, or multiple independent consumers, become real (e.g. a separate analytics pipeline), a real broker becomes worth it — tracked as roadmap item 6 in [14-roadmap.md](../14-roadmap.md). Until then, this is a "postpone the infrastructure until a second consumer exists" decision, not a rejection of the original idea.

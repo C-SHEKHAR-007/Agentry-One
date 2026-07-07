@@ -1,6 +1,6 @@
 # 07 — Agent Implementation Guide
 
-This is the platform's core value proposition, written for the "agent author" persona from [`01-product-vision.md`](01-product-vision.md): someone adding a new capability who should never need to read the orchestrator's internals. If this guide is followed correctly, adding an agent touches nothing outside `agents/<new-agent>/` and one line in `docker-compose.yml`.
+This is the platform's core value proposition, written for the "agent author" persona from [01-product-vision.md](01-product-vision.md): someone adding a new capability who should never need to read the orchestrator's internals. If this guide is followed correctly, adding an agent touches nothing outside `agents/<new-agent>/` and one line in `docker-compose.yml`.
 
 ## Step 1: create the manifest
 
@@ -15,7 +15,7 @@ agents/
     Dockerfile
 ```
 
-Write `manifest.json` following the contract in [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md). At minimum:
+Write `manifest.json` following the contract in [03-agent-sdk-contract.md](03-agent-sdk-contract.md). At minimum:
 
 ```jsonc
 {
@@ -51,7 +51,7 @@ Each step's `inputSchema`/`outputSchema` are plain JSON Schema files. These are 
 
 ## Step 3: implement the worker
 
-Using the thin Python SDK from [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md):
+Using the thin Python SDK from [03-agent-sdk-contract.md](03-agent-sdk-contract.md):
 
 ```python
 # agents/your_agent_id/worker.py
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     run_agent({"run": run}, queue_name="agent.your-agent-id")
 ```
 
-This is the entire integration surface. Nothing here imports anything from `apps/api` or references BullMQ's Node client — the worker only ever talks to Redis via the Python port of BullMQ, using the wire contract from [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md).
+This is the entire integration surface. Nothing here imports anything from `apps/api` or references BullMQ's Node client — the worker only ever talks to Redis via the Python port of BullMQ, using the wire contract from [03-agent-sdk-contract.md](03-agent-sdk-contract.md).
 
 ## Step 4: containerize and register the worker service
 
@@ -92,7 +92,7 @@ This is the "one line in `docker-compose.yml`" referenced above — no changes t
 
 ## Step 5: registry auto-discovery
 
-At API boot, the registry module scans `agents/*/manifest.json`, validates each against the manifest schema, and upserts a row into the `agents` table (see [`05-database-schema.md`](05-database-schema.md)). **This happens once at startup — Phase 1 has no live hot-reload.** Adding or changing an agent requires restarting the API process before it's picked up. This is a deliberate, honest scoping decision (see ADR-0006 in [`decisions/`](decisions/)): a file-watcher-driven hot-reload of a running registry is materially harder to get right (partial-write races, in-flight workflows against a manifest version that just changed underneath them) and isn't needed until agent authors are someone other than the platform operator restarting their own server.
+At API boot, the registry module scans `agents/*/manifest.json`, validates each against the manifest schema, and upserts a row into the `agents` table (see [05-database-schema.md](05-database-schema.md)). **This happens once at startup — Phase 1 has no live hot-reload.** Adding or changing an agent requires restarting the API process before it's picked up. This is a deliberate, honest scoping decision (see ADR-0006 in [decisions/](decisions/)): a file-watcher-driven hot-reload of a running registry is materially harder to get right (partial-write races, in-flight workflows against a manifest version that just changed underneath them) and isn't needed until agent authors are someone other than the platform operator restarting their own server.
 
 ## Step 6: the frontend needs zero custom code (usually)
 
@@ -105,7 +105,7 @@ A new agent only needs custom frontend code if its input or output shape doesn't
 
 ## Step 7: testing checklist
 
-Following the pattern in [`11-testing-strategy.md`](11-testing-strategy.md):
+Following the pattern in [11-testing-strategy.md](11-testing-strategy.md):
 
 - [ ] Manifest validates against the manifest JSON Schema (a fast, dependency-free unit test).
 - [ ] Each step's `inputSchema`/`outputSchema` are valid JSON Schema themselves.
@@ -114,4 +114,4 @@ Following the pattern in [`11-testing-strategy.md`](11-testing-strategy.md):
 
 ## Worked example: Video Agent as the model instance
 
-[`08-agent-video.md`](08-agent-video.md) is the fully worked-out application of every step above, for a real agent. If anything in this guide is ambiguous, that document resolves it concretely — including a case (`render` step's progress reporting) where the honest answer was "the current implementation doesn't support that yet," documented rather than glossed over.
+[08-agent-video.md](08-agent-video.md) is the fully worked-out application of every step above, for a real agent. If anything in this guide is ambiguous, that document resolves it concretely — including a case (`render` step's progress reporting) where the honest answer was "the current implementation doesn't support that yet," documented rather than glossed over.

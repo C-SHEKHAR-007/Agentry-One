@@ -14,6 +14,6 @@ Without a `kind` discriminator, the platform couldn't tell a ranked-candidate JS
 
 ## Consequences
 
-- Every agent's outputs, regardless of type, are queryable and downloadable through the same three endpoints (see [`06-api-surface.md`](../06-api-surface.md)).
-- The frontend's generic artifact viewer dispatches on `kind`/`mimeType` rather than needing agent-specific rendering logic in most cases (see [`07-agent-implementation-guide.md`](../07-agent-implementation-guide.md)).
+- Every agent's outputs, regardless of type, are queryable and downloadable through the same three endpoints (see [06-api-surface.md](../06-api-surface.md)).
+- The frontend's generic artifact viewer dispatches on `kind`/`mimeType` rather than needing agent-specific rendering logic in most cases (see [07-agent-implementation-guide.md](../07-agent-implementation-guide.md)).
 - Adding a new agent never requires a new table, only new `kind` values.

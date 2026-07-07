@@ -25,7 +25,7 @@ Agentry's contract splits this one interface into two things that together do th
 1. A **manifest contract** — a static, declarative description of the agent (what the TS interface's fields were trying to capture).
 2. A **wire/runtime contract** — the actual message shape sent to and returned from the worker process over BullMQ.
 
-The TypeScript `Agent` type still exists, but only as a **Zod validation/registry type at the API boundary** — it validates that a manifest is well-formed and lets the API type-check requests against an agent's schema. It is never the executor. That distinction is recorded as ADR-0001 in [`decisions/`](decisions/).
+The TypeScript `Agent` type still exists, but only as a **Zod validation/registry type at the API boundary** — it validates that a manifest is well-formed and lets the API type-check requests against an agent's schema. It is never the executor. That distinction is recorded as ADR-0001 in [decisions/](decisions/).
 
 ## Part 1: the manifest contract
 
@@ -74,11 +74,11 @@ Field reference:
 | `name` / `description` | Human-readable, shown in the UI's agent list. |
 | `version` | Semver. A breaking change to any step's input/output schema requires a version bump (see Versioning below). |
 | `entrypoint` | How the registry/worker bootstrap finds the code to run. `type: "python-worker"` today; the shape leaves room for a future `"container-image"` type without a breaking change. |
-| `steps[]` | The agent's fixed sequence of steps (see [`04-workflow-and-job-execution.md`](04-workflow-and-job-execution.md) for why this is fixed-per-agent, not a user-composable DAG). Each step has its own input/output JSON Schema, a `humanGate` flag (does the workflow pause here for user review before the next step runs?), and the artifact `kind`s it's expected to produce. |
-| `resources` | Declarative resource hints used to size the worker's container/process in [`10-deployment.md`](10-deployment.md). Not enforced by a scheduler in Phase 1 — informational, forward-compatible with real resource limits later. |
-| `concurrency` | How many jobs this agent's worker processes at once. `1` for Sketch Agent (one diffusion pipeline instance, one job at a time); Video Agent may run higher once VRAM/CPU contention with Whisper+Ollama is characterized (see [`08-agent-video.md`](08-agent-video.md)). |
+| `steps[]` | The agent's fixed sequence of steps (see [04-workflow-and-job-execution.md](04-workflow-and-job-execution.md) for why this is fixed-per-agent, not a user-composable DAG). Each step has its own input/output JSON Schema, a `humanGate` flag (does the workflow pause here for user review before the next step runs?), and the artifact `kind`s it's expected to produce. |
+| `resources` | Declarative resource hints used to size the worker's container/process in [10-deployment.md](10-deployment.md). Not enforced by a scheduler in Phase 1 — informational, forward-compatible with real resource limits later. |
+| `concurrency` | How many jobs this agent's worker processes at once. `1` for Sketch Agent (one diffusion pipeline instance, one job at a time); Video Agent may run higher once VRAM/CPU contention with Whisper+Ollama is characterized (see [08-agent-video.md](08-agent-video.md)). |
 | `timeoutSec` | Hard ceiling before BullMQ marks the job failed and (depending on `attempts`) retries it. |
-| `attempts` | Max BullMQ retry attempts for any job on this agent's queue, per manifest-declared step. Defaults to `1` (no retry) if omitted — an agent author must opt into retries explicitly, since not every failure mode is safely retryable (e.g. a `render` step that partially wrote files before failing). Each attempt gets its own `job_runs` row (see [`05-database-schema.md`](05-database-schema.md)). |
+| `attempts` | Max BullMQ retry attempts for any job on this agent's queue, per manifest-declared step. Defaults to `1` (no retry) if omitted — an agent author must opt into retries explicitly, since not every failure mode is safely retryable (e.g. a `render` step that partially wrote files before failing). Each attempt gets its own `job_runs` row (see [05-database-schema.md](05-database-schema.md)). |
 | `backoff` | BullMQ backoff strategy between retry attempts. `"exponential"` with a base `delayMs` is the sane default; only meaningful when `attempts` > 1. |
 
 ### Why JSON Schema, not TypeScript types, for input/output
@@ -129,9 +129,9 @@ This is what actually crosses the Node ↔ Redis ↔ Python boundary — the con
 }
 ```
 
-On failure, `status` is `"failed"`, `artifacts` is empty, and `error` carries a machine-readable code plus a human-readable message — this is what populates the `job_runs.error` column described in [`05-database-schema.md`](05-database-schema.md).
+On failure, `status` is `"failed"`, `artifacts` is empty, and `error` carries a machine-readable code plus a human-readable message — this is what populates the `job_runs.error` column described in [05-database-schema.md](05-database-schema.md).
 
-**Progress**, reported continuously during execution (not just at the end): the Python worker calls `job.updateProgress(percent, message)` using the official Python port of BullMQ (`pip install bullmq` — see ADR-0003 for why this specific package, not a hand-rolled bridge). The Node API subscribes to BullMQ's `QueueEvents` for that queue and relays `progress` events to the browser over Server-Sent Events. This is also how VSplitter's existing plain-string `progress_cb` gets adapted — see [`08-agent-video.md`](08-agent-video.md) for the concrete stage-to-percentage mapping table.
+**Progress**, reported continuously during execution (not just at the end): the Python worker calls `job.updateProgress(percent, message)` using the official Python port of BullMQ (`pip install bullmq` — see ADR-0003 for why this specific package, not a hand-rolled bridge). The Node API subscribes to BullMQ's `QueueEvents` for that queue and relays `progress` events to the browser over Server-Sent Events. This is also how VSplitter's existing plain-string `progress_cb` gets adapted — see [08-agent-video.md](08-agent-video.md) for the concrete stage-to-percentage mapping table.
 
 ## Minimal Python-side SDK
 
@@ -155,14 +155,14 @@ def run_agent(step_handlers: dict[str, Callable[[AgentJob], AgentResult]], queue
     returns as the job's result (matching the result envelope above)."""
 ```
 
-An agent author writes one handler function per step (`def analyze(job: AgentJob) -> AgentResult`, `def render(job: AgentJob) -> AgentResult`), each responsible for calling `report_progress` at meaningful points and returning the result envelope's `artifacts` list. Everything about queue connection, retries, and the job-loop itself is handled by `run_agent`. See [`07-agent-implementation-guide.md`](07-agent-implementation-guide.md) for the full worked steps.
+An agent author writes one handler function per step (`def analyze(job: AgentJob) -> AgentResult`, `def render(job: AgentJob) -> AgentResult`), each responsible for calling `report_progress` at meaningful points and returning the result envelope's `artifacts` list. Everything about queue connection, retries, and the job-loop itself is handled by `run_agent`. See [07-agent-implementation-guide.md](07-agent-implementation-guide.md) for the full worked steps.
 
 ## Versioning
 
-`agents.version` is semver, stored per-row in the `agents` table (see [`05-database-schema.md`](05-database-schema.md)) alongside the agent's current manifest snapshot. A **breaking** change to any step's input or output JSON Schema requires a minor-or-major version bump; the registry keeps the previous version's manifest available so in-flight workflows started against it can still be read back correctly, even after the worker itself is upgraded. Phase 1 does not enforce this with tooling — it's a documented convention an agent author follows, not a CI gate (see [`14-roadmap.md`](14-roadmap.md) for when that might change).
+`agents.version` is semver, stored per-row in the `agents` table (see [05-database-schema.md](05-database-schema.md)) alongside the agent's current manifest snapshot. A **breaking** change to any step's input or output JSON Schema requires a minor-or-major version bump; the registry keeps the previous version's manifest available so in-flight workflows started against it can still be read back correctly, even after the worker itself is upgraded. Phase 1 does not enforce this with tooling — it's a documented convention an agent author follows, not a CI gate (see [14-roadmap.md](14-roadmap.md) for when that might change).
 
 ## Explicit non-goals of this contract
 
-- **No live plugin hot-reload.** A new or changed manifest is picked up at API boot only (see [`07-agent-implementation-guide.md`](07-agent-implementation-guide.md) and ADR-0006).
-- **No cross-agent composition DSL.** An agent's `steps[]` describes *that agent's own* fixed sequence; there is no mechanism in this contract for one agent's output to automatically feed a *different* agent as input. That's real future value, deferred to [`14-roadmap.md`](14-roadmap.md) once a concrete use case needs it.
+- **No live plugin hot-reload.** A new or changed manifest is picked up at API boot only (see [07-agent-implementation-guide.md](07-agent-implementation-guide.md) and ADR-0006).
+- **No cross-agent composition DSL.** An agent's `steps[]` describes *that agent's own* fixed sequence; there is no mechanism in this contract for one agent's output to automatically feed a *different* agent as input. That's real future value, deferred to [14-roadmap.md](14-roadmap.md) once a concrete use case needs it.
 - **No schema-breaking-change enforcement.** Versioning discipline above is documented, not machine-enforced, in Phase 1.

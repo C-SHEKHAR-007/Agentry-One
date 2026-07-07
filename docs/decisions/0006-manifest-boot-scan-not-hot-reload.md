@@ -6,7 +6,7 @@ The original brainstorm's "drop a folder, restart server, agent appears" idea wa
 
 ## Decision
 
-The registry module scans `agents/*/manifest.json` **once, at API process boot**, validates each manifest, and upserts into the `agents` table (see [`05-database-schema.md`](../05-database-schema.md)). Adding or changing an agent requires restarting the API process before the change is picked up. There is no file-watcher, no live reload endpoint, in Phase 1.
+The registry module scans `agents/*/manifest.json` **once, at API process boot**, validates each manifest, and upserts into the `agents` table (see [05-database-schema.md](../05-database-schema.md)). Adding or changing an agent requires restarting the API process before the change is picked up. There is no file-watcher, no live reload endpoint, in Phase 1.
 
 ## Why
 
@@ -14,5 +14,5 @@ True hot-reload of a running registry is materially harder than it first appears
 
 ## Consequences
 
-- [`07-agent-implementation-guide.md`](../07-agent-implementation-guide.md) tells agent authors explicitly to restart the API after adding a new agent.
-- Live hot-reload becomes worth building once agent authors are someone other than the operator restarting their own server — tracked as roadmap item 3 in [`14-roadmap.md`](../14-roadmap.md).
+- [07-agent-implementation-guide.md](../07-agent-implementation-guide.md) tells agent authors explicitly to restart the API after adding a new agent.
+- Live hot-reload becomes worth building once agent authors are someone other than the operator restarting their own server — tracked as roadmap item 3 in [14-roadmap.md](../14-roadmap.md).

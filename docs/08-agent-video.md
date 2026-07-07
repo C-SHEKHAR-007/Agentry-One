@@ -1,6 +1,6 @@
 # 08 — Video Agent
 
-Video Agent's internals are **out of scope for this document** — they're VSplitter's existing, working, tested pipeline (`src/pipeline.py` and everything it calls), unmodified. This document is the wrapper spec only: how that pipeline gets fitted to the Agent SDK contract from [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md). For the pipeline's own internals, see VSplitter's `docs/ARCHITECTURE.md`.
+Video Agent's internals are **out of scope for this document** — they're VSplitter's existing, working, tested pipeline (`src/pipeline.py` and everything it calls), unmodified. This document is the wrapper spec only: how that pipeline gets fitted to the Agent SDK contract from [03-agent-sdk-contract.md](03-agent-sdk-contract.md). For the pipeline's own internals, see VSplitter's `docs/ARCHITECTURE.md`.
 
 ## Manifest
 
@@ -39,7 +39,7 @@ Video Agent's internals are **out of scope for this document** — they're VSpli
 }
 ```
 
-`attempts: 2` applies to jobs on *either* step's queue (the manifest's retry config is agent-wide, not per-step — see [`03-agent-sdk-contract.md`](03-agent-sdk-contract.md)). This is a deliberate, conservative choice: `analyze` failures are often transient (a flaky download, Ollama momentarily unreachable) and safe to retry outright, but `render` writes clip files to the output directory before it can fail partway through a multi-clip batch. The wrapper's `render` handler must therefore be **idempotent** — always overwrite `clip_NN.mp4` at a deterministic path rather than appending — so a retried `render` attempt is safe rather than producing duplicate or inconsistent output.
+`attempts: 2` applies to jobs on *either* step's queue (the manifest's retry config is agent-wide, not per-step — see [03-agent-sdk-contract.md](03-agent-sdk-contract.md)). This is a deliberate, conservative choice: `analyze` failures are often transient (a flaky download, Ollama momentarily unreachable) and safe to retry outright, but `render` writes clip files to the output directory before it can fail partway through a multi-clip batch. The wrapper's `render` handler must therefore be **idempotent** — always overwrite `clip_NN.mp4` at a deterministic path rather than appending — so a retried `render` attempt is safe rather than producing duplicate or inconsistent output.
 
 `analyze.input.json` maps directly onto `pipeline.analyze(source, progress_cb, weights)`'s real parameters: `source` (string — file path or YouTube URL) and `weights` (object with `transcript`/`audio`/`visual` floats, matching `config.SIGNAL_WEIGHTS`'s shape). `render.input.json` maps onto `pipeline.render_selected(ctx, selected_indices)`'s `selected_indices` (array of integers).
 
@@ -120,11 +120,11 @@ This is called out as a **small, additive, non-breaking enhancement candidate** 
 
 ## Config mapping
 
-VSplitter's `config.py` today is a flat module of Python constants (`WHISPER_MODEL_SIZE`, `SIGNAL_WEIGHTS`, `NMS_OVERLAP_THRESHOLD`, `OUTPUT_WIDTH`/`OUTPUT_HEIGHT`, caption styling, reframe thresholds, etc.). Under Agentry, these become **defaults** the worker falls back to when a job's `params` doesn't override them, with per-project or global overrides available through the `settings` table (see [`05-database-schema.md`](05-database-schema.md)) instead of requiring a code change and redeploy to adjust, e.g., the transcript/audio/visual weight balance.
+VSplitter's `config.py` today is a flat module of Python constants (`WHISPER_MODEL_SIZE`, `SIGNAL_WEIGHTS`, `NMS_OVERLAP_THRESHOLD`, `OUTPUT_WIDTH`/`OUTPUT_HEIGHT`, caption styling, reframe thresholds, etc.). Under Agentry, these become **defaults** the worker falls back to when a job's `params` doesn't override them, with per-project or global overrides available through the `settings` table (see [05-database-schema.md](05-database-schema.md)) instead of requiring a code change and redeploy to adjust, e.g., the transcript/audio/visual weight balance.
 
 ## Ollama networking
 
-VSplitter's own `docker-compose.yml` today uses `network_mode: host` for its single service specifically so it can reach a host-installed Ollama at `localhost:11434` with zero extra configuration — a reasonable shortcut for a single-service app, but not appropriate once there are multiple services (API, worker-sketch, Postgres, Redis) that don't need or want the host's full network namespace. Under Agentry, **only `worker-video` needs Ollama reachability** — [`10-deployment.md`](10-deployment.md) specifies a targeted approach (host-gateway reachability scoped to that one service) rather than blanket host networking across the whole compose stack.
+VSplitter's own `docker-compose.yml` today uses `network_mode: host` for its single service specifically so it can reach a host-installed Ollama at `localhost:11434` with zero extra configuration — a reasonable shortcut for a single-service app, but not appropriate once there are multiple services (API, worker-sketch, Postgres, Redis) that don't need or want the host's full network namespace. Under Agentry, **only `worker-video` needs Ollama reachability** — [10-deployment.md](10-deployment.md) specifies a targeted approach (host-gateway reachability scoped to that one service) rather than blanket host networking across the whole compose stack.
 
 ## Resource/concurrency notes
 

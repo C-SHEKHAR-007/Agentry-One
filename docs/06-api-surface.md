@@ -1,6 +1,6 @@
 # 06 — API Surface
 
-Roughly 20 endpoints — scoped to "enough to actually run both agents end to end through the UI," not the 100+ endpoint surface from the original brainstorm. Every endpoint here exists because a step in one of the two walkthroughs in [`04-workflow-and-job-execution.md`](04-workflow-and-job-execution.md) needs it; nothing speculative was added.
+Roughly 20 endpoints — scoped to "enough to actually run both agents end to end through the UI," not the 100+ endpoint surface from the original brainstorm. Every endpoint here exists because a step in one of the two walkthroughs in [04-workflow-and-job-execution.md](04-workflow-and-job-execution.md) needs it; nothing speculative was added.
 
 ## Agents
 
@@ -120,4 +120,4 @@ Content-Type: application/json
 }
 ```
 
-This validates `{selectedIndices: [0, 2, 3]}` against `render`'s `inputSchema` (defined in Video Agent's manifest — see [`08-agent-video.md`](08-agent-video.md)), attaches the `analyze` step's `candidate_list` artifact as an `inputArtifactRef`, and enqueues the `render` job exactly as described in [`04-workflow-and-job-execution.md`](04-workflow-and-job-execution.md).
+This validates `{selectedIndices: [0, 2, 3]}` against `render`'s `inputSchema` (defined in Video Agent's manifest — see [08-agent-video.md](08-agent-video.md)), attaches the `analyze` step's `candidate_list` artifact as an `inputArtifactRef`, and enqueues the `render` job exactly as described in [04-workflow-and-job-execution.md](04-workflow-and-job-execution.md).
