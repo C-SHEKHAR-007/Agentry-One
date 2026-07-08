@@ -94,7 +94,7 @@ export function SidebarContent({
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Sparkles className="h-4 w-4" />
         </span>
-        {!collapsed && <span className="text-lg font-semibold tracking-tight">Agentry</span>}
+        {!collapsed && <span className="text-lg font-semibold tracking-tight">Agentry One</span>}
       </div>
 
       {!collapsed && (
@@ -128,7 +128,7 @@ export function SidebarContent({
           ))}
         </div>
         {!collapsed && (
-          <p className="mt-2 px-3 text-[10px] text-muted-foreground/60">Agentry v1.0.0</p>
+          <p className="mt-2 px-3 text-[10px] text-muted-foreground/60">Agentry One v1.0.0</p>
         )}
       </div>
     </div>

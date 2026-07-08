@@ -1,4 +1,4 @@
-# Agentry
+# Agentry One
 
 An AI Agent Platform: a single system for running self-contained AI "Agents" behind one shared contract — an agent registry, BYOK provider/credential management, saved multi-step workflow templates, job queuing with live progress, and generic artifact storage — instead of building a new standalone app for every AI capability.
 

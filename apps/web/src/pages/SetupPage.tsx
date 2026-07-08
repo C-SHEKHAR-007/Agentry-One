@@ -38,7 +38,7 @@ export function SetupPage() {
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Sparkles className="h-6 w-6" />
           </span>
-          <h1 className="text-xl font-semibold">Set up Agentry</h1>
+          <h1 className="text-xl font-semibold">Set up Agentry One</h1>
           <p className="text-sm text-muted-foreground">
             Create the owner account for this workspace.
           </p>

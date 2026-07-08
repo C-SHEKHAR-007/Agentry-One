@@ -38,7 +38,7 @@ export function LoginPage() {
             <Sparkles className="h-6 w-6" />
           </span>
           <h1 className="text-xl font-semibold">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your Agentry workspace</p>
+          <p className="text-sm text-muted-foreground">Sign in to your Agentry One workspace</p>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <div>
