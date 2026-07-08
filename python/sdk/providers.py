@@ -94,6 +94,59 @@ def _generate_ollama_local(ctx: dict, prompt: str, **kwargs) -> str:
     return response.json().get("response", "")
 
 
+def _generate_gemini(ctx: dict, prompt: str, **kwargs) -> str:
+    """Google Gemini REST API adapter for text generation."""
+    import requests
+
+    api_key = ctx.get("secret") or ""
+    model = (ctx.get("config") or {}).get("model", "gemini-1.5-pro")
+    base_url = ctx.get("baseUrl") or "https://generativelanguage.googleapis.com/v1beta"
+    url = f"{base_url.rstrip('/')}/models/{model}:generateContent?key={api_key}"
+
+    response = requests.post(
+        url,
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+        headers={"Content-Type": "application/json"},
+        timeout=120,
+    )
+    response.raise_for_status()
+    data = response.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        return ""
+    parts = candidates[0].get("content", {}).get("parts", [])
+    return "".join(part.get("text", "") for part in parts)
+
+
+def _generate_openai_compatible(ctx: dict, prompt: str, **kwargs) -> str:
+    """OpenAI or OpenAI-compatible REST endpoint for text generation."""
+    import requests
+
+    api_key = ctx.get("secret") or ""
+    base_url = ctx.get("baseUrl") or "https://api.openai.com/v1"
+    model = (ctx.get("config") or {}).get("model", "gpt-4o")
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    response = requests.post(
+        f"{base_url.rstrip('/')}/chat/completions",
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        headers=headers,
+        timeout=120,
+    )
+    response.raise_for_status()
+    data = response.json()
+    choices = data.get("choices", [])
+    if not choices:
+        return ""
+    return choices[0].get("message", {}).get("content", "")
+
+
 class CapabilityClient:
     def __init__(self, provider_context: dict | None):
         if provider_context is None:
@@ -114,4 +167,8 @@ class CapabilityClient:
         provider_type = self.ctx["providerType"]
         if provider_type == "ollama_local":
             return _generate_ollama_local(self.ctx, prompt, **kwargs)
+        if provider_type == "gemini":
+            return _generate_gemini(self.ctx, prompt, **kwargs)
+        if provider_type == "openai_compatible":
+            return _generate_openai_compatible(self.ctx, prompt, **kwargs)
         raise NotImplementedError(f"no text-generation adapter for provider type '{provider_type}'")
