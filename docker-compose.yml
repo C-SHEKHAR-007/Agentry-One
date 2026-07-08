@@ -52,11 +52,14 @@ services:
       dockerfile: agents/sketch/Dockerfile
     depends_on:
       - redis
+    extra_hosts:
+      - "ollama-host:host-gateway"
     volumes:
       - artifact_storage:/artifacts
       - sketch_model_cache:/root/.cache/huggingface
     environment:
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_HOST=http://ollama-host:11434
 
 volumes:
   postgres_data:

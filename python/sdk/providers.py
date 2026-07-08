@@ -77,6 +77,23 @@ def _generate_stability_ai(ctx: dict, prompt: str, negative_prompt: str | None, 
     return ImageGenResult(image_bytes=image_bytes, width=artifact.get("width", 0), height=artifact.get("height", 0))
 
 
+def _generate_ollama_local(ctx: dict, prompt: str, **kwargs) -> str:
+    """Local Ollama REST endpoint for text generation / LLM tasks. Defaults
+    to qwen3:8b or whichever model is specified in the provider config."""
+    import os
+    import requests
+
+    base_url = ctx.get("baseUrl") or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+    model = (ctx.get("config") or {}).get("model", "qwen3:8b")
+    response = requests.post(
+        f"{base_url}/api/generate",
+        json={"model": model, "prompt": prompt, "stream": False, **kwargs},
+        timeout=300,
+    )
+    response.raise_for_status()
+    return response.json().get("response", "")
+
+
 class CapabilityClient:
     def __init__(self, provider_context: dict | None):
         if provider_context is None:
@@ -94,4 +111,7 @@ class CapabilityClient:
         raise NotImplementedError(f"no image-generation adapter for provider type '{provider_type}'")
 
     def generate_text(self, prompt: str, **kwargs) -> str:
-        raise NotImplementedError("no text-generation provider adapter in this build")
+        provider_type = self.ctx["providerType"]
+        if provider_type == "ollama_local":
+            return _generate_ollama_local(self.ctx, prompt, **kwargs)
+        raise NotImplementedError(f"no text-generation adapter for provider type '{provider_type}'")

@@ -24,12 +24,21 @@ interface ProviderConfig {
   id: string;
   providerType: string;
   name: string;
+  baseUrl?: string;
+  config?: Record<string, unknown>;
   isDefault: boolean;
   scope: string;
   status: string;
   hasSecret: boolean;
   capability: Capability;
 }
+
+const PRESET_TEMPLATES = [
+  { label: "Ollama (Local)", cap: "text-generation", type: "ollama_local", name: "Local Ollama (Qwen 3)", model: "qwen3:8b", url: "http://localhost:11434" },
+  { label: "OpenAI / Compatible", cap: "text-generation", type: "openai_compatible", name: "OpenAI LLM", model: "gpt-4o", url: "https://api.openai.com/v1" },
+  { label: "SD-Turbo (Local)", cap: "image-generation", type: "sd_turbo_local", name: "Local SD-Turbo", model: "stabilityai/sd-turbo", url: "" },
+  { label: "Stability AI API", cap: "image-generation", type: "stability_ai", name: "Stability AI Cloud", model: "sd3-medium", url: "https://api.stability.ai" },
+];
 
 export function ProvidersPage() {
   const queryClient = useQueryClient();
@@ -46,16 +55,28 @@ export function ProvidersPage() {
     capabilityKey: "",
     providerType: "",
     name: "",
+    model: "",
+    baseUrl: "",
     secret: "",
     authMode: "none",
   });
 
   const createProvider = useMutation({
-    mutationFn: () => api.post("/providers", { ...form, isDefault: false }),
+    mutationFn: () =>
+      api.post("/providers", {
+        capabilityKey: form.capabilityKey,
+        providerType: form.providerType,
+        name: form.name,
+        baseUrl: form.baseUrl ? form.baseUrl : undefined,
+        secret: form.secret ? form.secret : undefined,
+        authMode: form.authMode,
+        config: form.model ? { model: form.model } : {},
+        isDefault: false,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["providers"] });
       toast.success(`Provider "${form.name}" added`);
-      setForm({ capabilityKey: "", providerType: "", name: "", secret: "", authMode: "none" });
+      setForm({ capabilityKey: "", providerType: "", name: "", model: "", baseUrl: "", secret: "", authMode: "none" });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -82,7 +103,7 @@ export function ProvidersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Providers"
-        description="Pick which model or API each capability uses — a free local model or your own premium key. The default applies unless a submission overrides it."
+        description="Configure any AI model or API provider. Specify your model name (e.g. qwen3:8b, llama3, gpt-4o) and optional custom base URL for local or cloud inference."
       />
 
       {isLoading && <Skeleton className="h-40" />}
@@ -98,6 +119,11 @@ export function ProvidersPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{p.name}</span>
                   {p.isDefault && <Badge>default</Badge>}
+                  {p.config?.model ? (
+                    <Badge variant="outline" className="font-mono text-xs">
+                      model: {String(p.config.model)}
+                    </Badge>
+                  ) : null}
                   {p.hasSecret ? (
                     <Badge variant="outline" className="gap-1">
                       <KeyRound className="h-3 w-3" /> key set
@@ -107,7 +133,8 @@ export function ProvidersPage() {
                   )}
                 </div>
                 <p className="truncate text-sm text-muted-foreground">
-                  {p.capability.label} · {p.providerType}
+                  {p.capability.label} · <span className="font-mono text-xs">{p.providerType}</span>
+                  {p.baseUrl ? <span className="ml-2 font-mono text-xs text-muted-foreground/80">({p.baseUrl})</span> : null}
                 </p>
               </div>
             </div>
@@ -138,7 +165,29 @@ export function ProvidersPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Add a provider</CardTitle>
+          <CardTitle className="text-base">Add a provider or custom model</CardTitle>
+          <div className="flex flex-wrap items-center gap-2 pt-2 text-xs text-muted-foreground">
+            <span>Quick presets:</span>
+            {PRESET_TEMPLATES.map((tpl) => (
+              <Badge
+                key={tpl.label}
+                variant="secondary"
+                className="cursor-pointer hover:bg-secondary/80 transition-colors"
+                onClick={() =>
+                  setForm({
+                    ...form,
+                    capabilityKey: tpl.cap,
+                    providerType: tpl.type,
+                    name: tpl.name,
+                    model: tpl.model,
+                    baseUrl: tpl.url,
+                  })
+                }
+              >
+                + {tpl.label}
+              </Badge>
+            ))}
+          </div>
         </CardHeader>
         <CardContent>
           <form
@@ -164,9 +213,9 @@ export function ProvidersPage() {
               </Select>
             </div>
             <div>
-              <Label>Provider type</Label>
+              <Label>Provider type identifier</Label>
               <Input
-                placeholder="e.g. stability_ai, openai_compatible"
+                placeholder="e.g. ollama_local, openai_compatible, custom_rest"
                 value={form.providerType}
                 onChange={(e) => setForm({ ...form, providerType: e.target.value })}
                 required
@@ -175,16 +224,32 @@ export function ProvidersPage() {
             <div>
               <Label>Display name</Label>
               <Input
-                placeholder="e.g. Stability AI (my key)"
+                placeholder="e.g. Ollama (Llama 3 8B)"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
               />
             </div>
             <div>
-              <Label>API key</Label>
+              <Label>Model name / ID (Optional)</Label>
               <Input
-                placeholder="Optional for local providers"
+                placeholder="e.g. qwen3:8b, llama3, mistral, gpt-4o"
+                value={form.model}
+                onChange={(e) => setForm({ ...form, model: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Base URL (Optional)</Label>
+              <Input
+                placeholder="e.g. http://localhost:11434 or custom API host"
+                value={form.baseUrl}
+                onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>API key / Secret (Optional)</Label>
+              <Input
+                placeholder="Required for cloud providers"
                 type="password"
                 value={form.secret}
                 onChange={(e) =>
