@@ -21,6 +21,19 @@ import { usersRoutes } from "./modules/users/routes.js";
 export function buildApp() {
   const app = Fastify({ logger: true });
 
+  app.removeContentTypeParser("application/json");
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
+    if (!body || (typeof body === "string" && body.trim() === "")) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  });
+
   app.register(cors, { origin: true, credentials: true });
   app.register(cookie);
   app.addHook("preHandler", requireAuth);
