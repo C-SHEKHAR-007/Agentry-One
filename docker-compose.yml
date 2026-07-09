@@ -1,38 +1,17 @@
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: agentry
-      POSTGRES_USER: agentry
-      POSTGRES_PASSWORD: agentry_dev
-    ports:
-      # Host 5432 is already taken by a native Postgres instance running other
-      # projects on this machine -- map to 5433 instead so this container
-      # never touches it.
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7
-    # No host port published: the host already runs its own redis on 6379
-    # (bound to 127.0.0.1, used by the local tsx/venv dev loop). Containers
-    # reach this one by service name; the two never conflict.
-
   api:
     build: ./apps/api
-    depends_on:
-      - postgres
-      - redis
     ports:
       # Host 3000 is taken by an unrelated service on this machine -- use 4000.
       - "4000:4000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./agents:/agents:ro
       - artifact_storage:/artifacts
     environment:
-      - DATABASE_URL=postgresql://agentry:agentry_dev@postgres:5432/agentry
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL:-postgresql://agentry:agentry_dev@host.docker.internal:5432/agentry}
+      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379}
       - AGENTRY_CREDENTIALS_KEY=${AGENTRY_CREDENTIALS_KEY}
       - AGENTRY_API_KEY=${AGENTRY_API_KEY}
 
@@ -50,18 +29,16 @@ services:
     build:
       context: . # repo root: the worker needs both python/sdk and agents/sketch
       dockerfile: agents/sketch/Dockerfile
-    depends_on:
-      - redis
     extra_hosts:
+      - "host.docker.internal:host-gateway"
       - "ollama-host:host-gateway"
     volumes:
       - artifact_storage:/artifacts
       - sketch_model_cache:/root/.cache/huggingface
     environment:
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379}
       - OLLAMA_HOST=http://ollama-host:11434
 
 volumes:
-  postgres_data:
   artifact_storage:
   sketch_model_cache:
