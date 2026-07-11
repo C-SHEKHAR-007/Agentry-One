@@ -37,7 +37,7 @@ services:
       - sketch_model_cache:/root/.cache/huggingface
     environment:
       - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379}
-      - OLLAMA_HOST=http://ollama-host:11434
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama-host:11434}
 
 volumes:
   artifact_storage:
