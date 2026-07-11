@@ -111,7 +111,7 @@ Web UI: `http://localhost:5173` - API: `http://localhost:4000`. The API containe
 ### Local development (hot reload)
 
 ```bash
-docker compose up -d postgres           # port 5433; assumes native redis on 6379
+# assumes your external Postgres (port 5432) and Redis (port 6379) are running
 cd apps/api && npm install && npx prisma migrate deploy && npx tsx watch src/server.ts
 cd apps/web && npm install && npx vite  # port 5173, proxies /api -> :4000
 # worker:
