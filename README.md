@@ -8,14 +8,33 @@ An AI Agent Platform: a single system for running self-contained AI "Agents" beh
 
 ## Running it
 
-Local development (what the repo is set up for on this machine):
+### Start Application & Workers in Background (without Docker)
+
+If you have external Postgres and Redis running and want to run Agentry One in the background without blocking your terminal:
 
 ```bash
-# infra: postgres container (host port 5433; 5432 is taken by a native instance)
-docker compose up -d postgres
-# a native redis on localhost:6379 is assumed (or uncomment/adapt compose)
+# 1. Start API & Web UI dev servers in the background
+nohup npm run dev > /tmp/agentry-dev.log 2>&1 &
 
-# api (port 4000; 3000 is taken on this machine)
+# 2. Start Agent Workers in the background
+nohup python agents/sketch/worker.py > /tmp/sketch-worker.log 2>&1 &
+nohup python agents/echo-agent/worker.py > /tmp/echo-worker.log 2>&1 &
+```
+
+* **Web UI:** http://localhost:5173
+* **API Server:** http://localhost:4000
+* **Logs:** Check `/tmp/agentry-dev.log`, `/tmp/sketch-worker.log`, `/tmp/echo-worker.log`
+
+To cleanly stop all background servers and workers:
+
+```bash
+pkill -f "apps/api/src/server.ts" && pkill -f "vite" && pkill -f "worker.py"
+```
+
+### Foreground Local Development
+
+```bash
+# api (port 4000)
 cd apps/api && npm install && npx prisma migrate deploy && npx tsx src/server.ts
 
 # sketch worker
@@ -27,9 +46,20 @@ cd agents/sketch && python3 -m venv .venv && source .venv/bin/activate \
 cd apps/web && npm install && npx vite
 ```
 
-Fully containerized alternative: `docker compose up -d --build` (stop the local tsx/vite/worker processes first — same ports). Set `AGENTRY_CREDENTIALS_KEY` (`openssl rand -base64 32`) and `AGENTRY_API_KEY` in a root `.env` (see `.env.example`) either way. Every API request needs the `X-API-Key` header.
+### Docker Compose
 
-Tests: `cd apps/api && npx vitest run` (pure logic, no infra needed) and `python -m pytest agents/sketch/tests/` (auto-skips unless the SD-Turbo model is cached).
+You can run the API, Web UI, and Sketch Worker via Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+
+`docker-compose.yml` connects to your external Postgres and Redis instances. You can configure the connection URLs in your `.env` file or shell environment:
+* `DATABASE_URL` (default: `postgresql://agentry:agentry_dev@host.docker.internal:5432/agentry`)
+* `REDIS_URL` (default: `redis://host.docker.internal:6379`)
+* `OLLAMA_HOST` (default: `http://ollama-host:11434`)
+
+Tests: `cd apps/api && npx vitest run` (pure logic, no infra needed) and `python -m pytest agents/sketch/tests/`.
 
 ## Adding a new agent
 
