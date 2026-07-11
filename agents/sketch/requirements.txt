@@ -5,3 +5,4 @@ torch
 pillow
 accelerate
 requests
+azure-storage-blob

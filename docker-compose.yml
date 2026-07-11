@@ -1,7 +1,16 @@
 services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    network_mode: "host"
+    command: "azurite --skipApiVersionCheck --blobHost 0.0.0.0 --location /data"
+    volumes:
+      - azurite_data:/data
+
   api:
     build: ./apps/api
     network_mode: "host"
+    depends_on:
+      - azurite
     volumes:
       - ./agents:/agents:ro
       - artifact_storage:/artifacts
@@ -10,6 +19,8 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - AGENTRY_CREDENTIALS_KEY=${AGENTRY_CREDENTIALS_KEY}
       - AGENTRY_API_KEY=${AGENTRY_API_KEY}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - AZURE_STORAGE_CONTAINER=${AZURE_STORAGE_CONTAINER:-agentry-artifacts}
 
   web:
     build:
@@ -20,18 +31,25 @@ services:
     depends_on:
       - api
 
-  worker-sketch:
+  worker-runner:
     build:
-      context: . # repo root: the worker needs both python/sdk and agents/sketch
+      context: . # repo root: the worker needs both python/sdk and agents
       dockerfile: agents/sketch/Dockerfile
     network_mode: "host"
+    command: ["python", "python/sdk/worker_supervisor.py"]
+    depends_on:
+      - azurite
     volumes:
+      - ./agents:/app/agents
       - artifact_storage:/artifacts
       - sketch_model_cache:/root/.cache/huggingface
     environment:
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - AZURE_STORAGE_CONTAINER=${AZURE_STORAGE_CONTAINER:-agentry-artifacts}
 
 volumes:
   artifact_storage:
   sketch_model_cache:
+  azurite_data:

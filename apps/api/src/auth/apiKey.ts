@@ -41,12 +41,6 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
     return;
   }
 
-  const provided = req.headers["x-api-key"] ?? (req.query as Record<string, string> | undefined)?.key;
-  if (provided === expected) {
-    req.principal = { kind: "apiKey" };
-    return;
-  }
-
   const token = req.cookies?.[SESSION_COOKIE];
   if (token) {
     const session = await resolveSession(token);
@@ -54,6 +48,12 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
       req.principal = { kind: "user", user: session.user };
       return;
     }
+  }
+
+  const provided = req.headers["x-api-key"] ?? (req.query as Record<string, string> | undefined)?.key;
+  if (provided === expected) {
+    req.principal = { kind: "apiKey" };
+    return;
   }
 
   reply.code(401).send({ error: "missing or invalid credentials" });

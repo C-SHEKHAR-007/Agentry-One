@@ -35,10 +35,14 @@ async def generate(job: AgentJob) -> dict:
         ),
     )
 
-    job_dir = ARTIFACTS_DIR / job.workflow_id
-    job_dir.mkdir(parents=True, exist_ok=True)
-    out_path = job_dir / f"{uuid.uuid4()}.png"
-    out_path.write_bytes(result.image_bytes)
+    if os.environ.get("STORAGE_PROVIDER") == "local":
+        job_dir = ARTIFACTS_DIR / job.workflow_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        out_path = str(job_dir / f"{uuid.uuid4()}.png")
+        Path(out_path).write_bytes(result.image_bytes)
+    else:
+        from python.sdk.azure_storage import upload_artifact_bytes
+        out_path, _ = upload_artifact_bytes(result.image_bytes, job.workflow_id, ".png", "image/png")
 
     await job.report_progress(100, "Done.")
     return {
@@ -46,7 +50,7 @@ async def generate(job: AgentJob) -> dict:
         "artifacts": [
             {
                 "kind": "image",
-                "path": str(out_path),
+                "path": out_path,
                 "mimeType": "image/png",
                 "metadata": {"width": result.width, "height": result.height},
             }

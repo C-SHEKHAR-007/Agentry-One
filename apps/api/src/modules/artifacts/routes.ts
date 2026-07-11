@@ -4,7 +4,56 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { resolveArtifactPath } from "./storage.js";
 
+import {
+  downloadBlobStream,
+  generateReadSasUrl,
+  generateUploadSasUrl,
+} from "./azureClient.js";
+
 export async function artifactsRoutes(app: FastifyInstance) {
+  app.post<{ Body: { blobName: string; expiresInMinutes?: number } }>(
+    "/artifacts/sas/upload",
+    async (req, reply) => {
+      const { blobName, expiresInMinutes } = req.body || {};
+      if (!blobName) return reply.code(400).send({ error: "blobName_required" });
+      const sas = await generateUploadSasUrl(blobName, expiresInMinutes);
+      return sas;
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { expiresInMinutes?: string } }>(
+    "/artifacts/:id/sas/preview",
+    async (req, reply) => {
+      const artifact = await prisma.artifact.findUnique({ where: { id: req.params.id } });
+      if (!artifact) return reply.code(404).send({ error: "artifact_not_found" });
+
+      const blobName = artifact.storageKey.replace(/^azure:\/\//, "");
+      const sas = await generateReadSasUrl(blobName, {
+        mode: "preview",
+        mimeType: artifact.mimeType,
+        expiresInMinutes: req.query.expiresInMinutes ? Number(req.query.expiresInMinutes) : 60,
+      });
+      return sas;
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { expiresInMinutes?: string } }>(
+    "/artifacts/:id/sas/download",
+    async (req, reply) => {
+      const artifact = await prisma.artifact.findUnique({ where: { id: req.params.id } });
+      if (!artifact) return reply.code(404).send({ error: "artifact_not_found" });
+
+      const blobName = artifact.storageKey.replace(/^azure:\/\//, "");
+      const sas = await generateReadSasUrl(blobName, {
+        mode: "download",
+        mimeType: artifact.mimeType,
+        fileName: `${artifact.kind}-${artifact.id.slice(0, 8)}`,
+        expiresInMinutes: req.query.expiresInMinutes ? Number(req.query.expiresInMinutes) : 60,
+      });
+      return sas;
+    },
+  );
+
   app.get<{ Params: { id: string } }>("/workflows/:id/artifacts", async (req) =>
     prisma.artifact.findMany({ where: { workflowStep: { workflowId: req.params.id } }, orderBy: { createdAt: "asc" } }),
   );
@@ -64,6 +113,20 @@ export async function artifactsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>("/artifacts/:id/download", async (req, reply) => {
     const artifact = await prisma.artifact.findUnique({ where: { id: req.params.id } });
     if (!artifact) return reply.code(404).send({ error: "artifact_not_found" });
+
+    if (artifact.storageKey.startsWith("azure://") || process.env.STORAGE_PROVIDER === "azure") {
+      const blobName = artifact.storageKey.replace(/^azure:\/\//, "");
+      try {
+        const { stream, contentLength, contentType } = await downloadBlobStream(blobName);
+        reply.header("Content-Type", contentType || artifact.mimeType);
+        if (contentLength !== undefined) {
+          reply.header("Content-Length", contentLength);
+        }
+        return reply.send(stream);
+      } catch {
+        return reply.code(404).send({ error: "artifact_blob_missing" });
+      }
+    }
 
     const filePath = resolveArtifactPath(artifact.storageKey);
     try {
