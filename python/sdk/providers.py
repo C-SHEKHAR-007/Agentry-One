@@ -31,15 +31,42 @@ def _load_local_sd_turbo():
     return _local_pipeline
 
 
+def _optimize_sketch_prompt(prompt: str) -> str:
+    """Condenses long or structured prompts so that essential subject and sketch style
+    fit within CLIP's 77-token limit without getting truncated."""
+    import re
+    cleaned = prompt.strip()
+    # Extract scene and style if present in structured prompts
+    scene_match = re.search(r"scene\s*:\s*([^.]+(?:\.[^.]+){0,2})", cleaned, re.IGNORECASE)
+    style_match = re.search(r"style\s*:\s*([^.]+(?:\.[^.]+){0,1})", cleaned, re.IGNORECASE)
+
+    parts = []
+    if scene_match:
+        parts.append(scene_match.group(1).strip())
+    elif len(cleaned.split()) > 60:
+        # Take the first ~45 words if unstructured long prompt
+        parts.append(" ".join(cleaned.split()[:45]))
+    else:
+        parts.append(cleaned)
+
+    # Ensure strong sketch style keywords are present within first 75 tokens
+    style_str = style_match.group(1).strip() if style_match else "detailed graphite pencil sketch drawing, natural pencil lines"
+    condensed = f"graphite pencil sketch drawing of {parts[0]}, {style_str}, sketchbook paper texture, highly detailed art"
+    return condensed[:380]  # keep well within ~75 tokens
+
+
 def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: int, seed: int | None) -> ImageGenResult:
     import torch
 
     pipe = _load_local_sd_turbo()
     generator = torch.manual_seed(seed) if seed is not None else None
+    optimized_prompt = _optimize_sketch_prompt(prompt)
+    effective_steps = max(steps, 4)
+
     image = pipe(
-        prompt=prompt,
+        prompt=optimized_prompt,
         negative_prompt=negative_prompt,
-        num_inference_steps=steps,
+        num_inference_steps=effective_steps,
         guidance_scale=0.0,  # SD-Turbo is trained for guidance-free sampling
         generator=generator,
     ).images[0]
