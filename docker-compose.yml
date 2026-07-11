@@ -1,17 +1,13 @@
 services:
   api:
     build: ./apps/api
-    ports:
-      # Host 3000 is taken by an unrelated service on this machine -- use 4000.
-      - "4000:4000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    network_mode: "host"
     volumes:
       - ./agents:/agents:ro
       - artifact_storage:/artifacts
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://agentry:agentry_dev@host.docker.internal:5432/agentry}
-      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://agentry:agentry_dev@localhost:5432/agentry}
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - AGENTRY_CREDENTIALS_KEY=${AGENTRY_CREDENTIALS_KEY}
       - AGENTRY_API_KEY=${AGENTRY_API_KEY}
 
@@ -20,24 +16,21 @@ services:
       context: ./apps/web
       args:
         VITE_AGENTRY_API_KEY: ${AGENTRY_API_KEY}
+    network_mode: "host"
     depends_on:
       - api
-    ports:
-      - "5173:80"
 
   worker-sketch:
     build:
       context: . # repo root: the worker needs both python/sdk and agents/sketch
       dockerfile: agents/sketch/Dockerfile
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "ollama-host:host-gateway"
+    network_mode: "host"
     volumes:
       - artifact_storage:/artifacts
       - sketch_model_cache:/root/.cache/huggingface
     environment:
-      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379}
-      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama-host:11434}
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
 
 volumes:
   artifact_storage:
