@@ -37,6 +37,7 @@ const PRESET_TEMPLATES = [
   { label: "Google Gemini Pro", cap: "text-generation", type: "gemini", name: "Google Gemini 1.5 Pro", model: "gemini-1.5-pro", url: "https://generativelanguage.googleapis.com/v1beta" },
   { label: "Ollama (Local)", cap: "text-generation", type: "ollama_local", name: "Local Ollama (Qwen 3)", model: "qwen3:8b", url: "http://localhost:11434" },
   { label: "OpenAI / Compatible", cap: "text-generation", type: "openai_compatible", name: "OpenAI LLM", model: "gpt-4o", url: "https://api.openai.com/v1" },
+  { label: "OpenAI DALL·E 3 🎨", cap: "image-generation", type: "openai_dalle", name: "OpenAI DALL-E 3", model: "dall-e-3", url: "https://api.openai.com/v1" },
   { label: "SD-Turbo (Local)", cap: "image-generation", type: "sd_turbo_local", name: "Local SD-Turbo", model: "stabilityai/sd-turbo", url: "" },
   { label: "Stability AI API", cap: "image-generation", type: "stability_ai", name: "Stability AI Cloud", model: "sd3-medium", url: "https://api.stability.ai" },
 ];

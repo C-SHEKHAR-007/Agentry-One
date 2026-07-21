@@ -76,6 +76,46 @@ def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: in
     return ImageGenResult(image_bytes=buf.getvalue(), width=image.width, height=image.height)
 
 
+def _generate_openai_dalle(ctx: dict, prompt: str, negative_prompt: str | None, steps: int, seed: int | None) -> ImageGenResult:
+    """OpenAI Images API (DALL-E 3 / DALL-E 2) adapter for image generation.
+    Returns a URL in the response; image bytes are fetched directly from that URL."""
+    import requests
+
+    api_key = ctx.get("secret") or ctx.get("apiKey") or ""
+    base_url = ctx.get("baseUrl") or "https://api.openai.com/v1"
+    model = (ctx.get("config") or {}).get("model", "dall-e-3")
+
+    # DALL-E 3 supports 1024x1024, 1792x1024, 1024x1792; dall-e-2 supports 256/512/1024
+    size = "1024x1024"
+    payload: dict = {
+        "model": model,
+        "prompt": prompt[:4000],  # DALL-E 3 max prompt length is 4000 chars
+        "n": 1,
+        "size": size,
+    }
+    # DALL-E 3 supports quality and style; dall-e-2 does not
+    if model == "dall-e-3":
+        payload["quality"] = (ctx.get("config") or {}).get("quality", "standard")
+        payload["style"] = (ctx.get("config") or {}).get("style", "vivid")
+
+    response = requests.post(
+        f"{base_url.rstrip('/')}/images/generations",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=120,
+    )
+    response.raise_for_status()
+    data = response.json()
+    image_url = data["data"][0]["url"]
+    # Fetch the image bytes from the temporary CDN URL OpenAI returns
+    img_response = requests.get(image_url, timeout=60)
+    img_response.raise_for_status()
+    return ImageGenResult(image_bytes=img_response.content, width=1024, height=1024)
+
+
 def _generate_stability_ai(ctx: dict, prompt: str, negative_prompt: str | None, steps: int, seed: int | None) -> ImageGenResult:
     """Stability AI's synchronous text-to-image REST endpoint. Requires a
     real API key configured via POST /providers to actually exercise --
@@ -188,6 +228,8 @@ class CapabilityClient:
             return _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
         if provider_type == "stability_ai":
             return _generate_stability_ai(self.ctx, prompt, negative_prompt, steps, seed)
+        if provider_type == "openai_dalle":
+            return _generate_openai_dalle(self.ctx, prompt, negative_prompt, steps, seed)
         raise NotImplementedError(f"no image-generation adapter for provider type '{provider_type}'")
 
     def generate_text(self, prompt: str, **kwargs) -> str:
