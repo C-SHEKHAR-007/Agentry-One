@@ -219,9 +219,6 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/auth/me", async (req, reply) => {
     const p = req.principal;
     if (p?.kind === "user") return { user: p.user, via: "session" };
-    if (p?.kind === "apiKey") {
-      return { user: { id: null, email: null, firstName: "API", lastName: "Key", avatarUrl: null, role: "owner" }, via: "apiKey" };
-    }
     return reply.code(401).send({ error: "unauthenticated" });
   });
 

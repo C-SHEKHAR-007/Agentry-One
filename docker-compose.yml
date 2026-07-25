@@ -19,8 +19,6 @@ services:
   web:
     build:
       context: ./apps/web
-      args:
-        VITE_AGENTRY_API_KEY: ${AGENTRY_API_KEY}
     network_mode: "host"
     depends_on:
       - api

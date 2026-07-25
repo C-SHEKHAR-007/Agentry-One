@@ -1,8 +1,4 @@
 const BASE_URL = "/api";
-// When set, requests carry the static API key (programmatic/baked builds).
-// Unset (normal dev), the browser session cookie is the credential -- it
-// flows automatically because the vite proxy keeps everything same-origin.
-const API_KEY: string | undefined = import.meta.env.VITE_AGENTRY_API_KEY;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body !== undefined && init?.body !== null;
@@ -10,7 +6,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...(API_KEY ? { "X-API-Key": API_KEY } : {}),
       ...init?.headers,
     },
   });
@@ -40,11 +35,9 @@ export const api = {
 // themselves; the ?key= param is only appended when an explicit API key is
 // configured (the server accepts either).
 export function downloadUrl(artifactId: string): string {
-  const suffix = API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : "";
-  return `${BASE_URL}/artifacts/${artifactId}/download${suffix}`;
+  return `${BASE_URL}/artifacts/${artifactId}/download`;
 }
 
 export function sseUrl(jobId: string): string {
-  const suffix = API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : "";
-  return `${BASE_URL}/jobs/${jobId}/events${suffix}`;
+  return `${BASE_URL}/jobs/${jobId}/events`;
 }
