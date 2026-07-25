@@ -7,6 +7,8 @@ const EXEMPT_PATHS = new Set([
   "/auth/setup-status",
   "/auth/setup",
   "/auth/login",
+  "/auth/google",
+  "/auth/google/callback",
 ]);
 
 export interface SessionUser {
