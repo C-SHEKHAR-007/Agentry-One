@@ -29,7 +29,19 @@ export async function createSession(userId: string) {
 export async function resolveSession(token: string) {
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, email: true, name: true, role: true } } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          role: true,
+        },
+      },
+    },
   });
   if (!session) return null;
   if (session.expiresAt < new Date()) {

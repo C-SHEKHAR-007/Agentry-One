@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, LogOut, Menu, Search, Settings, Users } from "lucide-react";
+import { Bell, LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { Button } from "../ui/button";
 import { ThemeToggle } from "./ThemeToggle";
@@ -82,9 +82,17 @@ function UserMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/70 to-primary text-xs font-bold text-primary-foreground shadow-md">
-          {initials}
-        </span>
+        {user?.avatarUrl ? (
+          <img
+            src={user.avatarUrl}
+            alt={displayName}
+            className="h-8 w-8 rounded-full object-cover shadow-md border border-border/60"
+          />
+        ) : (
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/70 to-primary text-xs font-bold text-primary-foreground shadow-md">
+            {initials}
+          </span>
+        )}
         <span className="hidden text-left leading-tight sm:block">
           <span className="block text-sm font-medium">{displayName}</span>
           <span className="block text-[11px] capitalize text-muted-foreground">{user?.role}</span>
@@ -100,6 +108,13 @@ function UserMenu() {
             role="menu"
             className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-border/60 bg-popover/95 p-1 shadow-xl backdrop-blur-sm"
           >
+            <Link
+              to="/profile"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+            >
+              <UserCircle className="h-4 w-4" /> Profile
+            </Link>
             <Link
               to="/team"
               onClick={() => setOpen(false)}

@@ -14,6 +14,7 @@ import { ExecutionsPage } from "./pages/ExecutionsPage.js";
 import { MyAgentsPage } from "./pages/MyAgentsPage.js";
 import { PromptsPage } from "./pages/PromptsPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { ProfilePage } from "./pages/ProfilePage.js";
 import { TeamPage } from "./pages/TeamPage.js";
 import { AgentsPage } from "./pages/AgentsPage.js";
 import { ProjectPage } from "./pages/ProjectPage.js";
@@ -68,6 +69,7 @@ export default function App() {
         <Route path="/my-agents" element={<MyAgentsPage />} />
         <Route path="/builder" element={<BuilderPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
         <Route path="/agents" element={<AgentsPage />} />

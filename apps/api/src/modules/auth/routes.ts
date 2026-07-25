@@ -48,7 +48,7 @@ export async function authRoutes(app: FastifyInstance) {
       reply.setCookie(SESSION_COOKIE, token, COOKIE_OPTS);
       return reply
         .code(201)
-        .send({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+        .send({ user: { id: user.id, email: user.email, name: user.name, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, role: user.role } });
     },
   );
 
@@ -63,7 +63,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
     const { token } = await createSession(user.id);
     reply.setCookie(SESSION_COOKIE, token, COOKIE_OPTS);
-    return { user: { id: user.id, email: user.email, name: user.name, role: user.role } };
+    return { user: { id: user.id, email: user.email, name: user.name, firstName: user.firstName, lastName: user.lastName, avatarUrl: user.avatarUrl, role: user.role } };
   });
 
   app.post("/auth/logout", async (req, reply) => {
@@ -77,8 +77,51 @@ export async function authRoutes(app: FastifyInstance) {
     const p = req.principal;
     if (p?.kind === "user") return { user: p.user, via: "session" };
     if (p?.kind === "apiKey") {
-      return { user: { id: null, email: null, name: "API Key", role: "owner" }, via: "apiKey" };
+      return { user: { id: null, email: null, name: "API Key", firstName: "API", lastName: "Key", avatarUrl: null, role: "owner" }, via: "apiKey" };
     }
     return reply.code(401).send({ error: "unauthenticated" });
   });
+
+  app.patch<{ Body: { firstName?: string; lastName?: string; name?: string; avatarUrl?: string; password?: string } }>(
+    "/auth/profile",
+    async (req, reply) => {
+      const p = req.principal;
+      if (p?.kind !== "user" || !p.user.id) {
+        return reply.code(401).send({ error: "must be logged in as a session user to update profile" });
+      }
+      const { firstName, lastName, name, avatarUrl, password } = req.body;
+      if (password && password.length < 8) {
+        return reply.code(400).send({ error: "password must be at least 8 characters" });
+      }
+      const currentUser = await prisma.user.findUnique({ where: { id: p.user.id } });
+      if (!currentUser) return reply.code(404).send({ error: "user_not_found" });
+
+      const newFirst = firstName !== undefined ? firstName : currentUser.firstName;
+      const newLast = lastName !== undefined ? lastName : currentUser.lastName;
+      const computedName =
+        name !== undefined ? name : `${newFirst || ""} ${newLast || ""}`.trim() || currentUser.name;
+
+      const updated = await prisma.user.update({
+        where: { id: p.user.id },
+        data: {
+          ...(firstName !== undefined ? { firstName } : {}),
+          ...(lastName !== undefined ? { lastName } : {}),
+          ...(name !== undefined || firstName !== undefined || lastName !== undefined ? { name: computedName } : {}),
+          ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+          ...(password ? { passwordHash: await hashPassword(password) } : {}),
+        },
+      });
+      return {
+        user: {
+          id: updated.id,
+          email: updated.email,
+          name: updated.name,
+          firstName: updated.firstName,
+          lastName: updated.lastName,
+          avatarUrl: updated.avatarUrl,
+          role: updated.role,
+        },
+      };
+    },
+  );
 }

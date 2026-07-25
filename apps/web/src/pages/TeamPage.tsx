@@ -20,6 +20,7 @@ interface TeamUser {
   id: string;
   email: string;
   name: string | null;
+  avatarUrl?: string | null;
   role: string;
   createdAt: string;
 }
@@ -106,9 +107,17 @@ export function TeamPage() {
           return (
             <Card key={u.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
-                  {initials}
-                </span>
+                {u.avatarUrl ? (
+                  <img
+                    src={u.avatarUrl}
+                    alt={u.name ?? u.email}
+                    className="h-10 w-10 shrink-0 rounded-full object-cover border border-border/60 shadow-sm"
+                  />
+                ) : (
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">
+                    {initials}
+                  </span>
+                )}
                 <div className="min-w-0">
                   <p className="truncate font-medium">
                     {u.name ?? u.email}

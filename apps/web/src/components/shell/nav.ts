@@ -5,17 +5,15 @@ import {
   UserCog,
   PlayCircle,
   Workflow,
-  LayoutTemplate,
-  ListChecks,
   FolderKanban,
   Images,
-  Plug,
   Brain,
   BarChart3,
   Wallet,
   Users,
   Settings,
   KeyRound,
+  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,7 +32,10 @@ export interface NavSection {
 
 export const NAV_SECTIONS: NavSection[] = [
   {
-    items: [{ label: "Dashboard", icon: LayoutDashboard, to: "/", end: true }],
+    items: [
+      { label: "Dashboard", icon: LayoutDashboard, to: "/", end: true },
+      { label: "Projects", icon: FolderKanban, to: "/projects" },
+    ],
   },
   {
     label: "AI Agents",
@@ -49,21 +50,13 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "Workflows", icon: Workflow, to: "/builder" },
       { label: "Executions", icon: PlayCircle, to: "/executions" },
-    ],
-  },
-  {
-    label: "Templates",
-    items: [
-      { label: "Templates", icon: LayoutTemplate },
-      { label: "Runs", icon: ListChecks },
-      { label: "Projects", icon: FolderKanban, to: "/projects" },
       { label: "Artifacts", icon: Images, to: "/artifacts" },
-      { label: "Providers", icon: Plug, to: "/providers" },
-      { label: "Memory", icon: Brain, to: "/prompts" },
     ],
   },
   {
+    label: "Platform",
     items: [
+      { label: "Prompts & Memory", icon: Brain, to: "/prompts" },
       { label: "Analytics", icon: BarChart3, to: "/analytics", badge: "New" },
       { label: "Cost Monitor", icon: Wallet, to: "/costs" },
       { label: "Team", icon: Users, to: "/team" },
@@ -72,6 +65,7 @@ export const NAV_SECTIONS: NavSection[] = [
 ];
 
 export const NAV_FOOTER: NavItem[] = [
+  { label: "Profile", icon: UserCircle, to: "/profile" },
+  { label: "API Keys", icon: KeyRound, to: "/providers" },
   { label: "Settings", icon: Settings, to: "/settings" },
-  { label: "API Keys", icon: KeyRound, to: "/settings" },
 ];
