@@ -27,15 +27,15 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
   }
 
   return (
-    <div className="overflow-x-auto -mx-1">
+    <div className="w-full">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            <th className="pb-2.5 pr-4 font-semibold pl-1">Workflow</th>
-            <th className="pb-2.5 pr-4 font-semibold">Agent</th>
-            <th className="pb-2.5 pr-4 font-semibold">Status</th>
-            <th className="pb-2.5 pr-4 font-semibold">Duration</th>
-            <th className="pb-2.5 font-semibold">Started</th>
+            <th className="pb-2.5 pr-3 font-semibold">Workflow</th>
+            <th className="pb-2.5 pr-3 font-semibold hidden sm:table-cell">Agent</th>
+            <th className="pb-2.5 pr-3 font-semibold">Status</th>
+            <th className="pb-2.5 pr-3 font-semibold hidden md:table-cell">Duration</th>
+            <th className="pb-2.5 font-semibold hidden md:table-cell">Started</th>
             <th className="pb-2.5 w-8" />
           </tr>
         </thead>
@@ -61,22 +61,22 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
                   </span>
                 </Link>
               </td>
-              <td className="py-2.5 pr-4">
+              <td className="py-2 pr-3 hidden sm:table-cell">
                 <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-primary/15 text-primary">
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/15 text-primary">
                     <Bot className="h-3 w-3" />
                   </span>
-                  <span className="truncate text-xs">
+                  <span className="truncate text-xs max-w-[100px]">
                     {w.agentName}
                     <span className="ml-1 opacity-50">v{w.agentVersion}</span>
                   </span>
                 </span>
               </td>
-              <td className="py-2.5 pr-4">
+              <td className="py-2 pr-3">
                 <StatusBadge status={w.status} />
               </td>
-              <td className="py-2.5 pr-4 text-xs text-muted-foreground">{formatDuration(w.durationMs)}</td>
-              <td className="py-2.5 text-xs text-muted-foreground">{timeAgo(w.createdAt)}</td>
+              <td className="py-2 pr-3 text-xs text-muted-foreground hidden md:table-cell">{formatDuration(w.durationMs)}</td>
+              <td className="py-2 text-xs text-muted-foreground hidden md:table-cell">{timeAgo(w.createdAt)}</td>
               <td className="py-2.5">
                 <button className="invisible group-hover:visible rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
                   <MoreHorizontal className="h-3.5 w-3.5" />

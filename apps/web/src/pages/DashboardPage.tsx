@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { cn } from "../lib/utils";
 import {
   Activity as ActivityIcon,
   ArrowRight,
@@ -339,7 +340,29 @@ export function DashboardPage() {
             <TopAgents agents={agents} />
           </SectionCard>
 
-          <SectionCard title="System Health">
+          <SectionCard
+            title="System Health"
+            action={
+              health ? (
+                <span
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                    health.api && health.db && health.redis
+                      ? "bg-success/15 text-success"
+                      : "bg-warning/15 text-warning",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      health.api && health.db && health.redis ? "bg-success" : "bg-warning",
+                    )}
+                  />
+                  {health.api && health.db && health.redis ? "All systems operational" : "Degraded"}
+                </span>
+              ) : null
+            }
+          >
             {health ? <SystemHealthPanel health={health} /> : <Skeleton className="h-32" />}
           </SectionCard>
         </div>
