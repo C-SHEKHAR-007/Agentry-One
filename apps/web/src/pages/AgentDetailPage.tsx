@@ -10,9 +10,9 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
-import { api, downloadUrl } from "../api/client.js";
+import { api } from "../api/client.js";
 import type { ProviderConfig } from "../api/types";
-import { useAgentStats, useArtifacts } from "../api/queries";
+import { useAgentStats, useArtifacts, useSasPreviewUrl } from "../api/queries";
 import { formatDuration, formatPercent, timeAgo } from "../lib/format";
 import { StatCard } from "../components/StatCard";
 import { Badge } from "../components/ui/badge";
@@ -34,6 +34,25 @@ interface AgentDetail {
   version: string;
   description: string;
   manifest: { steps: AgentStep[] };
+}
+
+/** Per-image component so useSasPreviewUrl hook is at top-level per item */
+function RecentOutputImage({ artifactId, workflowId, kind }: { artifactId: string; workflowId: string; kind: string }) {
+  const { data: sas } = useSasPreviewUrl(artifactId);
+  return (
+    <Link to={`/workflows/${workflowId}`} className="group overflow-hidden rounded-md border border-border">
+      {sas?.url ? (
+        <img
+          src={sas.url}
+          alt={kind}
+          loading="lazy"
+          className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+      ) : (
+        <div className="aspect-square w-full animate-pulse bg-secondary" />
+      )}
+    </Link>
+  );
 }
 
 export function AgentDetailPage() {
@@ -213,18 +232,7 @@ export function AgentDetailPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {recentOutputs.map((a) => (
-                <Link
-                  key={a.id}
-                  to={`/workflows/${a.workflowId}`}
-                  className="group overflow-hidden rounded-md border border-border"
-                >
-                  <img
-                    src={downloadUrl(a.id)}
-                    alt={a.kind}
-                    loading="lazy"
-                    className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </Link>
+                <RecentOutputImage key={a.id} artifactId={a.id} workflowId={a.workflowId} kind={a.kind} />
               ))}
             </div>
           </CardContent>

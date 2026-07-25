@@ -39,33 +39,31 @@
 }
 
 .dark {
-  --background: 240 12% 4%;
-  --foreground: 240 8% 95%;
-  --card: 240 10% 7%;
-  --card-foreground: 240 8% 95%;
-  --popover: 240 10% 8%;
-  --popover-foreground: 240 8% 95%;
+  --background: 232 38% 6%;
+  --foreground: 220 15% 92%;
+  --card: 232 32% 9%;
+  --card-foreground: 220 15% 92%;
+  --popover: 232 30% 10%;
+  --popover-foreground: 220 15% 92%;
   --primary: 255 85% 66%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 8% 13%;
-  --secondary-foreground: 240 6% 85%;
-  --muted: 240 8% 12%;
-  --muted-foreground: 240 5% 58%;
+  --secondary: 232 28% 14%;
+  --secondary-foreground: 220 12% 78%;
+  --muted: 232 28% 12%;
+  --muted-foreground: 220 10% 52%;
   --accent: 255 60% 18%;
   --accent-foreground: 255 80% 82%;
   --destructive: 0 68% 55%;
   --destructive-foreground: 0 0% 100%;
   --success: 152 60% 48%;
   --warning: 38 92% 55%;
-  --border: 240 8% 14%;
-  --input: 240 8% 18%;
+  --border: 232 22% 16%;
+  --input: 232 22% 18%;
   --ring: 255 85% 66%;
-  /* Validated against the dark card surface (#101014) -- own steps, not an
-     automatic flip of the light palette. */
   --chart-1: 255 85% 66%;
-  --chart-2: 152 65% 38%;
-  --chart-3: 210 90% 52%;
-  --chart-4: 175 70% 36%;
+  --chart-2: 152 65% 48%;
+  --chart-3: 210 90% 58%;
+  --chart-4: 38 92% 55%;
   color-scheme: dark;
 }
 

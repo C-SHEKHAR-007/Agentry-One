@@ -6,9 +6,9 @@ import {
   CheckCircle2,
   DollarSign,
   FolderKanban,
-  ImageIcon,
   Layers,
   Plus,
+  TrendingUp,
   Workflow as WorkflowIcon,
 } from "lucide-react";
 import {
@@ -16,10 +16,10 @@ import {
   useEvents,
   useProjects,
   useRecentWorkflows,
+  useSasPreviewUrl,
   useStatsOverview,
   useSystemHealth,
 } from "../api/queries";
-import { downloadUrl } from "../api/client";
 import { formatDuration, formatPercent, greeting, timeAgo } from "../lib/format";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ExecutionsTable } from "../components/ExecutionsTable";
@@ -30,6 +30,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Donut } from "../components/ui/donut";
 import { Skeleton } from "../components/ui/skeleton";
+import type { Project } from "../api/types";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -38,19 +39,84 @@ const CHART_COLORS = [
   "hsl(var(--chart-4))",
 ];
 
+// ── Project card with SAS cover image ────────────────────────────────────────
+function ProjectCard({ project }: { project: Project }) {
+  const { data: sas } = useSasPreviewUrl(project.coverArtifactId ?? undefined);
+  const initial = project.name[0]?.toUpperCase() ?? "P";
+
+  const gradients = [
+    "from-violet-900 via-purple-800 to-indigo-900",
+    "from-emerald-900 via-teal-800 to-cyan-900",
+    "from-rose-900 via-pink-800 to-fuchsia-900",
+    "from-amber-900 via-orange-800 to-red-900",
+  ];
+  const gradient = gradients[project.name.charCodeAt(0) % gradients.length];
+
+  return (
+    <Link
+      to={`/projects/${project.id}`}
+      className="group overflow-hidden rounded-xl border border-border/60 transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 block"
+    >
+      {/* Cover image */}
+      <div className="relative h-36 overflow-hidden">
+        {sas?.url ? (
+          <img
+            src={sas.url}
+            alt={project.name}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className={`h-full w-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+            <span className="text-4xl font-black text-white/20">{initial}</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+      </div>
+
+      {/* Footer */}
+      <div className="bg-card/80 px-4 py-3">
+        <p className="truncate font-semibold text-sm group-hover:text-primary transition-colors">{project.name}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {project.counts.workflows} workflows · {project.counts.artifacts} artifacts
+        </p>
+        <div className="mt-2 flex items-center justify-between">
+          {/* Avatar stack (initials) */}
+          <div className="flex -space-x-1.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-card/80 bg-primary/20 text-[9px] font-bold text-primary"
+              >
+                {String.fromCharCode(65 + ((project.name.charCodeAt(i % project.name.length) ?? 65) % 26))}
+              </span>
+            ))}
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            {project.lastActivityAt ? `Updated ${timeAgo(project.lastActivityAt)}` : "No activity"}
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ── Section card wrapper ──────────────────────────────────────────────────────
 function SectionCard({
   title,
   action,
   children,
+  className,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Card glass>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">{title}</CardTitle>
+    <Card glass className={className}>
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
         {action}
       </CardHeader>
       <CardContent>{children}</CardContent>
@@ -58,14 +124,18 @@ function SectionCard({
   );
 }
 
-function ViewAll({ to }: { to: string }) {
+function ViewAll({ to, label = "View all" }: { to: string; label?: string }) {
   return (
-    <Link to={to} className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary">
-      View all <ArrowRight className="h-3 w-3" />
+    <Link
+      to={to}
+      className="flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+    >
+      {label} <ArrowRight className="h-3 w-3" />
     </Link>
   );
 }
 
+// ── Dashboard page ────────────────────────────────────────────────────────────
 export function DashboardPage() {
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
@@ -80,20 +150,21 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Page heading */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-bold tracking-tight">
           {greeting()},{" "}
-          <span className="bg-gradient-to-r from-primary to-chart-3 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-primary via-violet-400 to-chart-3 bg-clip-text text-transparent">
             Shekhar
           </span>{" "}
           👋
         </h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Here's what's happening with your AI agents today.
         </p>
       </motion.div>
 
-      {/* Stat cards */}
+      {/* ── Stat cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {overview ? (
           <>
@@ -101,7 +172,7 @@ export function DashboardPage() {
               icon={ActivityIcon}
               label="Active Jobs"
               value={overview.jobs.active}
-              sub={`${overview.workflows.running} workflow${overview.workflows.running === 1 ? "" : "s"} running`}
+              sub={`${overview.workflows.running} running`}
               series={series}
               color="hsl(var(--chart-1))"
             />
@@ -110,9 +181,14 @@ export function DashboardPage() {
               label="Completed Today"
               value={overview.jobs.completedToday}
               sub={
-                overview.jobs.completedYesterday > 0
-                  ? `${overview.jobs.completedYesterday} yesterday`
-                  : "first runs today?"
+                overview.jobs.completedYesterday > 0 ? (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <TrendingUp className="h-3 w-3" />
+                    {overview.jobs.completedYesterday} yesterday
+                  </span>
+                ) : (
+                  "first runs today?"
+                )
               }
               series={series}
               color="hsl(var(--chart-2))"
@@ -131,62 +207,79 @@ export function DashboardPage() {
               icon={DollarSign}
               label="API Cost Saved"
               value={`$${overview.costSavedEstUsd}`}
-              sub="est. vs. paid APIs"
+              sub={
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <TrendingUp className="h-3 w-3" />
+                  Est. vs paid APIs
+                </span>
+              }
               series={series}
               color="hsl(var(--chart-4))"
               delay={0.15}
             />
           </>
         ) : (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[110px]" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[100px] rounded-xl" />)
         )}
       </div>
 
+      {/* ── Main + Right rail ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Main column */}
         <div className="space-y-6 xl:col-span-2">
-          <SectionCard title="Recent Executions" action={<ViewAll to="/executions" />}>
-            {recent ? <ExecutionsTable workflows={recent} /> : <Skeleton className="h-48" />}
-          </SectionCard>
 
-          <SectionCard title="Usage Overview">
-            <div className="flex flex-col items-center gap-8 sm:flex-row">
-              <Donut
-                segments={agents.map((a, i) => ({
-                  value: a.runs,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-              >
-                <p className="text-2xl font-semibold">{totalJobs}</p>
-                <p className="text-xs text-muted-foreground">Total Jobs</p>
-              </Donut>
-              <div className="w-full flex-1 space-y-2">
-                {agents.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No jobs run yet.</p>
-                )}
-                {agents.map((a, i) => (
-                  <div key={a.agentId} className="flex items-center gap-2 text-sm">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
-                    <span className="text-muted-foreground">{Math.round(a.share * 100)}%</span>
-                    <span className="w-12 text-right text-muted-foreground">{a.runs}</span>
+          {/* Recent Executions + Usage Overview side by side */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+            <SectionCard
+              className="lg:col-span-3"
+              title="Recent Executions"
+              action={<ViewAll to="/executions" />}
+            >
+              {recent ? <ExecutionsTable workflows={recent} /> : <Skeleton className="h-48" />}
+            </SectionCard>
+
+            <SectionCard className="lg:col-span-2" title="Usage Overview">
+              <div className="flex flex-col items-center gap-6">
+                <Donut
+                  segments={agents.map((a, i) => ({
+                    value: a.runs,
+                    color: CHART_COLORS[i % CHART_COLORS.length],
+                  }))}
+                >
+                  <p className="text-2xl font-bold">{totalJobs}</p>
+                  <p className="text-[10px] text-muted-foreground">Total Jobs</p>
+                </Donut>
+                <div className="w-full space-y-2">
+                  {agents.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No jobs run yet.</p>
+                  )}
+                  {agents.map((a, i) => (
+                    <div key={a.agentId} className="flex items-center gap-2 text-sm">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-xs">{a.name}</span>
+                      <span className="text-xs text-muted-foreground">{Math.round(a.share * 100)}%</span>
+                      <span className="w-10 text-right text-xs text-muted-foreground">{a.runs}</span>
+                    </div>
+                  ))}
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Success Rate</p>
+                      <p className="text-sm font-semibold">{formatPercent(overview?.successRate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Avg. Duration</p>
+                      <p className="text-sm font-semibold">{formatDuration(overview?.avgDurationMs)}</p>
+                    </div>
                   </div>
-                ))}
-                <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm">
-                  <span className="text-muted-foreground">Success Rate</span>
-                  <span className="font-medium">{formatPercent(overview?.successRate)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Avg. Duration</span>
-                  <span className="font-medium">{formatDuration(overview?.avgDurationMs)}</span>
                 </div>
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+          </div>
 
+          {/* Projects grid */}
           <SectionCard title="Your Projects" action={<ViewAll to="/projects" />}>
             {projects && projects.length === 0 && (
               <p className="text-sm text-muted-foreground">
@@ -197,57 +290,46 @@ export function DashboardPage() {
                 to start running agents.
               </p>
             )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {(projects ?? []).slice(0, 4).map((p) => (
-                <Link
-                  key={p.id}
-                  to={`/projects/${p.id}`}
-                  className="group overflow-hidden rounded-lg border border-border transition-colors hover:border-primary/50"
-                >
-                  <div className="flex h-28 items-center justify-center bg-gradient-to-br from-secondary to-secondary/40">
-                    {p.coverArtifactId ? (
-                      <img
-                        src={downloadUrl(p.coverArtifactId)}
-                        alt=""
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <FolderKanban className="h-8 w-8 text-muted-foreground/50" />
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <p className="truncate font-medium group-hover:text-primary">{p.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {p.counts.workflows} workflows · {p.counts.artifacts} artifacts
-                      {p.lastActivityAt ? ` · ${timeAgo(p.lastActivityAt)}` : ""}
-                    </p>
-                  </div>
-                </Link>
+                <ProjectCard key={p.id} project={p} />
               ))}
+              {!projects &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-52 rounded-xl" />
+                ))}
             </div>
           </SectionCard>
 
           {/* CTA banner */}
-          <Card glass className="flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center">
-            <div>
-              <p className="font-medium">Build your own agent</p>
-              <p className="text-sm text-muted-foreground">
-                Drop a manifest under <code className="text-xs">agents/</code> and it appears here
-                automatically — no platform changes needed.
-              </p>
+          <Card
+            glass
+            className="flex flex-col items-start justify-between gap-4 overflow-hidden p-0 sm:flex-row sm:items-center"
+          >
+            <div className="flex flex-1 items-center gap-4 p-5">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                <WorkflowIcon className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-semibold">Create your first custom agent</p>
+                <p className="text-sm text-muted-foreground">
+                  Build powerful AI agents tailored to your needs.
+                </p>
+              </div>
             </div>
-            <Link to="/agents">
-              <Button>
-                <Plus className="h-4 w-4" /> Create Agent
-              </Button>
-            </Link>
+            <div className="px-5 pb-5 sm:pb-0 sm:pr-6">
+              <Link to="/agents">
+                <Button className="gap-2">
+                  <Plus className="h-4 w-4" /> Create Agent
+                </Button>
+              </Link>
+            </div>
           </Card>
         </div>
 
         {/* Right rail */}
         <div className="space-y-6">
-          <SectionCard title="Live Activity">
+          <SectionCard title="Live Activity" action={<ViewAll to="/executions" label="View all" />}>
             {events ? <ActivityFeed events={events} /> : <Skeleton className="h-40" />}
           </SectionCard>
 
@@ -259,15 +341,6 @@ export function DashboardPage() {
             {health ? <SystemHealthPanel health={health} /> : <Skeleton className="h-32" />}
           </SectionCard>
         </div>
-      </div>
-
-      {/* quick actions for small screens */}
-      <div className="fixed bottom-4 right-4 sm:hidden">
-        <Link to="/agents">
-          <Button size="lg" className="rounded-full shadow-lg">
-            <WorkflowIcon className="h-4 w-4" /> Run Agent
-          </Button>
-        </Link>
       </div>
     </div>
   );

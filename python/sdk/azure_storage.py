@@ -39,8 +39,11 @@ def upload_artifact_bytes(
 
     service_client = BlobServiceClient.from_connection_string(conn_str)
     container_client = service_client.get_container_client(container_name)
-    if not container_client.exists():
+    try:
         container_client.create_container()
+    except Exception:
+        # Container already exists — safe to ignore on both Azurite and real Azure
+        pass
 
     blob_name = f"{workflow_id}/{uuid.uuid4()}{file_ext}"
     blob_client = container_client.get_blob_client(blob_name)
