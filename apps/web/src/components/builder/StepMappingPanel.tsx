@@ -53,7 +53,17 @@ export function StepMappingPanel({ draft, index }: { draft: TemplateDraft; index
                 const kind = e.target.value as InputMappingValue["kind"];
                 if (kind === "literal") draft.updateMapping(index, field, { kind, value: "" });
                 else if (kind === "fromRunInput") draft.updateMapping(index, field, { kind, field });
-                else draft.updateMapping(index, field, { kind, stepOrder: 0, artifactKind: "image" });
+                else {
+                  // Find the first step earlier than this one, if any
+                  const earlierStep = draft.steps.find((s) => s.stepOrder < step.stepOrder) ?? draft.steps[0];
+                  const earlierOrder = earlierStep?.stepOrder ?? 0;
+                  const available = earlierStep ? draft.producesFor(earlierStep) : [];
+                  draft.updateMapping(index, field, {
+                    kind: "fromStep",
+                    stepOrder: earlierOrder,
+                    artifactKind: available[0] ?? "text",
+                  });
+                }
               }}
               className="h-8 w-auto min-w-40"
             >
@@ -76,26 +86,53 @@ export function StepMappingPanel({ draft, index }: { draft: TemplateDraft; index
                 className="h-8 min-w-40 flex-1"
               />
             )}
-            {current?.kind === "fromStep" && (
-              <>
-                <Input
-                  type="number"
-                  value={current.stepOrder}
-                  onChange={(e) =>
-                    draft.updateMapping(index, field, { ...current, stepOrder: Number(e.target.value) })
-                  }
-                  className="h-8 w-20"
-                />
-                <Input
-                  value={current.artifactKind}
-                  onChange={(e) =>
-                    draft.updateMapping(index, field, { ...current, artifactKind: e.target.value })
-                  }
-                  placeholder="artifact kind"
-                  className="h-8 min-w-40 flex-1"
-                />
-              </>
-            )}
+            {current?.kind === "fromStep" && (() => {
+              const sourceStep = draft.steps.find((s) => s.stepOrder === current.stepOrder);
+              const availableKinds = sourceStep ? draft.producesFor(sourceStep) : ["text", "image", "video", "audio", "json"];
+              const earlierSteps = draft.steps.filter((s) => s.stepOrder < step.stepOrder);
+              const stepOptions = earlierSteps.length > 0 ? earlierSteps : draft.steps;
+
+              return (
+                <>
+                  <Select
+                    value={current.stepOrder}
+                    onChange={(e) => {
+                      const newOrder = Number(e.target.value);
+                      const newSource = draft.steps.find((s) => s.stepOrder === newOrder);
+                      const newKinds = newSource ? draft.producesFor(newSource) : [];
+                      draft.updateMapping(index, field, {
+                        ...current,
+                        stepOrder: newOrder,
+                        artifactKind: newKinds[0] ?? current.artifactKind,
+                      });
+                    }}
+                    className="h-8 w-28"
+                  >
+                    {stepOptions.map((s) => (
+                      <option key={s.stepOrder} value={s.stepOrder}>
+                        Step {s.stepOrder}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    value={current.artifactKind}
+                    onChange={(e) =>
+                      draft.updateMapping(index, field, { ...current, artifactKind: e.target.value })
+                    }
+                    className="h-8 min-w-40 flex-1"
+                  >
+                    {availableKinds.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                    {!availableKinds.includes(current.artifactKind) && (
+                      <option value={current.artifactKind}>{current.artifactKind}</option>
+                    )}
+                  </Select>
+                </>
+              );
+            })()}
           </div>
         );
       })}
