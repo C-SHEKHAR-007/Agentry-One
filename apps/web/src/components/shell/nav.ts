@@ -47,7 +47,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "Workflows",
     items: [
-      { label: "Workflows", icon: Workflow, to: "/executions" },
+      { label: "Workflows", icon: Workflow, to: "/builder" },
       { label: "Executions", icon: PlayCircle, to: "/executions" },
     ],
   },

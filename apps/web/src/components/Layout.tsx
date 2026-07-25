@@ -57,7 +57,7 @@ export function Layout() {
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
-        <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 md:p-8">
+        <main className="w-full flex-1 p-4 md:p-8">
           <Outlet />
         </main>
       </div>
