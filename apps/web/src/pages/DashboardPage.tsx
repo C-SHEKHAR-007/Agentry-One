@@ -330,7 +330,9 @@ export function DashboardPage() {
         {/* Right rail */}
         <div className="space-y-6">
           <SectionCard title="Live Activity" action={<ViewAll to="/executions" label="View all" />}>
-            {events ? <ActivityFeed events={events} /> : <Skeleton className="h-40" />}
+            <div className="h-[320px] overflow-y-auto pr-1 scrollbar-thin">
+              {events ? <ActivityFeed events={events} /> : <Skeleton className="h-40" />}
+            </div>
           </SectionCard>
 
           <SectionCard title="Top Agents" action={<ViewAll to="/agents" />}>
