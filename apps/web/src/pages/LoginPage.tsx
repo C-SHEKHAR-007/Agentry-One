@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -12,9 +13,19 @@ import { Spinner } from "../components/ui/spinner";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { refresh } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    const error = searchParams.get("error");
+    if (error) {
+      toast.error(error);
+      searchParams.delete("error");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +51,7 @@ export function LoginPage() {
           <h1 className="text-xl font-semibold">Welcome back</h1>
           <p className="text-sm text-muted-foreground">Sign in to your Agentry One workspace</p>
         </div>
+        <GoogleSignInButton />
         <form onSubmit={submit} className="space-y-4">
           <div>
             <Label>Email</Label>

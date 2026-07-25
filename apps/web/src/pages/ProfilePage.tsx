@@ -125,16 +125,17 @@ export function ProfilePage() {
     );
   };
 
-  const displayName = user?.name ?? user?.email ?? "…";
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  const displayName = fullName || user?.email || "…";
   const initials =
     displayName
       .split(/[\s@.]+/)
       .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() ?? "")
+      .map((s: string) => s[0]?.toUpperCase() ?? "")
       .join("") || "?";
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader
         title="My Profile"
         description="Manage your personal information, display name, and avatar picture."

@@ -21,7 +21,8 @@ async function main() {
         console.log("Successfully updated existing user:", {
             id: updated.id,
             email: updated.email,
-            name: updated.name,
+            firstName: updated.firstName,
+            lastName: updated.lastName,
             role: updated.role,
             passwordUpdated: true,
         });
@@ -29,7 +30,8 @@ async function main() {
         const created = await prisma.user.create({
             data: {
                 email: email.toLowerCase(),
-                name: "Chandra Shekhar",
+                firstName: "Chandra",
+                lastName: "Shekhar",
                 passwordHash: hash,
                 role: "owner",
             },
@@ -39,7 +41,8 @@ async function main() {
             {
                 id: created.id,
                 email: created.email,
-                name: created.name,
+                firstName: created.firstName,
+                lastName: created.lastName,
                 role: created.role,
                 passwordUpdated: true,
             },

@@ -66,12 +66,13 @@ function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
-  const displayName = user?.name ?? user?.email ?? "…";
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
+  const displayName = fullName || user?.email || "…";
   const initials =
     displayName
       .split(/[\s@.]+/)
       .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() ?? "")
+      .map((s: string) => s[0]?.toUpperCase() ?? "")
       .join("") || "?";
 
   return (

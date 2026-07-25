@@ -63,7 +63,7 @@ export function TemplateRunPage() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <PageHeader
         title={`Run: ${template.name}`}
         description="Provide the values this template needs at run time."

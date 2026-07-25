@@ -19,7 +19,8 @@ import { Spinner } from "../components/ui/spinner";
 interface TeamUser {
   id: string;
   email: string;
-  name: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   avatarUrl?: string | null;
   role: string;
   createdAt: string;
@@ -37,7 +38,7 @@ export function TeamPage() {
   });
 
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "member" });
+  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", role: "member" });
 
   const createUser = useMutation({
     mutationFn: () => api.post<TeamUser>("/users", form),
@@ -45,7 +46,7 @@ export function TeamPage() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success(`${u.email} added`);
       setOpen(false);
-      setForm({ name: "", email: "", password: "", role: "member" });
+      setForm({ firstName: "", lastName: "", email: "", password: "", role: "member" });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -70,7 +71,7 @@ export function TeamPage() {
   });
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl mx-auto">
       <PageHeader
         title="Team"
         description={
@@ -97,7 +98,9 @@ export function TeamPage() {
 
       <div className="grid gap-3">
         {users?.map((u) => {
-          const initials = (u.name ?? u.email)
+          const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ");
+          const displayName = fullName || u.email;
+          const initials = displayName
             .split(/[\s@.]+/)
             .slice(0, 2)
             .map((s) => s[0]?.toUpperCase() ?? "")
@@ -110,7 +113,7 @@ export function TeamPage() {
                 {u.avatarUrl ? (
                   <img
                     src={u.avatarUrl}
-                    alt={u.name ?? u.email}
+                    alt={displayName}
                     className="h-10 w-10 shrink-0 rounded-full object-cover border border-border/60 shadow-sm"
                   />
                 ) : (
@@ -120,7 +123,7 @@ export function TeamPage() {
                 )}
                 <div className="min-w-0">
                   <p className="truncate font-medium">
-                    {u.name ?? u.email}
+                    {displayName}
                     {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
@@ -172,9 +175,15 @@ export function TeamPage() {
             }}
             className="space-y-4"
           >
-            <div>
-              <Label>Name</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label>First Name</Label>
+                <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+              </div>
+              <div>
+                <Label>Last Name</Label>
+                <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+              </div>
             </div>
             <div>
               <Label>Email</Label>

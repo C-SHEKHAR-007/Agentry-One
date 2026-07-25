@@ -39,7 +39,7 @@ export function TemplateRunViewPage() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <PageHeader
         title={
           <span className="flex items-center gap-3">

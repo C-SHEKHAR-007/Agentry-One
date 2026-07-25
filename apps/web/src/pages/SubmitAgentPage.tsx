@@ -119,7 +119,7 @@ export function SubmitAgentPage() {
   const schema = agent.manifest.steps[0].inputSchema;
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl mx-auto">
       <PageHeader
         title={`Run ${agent.name}`}
         description="Form generated automatically from this agent's input schema."
