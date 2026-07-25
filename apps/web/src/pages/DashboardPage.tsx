@@ -116,12 +116,12 @@ function SectionCard({
   className?: string;
 }) {
   return (
-    <Card glass className={className}>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+    <Card glass className={cn("min-w-0 overflow-hidden", className)}>
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3 min-w-0">
+        <CardTitle className="text-sm font-semibold truncate pr-2">{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="min-w-0 overflow-x-auto">{children}</CardContent>
     </Card>
   );
 }

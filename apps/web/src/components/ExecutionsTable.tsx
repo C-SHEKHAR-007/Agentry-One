@@ -28,16 +28,15 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full overflow-x-auto min-w-0">
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-border/60 text-muted-foreground">
             <th className="py-3 pr-4 pl-1 font-medium">Execution</th>
             <th className="py-3 pr-3 font-medium hidden sm:table-cell">Agent</th>
-            <th className="py-3 pr-3 font-medium hidden md:table-cell">Project</th>
             <th className="py-3 pr-3 font-medium">Status</th>
-            <th className="py-3 pr-3 font-medium hidden lg:table-cell">Duration</th>
-            <th className="py-3 pr-1 font-medium text-right">Age</th>
+            <th className="py-3 pr-3 font-medium hidden md:table-cell">Duration</th>
+            <th className="py-3 pr-1 font-medium text-right hidden md:table-cell">Age</th>
             <th className="w-8 py-3"></th>
           </tr>
         </thead>
@@ -78,7 +77,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
                 <StatusBadge status={w.status} />
               </td>
               <td className="py-2 pr-3 text-xs text-muted-foreground hidden md:table-cell">{formatDuration(w.durationMs)}</td>
-              <td className="py-2 text-xs text-muted-foreground hidden md:table-cell">{timeAgo(w.createdAt)}</td>
+              <td className="py-2 pr-1 text-right text-xs text-muted-foreground hidden md:table-cell">{timeAgo(w.createdAt)}</td>
               <td className="py-2.5">
                 <button className="invisible group-hover:visible rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
                   <MoreHorizontal className="h-3.5 w-3.5" />
