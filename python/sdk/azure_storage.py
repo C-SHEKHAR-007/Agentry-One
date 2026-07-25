@@ -16,7 +16,12 @@ def get_connection_string() -> str:
 
 
 def get_container_name() -> str:
-    return os.environ.get("AZURE_STORAGE_CONTAINER") or "agentry-artifacts"
+    # Prefer AZURE_STORAGE_CONTAINER_NAME_DEV, then AZURE_STORAGE_CONTAINER, then fallback
+    return (
+        os.environ.get("AZURE_STORAGE_CONTAINER_NAME_DEV")
+        or os.environ.get("AZURE_STORAGE_CONTAINER")
+        or "agentry-artifacts"
+    )
 
 
 def upload_artifact_bytes(

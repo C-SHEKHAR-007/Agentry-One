@@ -11,44 +11,47 @@ import {
 } from "./azureClient.js";
 
 export async function artifactsRoutes(app: FastifyInstance) {
-  app.post<{ Body: { blobName: string; expiresInMinutes?: number } }>(
+  app.post<{ Body: { blobName: string } }>(
     "/artifacts/sas/upload",
     async (req, reply) => {
-      const { blobName, expiresInMinutes } = req.body || {};
+      const { blobName } = req.body || {};
       if (!blobName) return reply.code(400).send({ error: "blobName_required" });
-      const sas = await generateUploadSasUrl(blobName, expiresInMinutes);
+      // Upload SAS is always capped at 20 minutes — write window is intentionally short
+      const sas = await generateUploadSasUrl(blobName, 20);
       return sas;
     },
   );
 
-  app.get<{ Params: { id: string }; Querystring: { expiresInMinutes?: string } }>(
+  app.get<{ Params: { id: string } }>(
     "/artifacts/:id/sas/preview",
     async (req, reply) => {
       const artifact = await prisma.artifact.findUnique({ where: { id: req.params.id } });
       if (!artifact) return reply.code(404).send({ error: "artifact_not_found" });
 
       const blobName = artifact.storageKey.replace(/^azure:\/\//, "");
+      // Read SAS is always 2 hours (120 min)
       const sas = await generateReadSasUrl(blobName, {
         mode: "preview",
         mimeType: artifact.mimeType,
-        expiresInMinutes: req.query.expiresInMinutes ? Number(req.query.expiresInMinutes) : 60,
+        expiresInMinutes: 120,
       });
       return sas;
     },
   );
 
-  app.get<{ Params: { id: string }; Querystring: { expiresInMinutes?: string } }>(
+  app.get<{ Params: { id: string } }>(
     "/artifacts/:id/sas/download",
     async (req, reply) => {
       const artifact = await prisma.artifact.findUnique({ where: { id: req.params.id } });
       if (!artifact) return reply.code(404).send({ error: "artifact_not_found" });
 
       const blobName = artifact.storageKey.replace(/^azure:\/\//, "");
+      // Download SAS is always 2 hours (120 min)
       const sas = await generateReadSasUrl(blobName, {
         mode: "download",
         mimeType: artifact.mimeType,
         fileName: `${artifact.kind}-${artifact.id.slice(0, 8)}`,
-        expiresInMinutes: req.query.expiresInMinutes ? Number(req.query.expiresInMinutes) : 60,
+        expiresInMinutes: 120,
       });
       return sas;
     },

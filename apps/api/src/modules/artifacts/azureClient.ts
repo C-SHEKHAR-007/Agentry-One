@@ -20,7 +20,12 @@ function getConnectionString(): string {
 }
 
 export function getContainerName(): string {
-  return process.env.AZURE_STORAGE_CONTAINER || "agentry-artifacts";
+  // Prefer AZURE_STORAGE_CONTAINER_NAME_DEV, then AZURE_STORAGE_CONTAINER, then fallback
+  return (
+    process.env.AZURE_STORAGE_CONTAINER_NAME_DEV ||
+    process.env.AZURE_STORAGE_CONTAINER ||
+    "agentry-artifacts"
+  );
 }
 
 export function getBlobServiceClient(): BlobServiceClient {
@@ -81,7 +86,7 @@ export async function uploadBlob(
  */
 export async function generateUploadSasUrl(
   blobName: string,
-  expiresInMinutes = 60,
+  expiresInMinutes = 20,  // write SAS: 20 min only
 ): Promise<{ url: string; blobName: string; expiresAt: string }> {
   await ensureContainerExists();
   const serviceClient = getBlobServiceClient();
@@ -134,7 +139,7 @@ export async function generateReadSasUrl(
   } = {},
 ): Promise<{ url: string; mode: "preview" | "download"; expiresAt: string }> {
   const mode = options.mode || "preview";
-  const expiresInMinutes = options.expiresInMinutes || 60;
+  const expiresInMinutes = options.expiresInMinutes || 120; // read SAS: 2h default
   const expiresOn = new Date(Date.now() + expiresInMinutes * 60 * 1000);
 
   const serviceClient = getBlobServiceClient();

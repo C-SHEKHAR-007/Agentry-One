@@ -69,3 +69,26 @@ export function useProjects() {
     queryFn: () => api.get("/projects"),
   });
 }
+
+/** Fetches a 2-hour read-only SAS URL for an artifact from the backend.
+ * Cached for 90 min so the URL stays valid; re-fetches well before expiry. */
+export function useSasPreviewUrl(artifactId: string | undefined) {
+  return useQuery<{ url: string; expiresAt: string }>({
+    queryKey: ["artifact-sas-preview", artifactId],
+    queryFn: () => api.get(`/artifacts/${artifactId}/sas/preview`),
+    enabled: Boolean(artifactId),
+    staleTime: 90 * 60 * 1000,   // 90 min — re-fetch before the 2h SAS expires
+    gcTime: 95 * 60 * 1000,
+  });
+}
+
+/** Fetches a 2-hour read-only download SAS URL for an artifact. */
+export function useSasDownloadUrl(artifactId: string | undefined) {
+  return useQuery<{ url: string; expiresAt: string }>({
+    queryKey: ["artifact-sas-download", artifactId],
+    queryFn: () => api.get(`/artifacts/${artifactId}/sas/download`),
+    enabled: Boolean(artifactId),
+    staleTime: 90 * 60 * 1000,
+    gcTime: 95 * 60 * 1000,
+  });
+}
