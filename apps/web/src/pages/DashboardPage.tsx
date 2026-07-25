@@ -42,7 +42,8 @@ const CHART_COLORS = [
 
 // ── Project card with SAS cover image ────────────────────────────────────────
 function ProjectCard({ project }: { project: Project }) {
-  const { data: sas } = useSasPreviewUrl(project.coverArtifactId ?? undefined);
+  const { data: sas } = useSasPreviewUrl(!project.coverPreviewUrl && project.coverArtifactId ? project.coverArtifactId : undefined);
+  const url = project.coverPreviewUrl || sas?.url;
   const initial = project.name[0]?.toUpperCase() ?? "P";
 
   const gradients = [
@@ -60,9 +61,9 @@ function ProjectCard({ project }: { project: Project }) {
     >
       {/* Cover image */}
       <div className="relative h-36 overflow-hidden">
-        {sas?.url ? (
+        {url ? (
           <img
-            src={sas.url}
+            src={url}
             alt={project.name}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

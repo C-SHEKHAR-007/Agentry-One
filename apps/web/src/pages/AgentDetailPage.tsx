@@ -37,13 +37,24 @@ interface AgentDetail {
 }
 
 /** Per-image component so useSasPreviewUrl hook is at top-level per item */
-function RecentOutputImage({ artifactId, workflowId, kind }: { artifactId: string; workflowId: string; kind: string }) {
-  const { data: sas } = useSasPreviewUrl(artifactId);
+function RecentOutputImage({
+  artifactId,
+  workflowId,
+  kind,
+  previewUrl,
+}: {
+  artifactId: string;
+  workflowId: string;
+  kind: string;
+  previewUrl?: string | null;
+}) {
+  const { data: sas } = useSasPreviewUrl(!previewUrl ? artifactId : undefined);
+  const url = previewUrl || sas?.url;
   return (
     <Link to={`/workflows/${workflowId}`} className="group overflow-hidden rounded-md border border-border">
-      {sas?.url ? (
+      {url ? (
         <img
-          src={sas.url}
+          src={url}
           alt={kind}
           loading="lazy"
           className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
@@ -232,7 +243,7 @@ export function AgentDetailPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {recentOutputs.map((a) => (
-                <RecentOutputImage key={a.id} artifactId={a.id} workflowId={a.workflowId} kind={a.kind} />
+                <RecentOutputImage key={a.id} artifactId={a.id} workflowId={a.workflowId} kind={a.kind} previewUrl={a.previewUrl} />
               ))}
             </div>
           </CardContent>

@@ -8,10 +8,11 @@ import { EmptyState } from "./ui/empty-state";
 import { PlayCircle } from "lucide-react";
 
 /** Tiny component so the hook call is always at top level per item */
-function ThumbImage({ artifactId }: { artifactId: string }) {
-  const { data: sas } = useSasPreviewUrl(artifactId);
-  if (!sas?.url) return <ImageIcon className="h-4 w-4 text-muted-foreground" />;
-  return <img src={sas.url} alt="" className="h-full w-full object-cover" loading="lazy" />;
+function ThumbImage({ artifactId, previewUrl }: { artifactId?: string | null; previewUrl?: string | null }) {
+  const { data: sas } = useSasPreviewUrl(!previewUrl && artifactId ? artifactId : undefined);
+  const url = previewUrl || sas?.url;
+  if (!url) return <ImageIcon className="h-4 w-4 text-muted-foreground" />;
+  return <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />;
 }
 
 export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) {
@@ -28,15 +29,16 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
 
   return (
     <div className="w-full">
-      <table className="w-full text-sm">
+      <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border/60 text-left text-[10px] uppercase tracking-wider text-muted-foreground/60">
-            <th className="pb-2.5 pr-3 font-semibold">Workflow</th>
-            <th className="pb-2.5 pr-3 font-semibold hidden sm:table-cell">Agent</th>
-            <th className="pb-2.5 pr-3 font-semibold">Status</th>
-            <th className="pb-2.5 pr-3 font-semibold hidden md:table-cell">Duration</th>
-            <th className="pb-2.5 font-semibold hidden md:table-cell">Started</th>
-            <th className="pb-2.5 w-8" />
+          <tr className="border-b border-border/60 text-muted-foreground">
+            <th className="py-3 pr-4 pl-1 font-medium">Execution</th>
+            <th className="py-3 pr-3 font-medium hidden sm:table-cell">Agent</th>
+            <th className="py-3 pr-3 font-medium hidden md:table-cell">Project</th>
+            <th className="py-3 pr-3 font-medium">Status</th>
+            <th className="py-3 pr-3 font-medium hidden lg:table-cell">Duration</th>
+            <th className="py-3 pr-1 font-medium text-right">Age</th>
+            <th className="w-8 py-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -45,8 +47,8 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
               <td className="py-2.5 pr-4 pl-1">
                 <Link to={`/workflows/${w.id}`} className="flex items-center gap-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-secondary">
-                    {w.thumbArtifactId ? (
-                      <ThumbImage artifactId={w.thumbArtifactId} />
+                    {w.thumbPreviewUrl || w.thumbArtifactId ? (
+                      <ThumbImage artifactId={w.thumbArtifactId} previewUrl={w.thumbPreviewUrl} />
                     ) : (
                       <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
                     )}

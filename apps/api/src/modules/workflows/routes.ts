@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { getQueue } from "../../queue/queues.js";
 import { advanceStep, startWorkflow, WorkflowError } from "./service.js";
+import { generateReadSasUrl } from "../artifacts/azureClient.js";
 
 export async function workflowsRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string }; Body: { agentId: string; input: unknown; providerConfigId?: string } }>(
@@ -41,41 +42,55 @@ export async function workflowsRoutes(app: FastifyInstance) {
                 where: { mimeType: { startsWith: "image/" } },
                 orderBy: { createdAt: "asc" },
                 take: 1,
-                select: { id: true },
+                select: { id: true, storageKey: true, mimeType: true },
               },
             },
           },
         },
       });
 
-      return workflows.map((w) => {
-        let durationMs: number | null = null;
-        const runs = w.steps.flatMap((s) => s.job?.runs ?? []);
-        const started = runs.map((r) => r.startedAt).filter(Boolean) as Date[];
-        const finished = runs
-          .filter((r) => r.status === "completed" || r.status === "failed")
-          .map((r) => r.finishedAt)
-          .filter(Boolean) as Date[];
-        if (started.length && finished.length) {
-          durationMs =
-            Math.max(...finished.map((d) => d.getTime())) -
-            Math.min(...started.map((d) => d.getTime()));
-          if (durationMs < 0) durationMs = null;
-        }
-        const thumbArtifactId = w.steps.flatMap((s) => s.artifacts)[0]?.id ?? null;
-        return {
-          id: w.id,
-          agentId: w.agentId,
-          agentName: w.agent.name,
-          agentVersion: w.agentVersion,
-          status: w.status,
-          createdAt: w.createdAt,
-          updatedAt: w.updatedAt,
-          project: w.project,
-          durationMs,
-          thumbArtifactId,
-        };
-      });
+      return Promise.all(
+        workflows.map(async (w) => {
+          let durationMs: number | null = null;
+          const runs = w.steps.flatMap((s) => s.job?.runs ?? []);
+          const started = runs.map((r) => r.startedAt).filter(Boolean) as Date[];
+          const finished = runs
+            .filter((r) => r.status === "completed" || r.status === "failed")
+            .map((r) => r.finishedAt)
+            .filter(Boolean) as Date[];
+          if (started.length && finished.length) {
+            durationMs =
+              Math.max(...finished.map((d) => d.getTime())) -
+              Math.min(...started.map((d) => d.getTime()));
+            if (durationMs < 0) durationMs = null;
+          }
+          const thumb = w.steps.flatMap((s) => s.artifacts)[0];
+          const thumbArtifactId = thumb?.id ?? null;
+          let thumbPreviewUrl: string | null = null;
+          if (thumb) {
+            const blobName = thumb.storageKey.replace(/^azure:\/\//, "");
+            const res = await generateReadSasUrl(blobName, {
+              mode: "preview",
+              mimeType: thumb.mimeType,
+              expiresInMinutes: 120,
+            });
+            thumbPreviewUrl = res.url;
+          }
+          return {
+            id: w.id,
+            agentId: w.agentId,
+            agentName: w.agent.name,
+            agentVersion: w.agentVersion,
+            status: w.status,
+            createdAt: w.createdAt,
+            updatedAt: w.updatedAt,
+            project: w.project,
+            durationMs,
+            thumbArtifactId,
+            thumbPreviewUrl,
+          };
+        }),
+      );
     },
   );
 
@@ -85,7 +100,28 @@ export async function workflowsRoutes(app: FastifyInstance) {
       include: { steps: { orderBy: { sequence: "asc" }, include: { job: true, artifacts: true } } },
     });
     if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
-    return workflow;
+
+    const stepsWithUrls = await Promise.all(
+      workflow.steps.map(async (step) => ({
+        ...step,
+        artifacts: await Promise.all(
+          step.artifacts.map(async (a) => {
+            const blobName = a.storageKey.replace(/^azure:\/\//, "");
+            const [preview, download] = await Promise.all([
+              generateReadSasUrl(blobName, { mode: "preview", mimeType: a.mimeType, expiresInMinutes: 120 }),
+              generateReadSasUrl(blobName, {
+                mode: "download",
+                mimeType: a.mimeType,
+                fileName: `${a.kind}-${a.id.slice(0, 8)}`,
+                expiresInMinutes: 120,
+              }),
+            ]);
+            return { ...a, previewUrl: preview.url, downloadUrl: download.url };
+          }),
+        ),
+      })),
+    );
+    return { ...workflow, steps: stepsWithUrls };
   });
 
   app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req) =>

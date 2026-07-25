@@ -34,6 +34,7 @@ export interface Project {
   counts: { workflows: number; templates: number; artifacts: number };
   lastActivityAt: string | null;
   coverArtifactId: string | null;
+  coverPreviewUrl?: string | null;
 }
 
 export interface JobRun {
@@ -62,6 +63,8 @@ export interface Artifact {
   sizeBytes: number | null;
   checksum: string | null;
   createdAt: string;
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
 }
 
 export interface ArtifactListItem extends Artifact {
@@ -104,6 +107,7 @@ export interface RecentWorkflow {
   project: { id: string; name: string };
   durationMs: number | null;
   thumbArtifactId: string | null;
+  thumbPreviewUrl?: string | null;
 }
 
 export interface Capability {

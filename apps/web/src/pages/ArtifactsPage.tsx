@@ -32,7 +32,8 @@ function ArtifactCard({
   onPreview: (a: ArtifactListItem) => void;
 }) {
   const isImage = artifact.mimeType.startsWith("image/");
-  const { data: sas } = useSasPreviewUrl(isImage ? artifact.id : undefined);
+  const { data: sas } = useSasPreviewUrl(!artifact.previewUrl && isImage ? artifact.id : undefined);
+  const url = artifact.previewUrl || sas?.url;
 
   return (
     <motion.div
@@ -47,10 +48,10 @@ function ArtifactCard({
         className="group block w-full overflow-hidden rounded-xl border border-border bg-card text-left transition-all duration-200 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/5"
       >
         {isImage ? (
-          sas?.url ? (
+          url ? (
             <div className="relative overflow-hidden">
               <img
-                src={sas.url}
+                src={url}
                 alt={artifact.kind}
                 loading="lazy"
                 className="w-full transition-transform duration-300 group-hover:scale-[1.03]"
@@ -91,8 +92,11 @@ function PreviewDialog({
   onClose: () => void;
 }) {
   const isImage = artifact?.mimeType.startsWith("image/") ?? false;
-  const { data: previewSas } = useSasPreviewUrl(artifact?.id);
-  const { data: downloadSas } = useSasDownloadUrl(artifact?.id);
+  const { data: previewSas } = useSasPreviewUrl(!artifact?.previewUrl ? artifact?.id : undefined);
+  const { data: downloadSas } = useSasDownloadUrl(!artifact?.downloadUrl ? artifact?.id : undefined);
+  const previewUrl = artifact?.previewUrl || previewSas?.url;
+  const downloadUrl = artifact?.downloadUrl || downloadSas?.url;
+  const expiresAt = previewSas?.expiresAt;
 
   return (
     <Dialog open={!!artifact} onOpenChange={(o) => !o && onClose()}>
@@ -108,12 +112,11 @@ function PreviewDialog({
             >
               <X className="h-4 w-4" />
             </button>
-
             {/* Preview area */}
             {isImage ? (
-              previewSas?.url ? (
+              previewUrl ? (
                 <img
-                  src={previewSas.url}
+                  src={previewUrl}
                   alt={artifact.kind}
                   className="w-full"
                 />
@@ -137,10 +140,10 @@ function PreviewDialog({
                   {" · "}
                   {timeAgo(artifact.createdAt)}
                 </p>
-                {previewSas?.expiresAt && (
+                {expiresAt && (
                   <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground/70">
                     <Clock className="h-3 w-3" />
-                    Link expires {timeAgo(previewSas.expiresAt)}
+                    Link expires {timeAgo(expiresAt)}
                   </p>
                 )}
               </div>
@@ -151,8 +154,8 @@ function PreviewDialog({
                     Open workflow
                   </Button>
                 </Link>
-                {downloadSas?.url ? (
-                  <a href={downloadSas.url} target="_blank" rel="noreferrer" download>
+                {downloadUrl ? (
+                  <a href={downloadUrl} target="_blank" rel="noreferrer" download>
                     <Button size="sm">
                       <Download className="h-3.5 w-3.5" />
                       Download
