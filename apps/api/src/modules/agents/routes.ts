@@ -95,4 +95,57 @@ export async function agentsRoutes(app: FastifyInstance) {
       workerCommand: `python agents/${spec.id}/worker.py`,
     });
   });
+
+  app.post<{ Body: { name: string; description: string; systemPrompt: string; inputSchema: any } }>(
+    "/agents/custom",
+    async (req, reply) => {
+      const { name, description, systemPrompt, inputSchema } = req.body;
+      if (!name || !systemPrompt) {
+        return reply.code(400).send({ error: "name and systemPrompt are required" });
+      }
+
+      // Generate a slugified ID for the custom skill
+      const id = "custom-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
+
+      const manifest = {
+        id,
+        name,
+        version: "1.0",
+        description,
+        isCustom: true,
+        entrypoint: { queueName: "agent.dynamic" },
+        steps: [
+          {
+            key: "run",
+            description: "Run custom skill",
+            requiresCapability: "text-generation",
+            inputSchema,
+            outputSchema: {
+              type: "object",
+              properties: {
+                text: { type: "string" }
+              }
+            },
+            producesArtifactKinds: ["text"],
+            ui_config: {
+              system_prompt: systemPrompt
+            }
+          }
+        ]
+      };
+
+      const agent = await prisma.agent.create({
+        data: {
+          id,
+          name,
+          version: "1.0",
+          description,
+          manifest: manifest as any,
+          status: "active"
+        }
+      });
+
+      return reply.code(201).send(agent);
+    }
+  );
 }

@@ -19,6 +19,8 @@ import { TeamPage } from "./pages/TeamPage.js";
 import { AgentsPage } from "./pages/AgentsPage.js";
 import { ProjectPage } from "./pages/ProjectPage.js";
 import { ProjectsPage } from "./pages/ProjectsPage.js";
+import { CreateSkillPage } from "./pages/CreateSkillPage.js";
+import { IntegrationsPage } from "./pages/IntegrationsPage.js";
 import { ProvidersPage } from "./pages/ProvidersPage.js";
 import { SubmitAgentPage } from "./pages/SubmitAgentPage.js";
 import { TemplateEditPage } from "./pages/TemplateEditPage.js";
@@ -73,8 +75,10 @@ export default function App() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectPage />} />
         <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/agents/create-skill" element={<CreateSkillPage />} />
         <Route path="/agents/:agentId" element={<AgentDetailPage />} />
         <Route path="/agents/:agentId/submit" element={<SubmitAgentPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/providers" element={<ProvidersPage />} />
         <Route path="/templates/new" element={<TemplateEditPage />} />
         <Route path="/templates/:templateId/edit" element={<TemplateEditPage />} />

@@ -1,0 +1,35 @@
+{
+  "id": "social-publisher",
+  "name": "Social Publisher (Action)",
+  "version": "1.0",
+  "description": "Publishes a generated caption and media to connected Social Media Accounts.",
+  "entrypoint": {
+    "queueName": "agent.social-publisher"
+  },
+  "steps": [
+    {
+      "key": "run",
+      "description": "Publish to Social Media",
+      "humanGate": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": ["instagram", "twitter", "linkedin"],
+            "title": "Social Platform"
+          }
+        },
+        "required": ["platform"]
+      },
+      "consumesArtifactKinds": ["text", "image", "video"],
+      "producesArtifactKinds": ["text"],
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { createTemplate, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
+import { addSchedule, removeSchedule } from "./scheduler.js";
 import type { TemplateStepInput } from "./types.js";
 
 interface TemplateBody {
@@ -75,5 +76,19 @@ export async function templatesRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>("/template-runs/:id/cancel", async (req, reply) => {
     await prisma.templateRun.update({ where: { id: req.params.id }, data: { status: "cancelling" } });
     return reply.code(202).send({ status: "cancelling" });
+  });
+
+  app.post<{ Params: { id: string }; Body: { cronExpr: string; runInputs: Record<string, unknown> } }>(
+    "/templates/:id/schedule",
+    async (req, reply) => {
+      const { cronExpr, runInputs } = req.body;
+      const schedule = await addSchedule(req.params.id, cronExpr, runInputs);
+      return reply.code(201).send(schedule);
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>("/schedules/:id", async (req, reply) => {
+    await removeSchedule(req.params.id);
+    return reply.code(204).send();
   });
 }

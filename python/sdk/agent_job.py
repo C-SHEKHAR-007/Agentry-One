@@ -17,6 +17,8 @@ class AgentJob:
         self.params: dict = data.get("params") or {}
         self.input_artifacts: list = data.get("inputArtifactRefs") or []
         self.provider_context: dict | None = data.get("providerContext")
+        self.step_manifest: dict | None = data.get("stepManifest")
+        self.agent_manifest: dict | None = data.get("agentManifest")
 
     async def report_progress(self, percent: int, message: str) -> None:
         await self._raw.updateProgress({"percent": percent, "message": message})

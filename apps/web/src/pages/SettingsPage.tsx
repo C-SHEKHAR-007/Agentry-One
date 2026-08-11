@@ -116,6 +116,33 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
+          <CardTitle className="text-base">Billing & Workspaces</CardTitle>
+          <CardDescription>Manage your subscription and Stripe payment methods.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-card">
+              <div>
+                <p className="font-semibold text-sm">Current Plan: Pro (Agency)</p>
+                <p className="text-xs text-muted-foreground mt-1">10,000 AI Executions / mo</p>
+              </div>
+              <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Active</Badge>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <Button variant="outline" className="flex-1">
+                Manage in Stripe
+              </Button>
+              <Button variant="secondary" className="flex-1">
+                View Invoices
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card glass>
+        <CardHeader>
           <CardTitle className="text-base">Global settings</CardTitle>
           <CardDescription>
             Raw key/value store (scoped global). Values are JSON — strings can be entered directly.

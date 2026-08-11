@@ -4,6 +4,7 @@ import { ensureDefaultUser } from "./modules/projects/defaultUser.js";
 import { ensureCapabilitiesAndDefaults } from "./modules/providers/bootstrap.js";
 import { ensurePricingDefaults } from "./modules/settings/bootstrap.js";
 import { wireQueueListeners } from "./queue/listener.js";
+import { startSchedulerWorker } from "./modules/templates/scheduler.js";
 
 async function main() {
   await ensureDefaultUser();
@@ -16,6 +17,8 @@ async function main() {
   for (const manifest of manifests) {
     wireQueueListeners(manifest.entrypoint.queueName);
   }
+
+  startSchedulerWorker();
 
   const app = buildApp();
   const port = Number(process.env.PORT ?? 4000);

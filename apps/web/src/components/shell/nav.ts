@@ -14,6 +14,7 @@ import {
   Settings,
   KeyRound,
   UserCircle,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,7 +58,8 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Platform",
     items: [
       { label: "Prompts & Memory", icon: Brain, to: "/prompts" },
-      { label: "Analytics", icon: BarChart3, to: "/analytics", badge: "New" },
+      { label: "Integrations", icon: Share2, to: "/integrations", badge: "New" },
+      { label: "Analytics", icon: BarChart3, to: "/analytics" },
       { label: "Cost Monitor", icon: Wallet, to: "/costs" },
       { label: "Team", icon: Users, to: "/team" },
     ],

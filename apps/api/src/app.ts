@@ -18,6 +18,8 @@ import { requireAuth } from "./auth/apiKey.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { usersRoutes } from "./modules/users/routes.js";
 
+import { socialAccountsRoutes } from "./modules/socialAccounts/routes.js";
+
 export function buildApp() {
   const app = Fastify({ logger: true });
 
@@ -62,6 +64,7 @@ export function buildApp() {
   app.register(promptsRoutes);
   app.register(authRoutes);
   app.register(usersRoutes);
+  app.register(socialAccountsRoutes);
 
   return app;
 }

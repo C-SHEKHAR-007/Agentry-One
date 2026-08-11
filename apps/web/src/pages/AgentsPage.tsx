@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client.js";
@@ -6,6 +7,7 @@ import { useAgentStats } from "../api/queries";
 import { comingSoonAgents } from "../data/comingSoonAgents";
 import { ComingSoonAgentCard, InstalledAgentCard } from "../components/AgentCard";
 import { PageHeader } from "../components/PageHeader";
+import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 
 export function AgentsPage() {
@@ -27,8 +29,13 @@ export function AgentsPage() {
         title={installedOnly ? "Installed Agents" : "AI Marketplace"}
         description={
           installedOnly
-            ? "Agents discovered from their manifest.json at API boot."
+            ? "Agents discovered from their manifest.json at API boot or created via UI."
             : "Install, orchestrate, and run AI capabilities from one workspace. New agents appear automatically after an API restart — no platform code changes."
+        }
+        actions={
+          <Button onClick={() => window.location.href = "/agents/create-skill"} className="bg-primary hover:bg-primary/90">
+            <Plus className="h-4 w-4 mr-2" /> Create Custom Skill
+          </Button>
         }
       />
 

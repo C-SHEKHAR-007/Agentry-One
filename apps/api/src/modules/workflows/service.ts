@@ -18,6 +18,7 @@ async function enqueueStepJob(params: {
   workflowStepId: string;
   agentId: string;
   agentVersion: string;
+  agentManifest: any;
   step: AgentStepManifest;
   queueName: string;
   params: unknown;
@@ -64,9 +65,11 @@ async function enqueueStepJob(params: {
       stepKey: params.step.key,
       agentId: params.agentId,
       agentVersion: params.agentVersion,
+      agentManifest: params.agentManifest,
       params: params.params,
       inputArtifactRefs: [],
       providerContext,
+      stepManifest: params.step,
     },
     {
       jobId: job.id,
@@ -128,6 +131,7 @@ export async function startWorkflow(
     workflowStepId: stepRows[0].id,
     agentId,
     agentVersion: agent.version,
+    agentManifest: manifest,
     step: firstStep,
     queueName: manifest.entrypoint.queueName,
     params: input,
@@ -160,6 +164,7 @@ export async function advanceStep(workflowId: string, stepKey: string, input: un
     workflowStepId: step.id,
     agentId: workflow.agentId,
     agentVersion: workflow.agentVersion,
+    agentManifest: manifest,
     step: stepManifest,
     queueName: manifest.entrypoint.queueName,
     params: input,

@@ -43,12 +43,22 @@ export function TemplateRunPage() {
   }, [template]);
 
   const [values, setValues] = useState<Record<string, string>>({});
+  const [cronExpr, setCronExpr] = useState<string>("0 9 * * 2"); // Default Tuesday 9am
 
   const run = useMutation({
     mutationFn: () => api.post<TemplateRun>(`/templates/${templateId}/run`, values),
     onSuccess: (run) => {
       toast.success("Template run started");
       navigate(`/template-runs/${run.id}`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const schedule = useMutation({
+    mutationFn: () => api.post(`/templates/${templateId}/schedule`, { cronExpr, runInputs: values }),
+    onSuccess: () => {
+      toast.success(`Workflow scheduled successfully (${cronExpr})`);
+      navigate(`/builder`); // Go back to workflow list
     },
     onError: (err) => toast.error(err.message),
   });
@@ -63,7 +73,7 @@ export function TemplateRunPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-6">
       <PageHeader
         title={`Run: ${template.name}`}
         description="Provide the values this template needs at run time."
@@ -88,10 +98,32 @@ export function TemplateRunPage() {
           ))}
 
           <Button onClick={() => run.mutate()} disabled={run.isPending}>
-            {run.isPending ? <Spinner /> : <Play className="h-4 w-4" />}
-            Run template
+            {run.isPending ? <Spinner className="mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+            Run now
           </Button>
           {run.isError && <p className="text-sm text-destructive">{(run.error as Error).message}</p>}
+        </CardContent>
+      </Card>
+
+      <Card glass>
+        <CardContent className="space-y-4 pt-5">
+          <h3 className="text-sm font-semibold">Or, Schedule on a Recurring Basis</h3>
+          <p className="text-sm text-muted-foreground">Automatically trigger this workflow using a Cron expression.</p>
+          
+          <div>
+            <Label>Cron Schedule Expression</Label>
+            <Input
+              value={cronExpr}
+              onChange={(e) => setCronExpr(e.target.value)}
+              placeholder="0 9 * * 2 (e.g. Tuesday at 9am)"
+              className="font-mono text-sm"
+            />
+          </div>
+
+          <Button variant="secondary" onClick={() => schedule.mutate()} disabled={schedule.isPending}>
+            {schedule.isPending && <Spinner className="mr-2" />}
+            Set Schedule
+          </Button>
         </CardContent>
       </Card>
     </div>
