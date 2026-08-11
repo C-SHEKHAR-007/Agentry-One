@@ -2,6 +2,7 @@ import { prisma } from "../../db/client.js";
 import { getQueue } from "../../queue/queues.js";
 import { wireQueueListeners } from "../../queue/listener.js";
 import { resolveProvider } from "../providers/resolve.js";
+import { decryptSocialAccountToken } from "../socialAccounts/routes.js";
 import type { AgentManifest, AgentStepManifest } from "../agents/manifestScanner.js";
 
 export class WorkflowError extends Error {
@@ -43,6 +44,21 @@ async function enqueueStepJob(params: {
     }
   }
 
+  // Same rationale as provider secrets above: decrypt once in Node, hand the
+  // worker a ready-to-use token in the (short-lived, removeOnComplete) job
+  // payload, so the Python worker never queries Postgres.
+  let socialAuth = null;
+  if (params.step.requiresSocialAccount) {
+    const socialAccountId = (params.params as { socialAccountId?: string } | null)?.socialAccountId;
+    if (!socialAccountId) {
+      throw new WorkflowError("socialAccountId is required for this step", 422);
+    }
+    socialAuth = await decryptSocialAccountToken(socialAccountId);
+    if (!socialAuth) {
+      throw new WorkflowError(`no connected social account found for id '${socialAccountId}'`, 422);
+    }
+  }
+
   const job = await prisma.job.create({
     data: {
       workflowStepId: params.workflowStepId,
@@ -69,6 +85,7 @@ async function enqueueStepJob(params: {
       params: params.params,
       inputArtifactRefs: [],
       providerContext,
+      socialAuth,
       stepManifest: params.step,
     },
     {

@@ -15,6 +15,7 @@ import {
   KeyRound,
   UserCircle,
   Share2,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { label: "Dashboard", icon: LayoutDashboard, to: "/", end: true },
+      { label: "Content Studio", icon: Sparkles, to: "/studio", badge: "New" },
       { label: "Projects", icon: FolderKanban, to: "/projects" },
     ],
   },

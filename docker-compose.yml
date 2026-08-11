@@ -4,6 +4,7 @@ services:
     network_mode: "host"
     volumes:
       - ./agents:/agents:ro
+      - ./social-connectors:/social-connectors:ro
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://agentry:agentry_dev@localhost:5432/agentry}
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
@@ -15,6 +16,10 @@ services:
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - TWITTER_CLIENT_ID=${TWITTER_CLIENT_ID}
+      - TWITTER_CLIENT_SECRET=${TWITTER_CLIENT_SECRET}
+      - LINKEDIN_CLIENT_ID=${LINKEDIN_CLIENT_ID}
+      - LINKEDIN_CLIENT_SECRET=${LINKEDIN_CLIENT_SECRET}
 
   web:
     build:
@@ -32,6 +37,7 @@ services:
     volumes:
       - ./agents:/app/agents
       - ./python:/app/python
+      - ./social-connectors:/app/social-connectors
     environment:
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
       - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}

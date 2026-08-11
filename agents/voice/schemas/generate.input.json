@@ -1,0 +1,9 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["text"],
+  "properties": {
+    "text": { "type": "string", "title": "Script / caption to voice", "minLength": 1 },
+    "voice": { "type": "string", "title": "Voice (engine-dependent, optional)" }
+  }
+}

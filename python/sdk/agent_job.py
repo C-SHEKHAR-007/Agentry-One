@@ -17,6 +17,7 @@ class AgentJob:
         self.params: dict = data.get("params") or {}
         self.input_artifacts: list = data.get("inputArtifactRefs") or []
         self.provider_context: dict | None = data.get("providerContext")
+        self.social_auth: dict | None = data.get("socialAuth")
         self.step_manifest: dict | None = data.get("stepManifest")
         self.agent_manifest: dict | None = data.get("agentManifest")
 

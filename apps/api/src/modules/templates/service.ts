@@ -132,6 +132,19 @@ function resolveParams(
   return params;
 }
 
+/** The stepOrders a step can't start without -- every stepOrder referenced by
+ * any `fromStep` entry in its inputMapping. A step with an empty set has no
+ * prerequisites and is startable immediately. `stepOrder`'s existing
+ * forward-only validation (templates/validation.ts) already guarantees this
+ * reference graph is acyclic, so no separate cycle check is needed here. */
+export function dependenciesOf(step: { inputMapping: unknown }): Set<number> {
+  const deps = new Set<number>();
+  for (const value of Object.values(step.inputMapping as InputMapping)) {
+    if (value.kind === "fromStep") deps.add(value.stepOrder);
+  }
+  return deps;
+}
+
 async function startTemplateRunStep(
   templateRunId: string,
   templateRunStepId: string,
@@ -171,10 +184,17 @@ export async function runTemplate(templateId: string, runInputs: Record<string, 
     template.steps.map((s) => prisma.templateRunStep.create({ data: { templateRunId: run.id, templateStepId: s.id, status: "pending" } })),
   );
 
-  const firstStep = template.steps[0];
-  const firstRunStep = await prisma.templateRunStep.findFirstOrThrow({ where: { templateRunId: run.id, templateStepId: firstStep.id } });
-  const params = resolveParams(firstStep.inputMapping as unknown as InputMapping, runInputs, new Map());
-  await startTemplateRunStep(run.id, firstRunStep.id, template.projectId, firstStep.agentId, params);
+  const readySteps = template.steps.filter((s) => dependenciesOf(s).size === 0);
+  if (readySteps.length === 0) {
+    throw new TemplateError("template has no step without a fromStep dependency -- nothing can start", 422);
+  }
+  await Promise.all(
+    readySteps.map(async (step) => {
+      const runStep = await prisma.templateRunStep.findFirstOrThrow({ where: { templateRunId: run.id, templateStepId: step.id } });
+      const params = resolveParams(step.inputMapping as unknown as InputMapping, runInputs, new Map());
+      await startTemplateRunStep(run.id, runStep.id, template.projectId, step.agentId, params);
+    }),
+  );
 
   return run;
 }
@@ -216,30 +236,44 @@ export async function handleWorkflowSettled(workflowId: string, workflowStatus: 
   }
 
   const steps = runStep.templateRun.template.steps;
-  const currentIndex = steps.findIndex((s) => s.id === runStep.templateStepId);
-  const nextStep = steps[currentIndex + 1];
+  const allRunSteps = await prisma.templateRunStep.findMany({
+    where: { templateRunId: runStep.templateRunId },
+    include: { workflow: { include: { steps: { include: { artifacts: true } } } } },
+  });
 
-  if (!nextStep) {
+  const stepOrderByStepId = new Map(steps.map((s) => [s.id, s.stepOrder]));
+  const completedOrders = new Set(
+    allRunSteps.filter((rs) => rs.status === "completed").map((rs) => stepOrderByStepId.get(rs.templateStepId)!),
+  );
+  const startedStepIds = new Set(allRunSteps.filter((rs) => rs.status !== "pending").map((rs) => rs.templateStepId));
+
+  if (completedOrders.size === steps.length) {
     await prisma.templateRun.update({ where: { id: runStep.templateRunId }, data: { status: "completed" } });
     return;
   }
 
-  const completedRunSteps = await prisma.templateRunStep.findMany({
-    where: { templateRunId: runStep.templateRunId, status: "completed" },
-    include: { workflow: { include: { steps: { include: { artifacts: true } } } } },
-  });
+  const readySteps = steps.filter(
+    (s) => !startedStepIds.has(s.id) && [...dependenciesOf(s)].every((dep) => completedOrders.has(dep)),
+  );
+  if (readySteps.length === 0) return; // still waiting on other in-flight branches
+
   const upstreamArtifactsByStep = new Map<number, { kind: string; storageKey: string }[]>();
-  for (const rs of completedRunSteps) {
-    const templateStep = steps.find((s) => s.id === rs.templateStepId);
-    if (!templateStep || !rs.workflow) continue;
+  for (const rs of allRunSteps) {
+    if (rs.status !== "completed" || !rs.workflow) continue;
+    const stepOrder = stepOrderByStepId.get(rs.templateStepId);
+    if (stepOrder === undefined) continue;
     const artifacts = rs.workflow.steps.flatMap((ws) => ws.artifacts.map((a) => ({ kind: a.kind, storageKey: a.storageKey })));
-    upstreamArtifactsByStep.set(templateStep.stepOrder, artifacts);
+    upstreamArtifactsByStep.set(stepOrder, artifacts);
   }
 
-  const nextRunStep = await prisma.templateRunStep.findFirstOrThrow({
-    where: { templateRunId: runStep.templateRunId, templateStepId: nextStep.id },
-  });
   const runInputs = runStep.templateRun.runInputs as unknown as Record<string, unknown>;
-  const params = resolveParams(nextStep.inputMapping as unknown as InputMapping, runInputs, upstreamArtifactsByStep);
-  await startTemplateRunStep(runStep.templateRunId, nextRunStep.id, runStep.templateRun.template.projectId, nextStep.agentId, params);
+  await Promise.all(
+    readySteps.map(async (step) => {
+      const nextRunStep = await prisma.templateRunStep.findFirstOrThrow({
+        where: { templateRunId: runStep.templateRunId, templateStepId: step.id },
+      });
+      const params = resolveParams(step.inputMapping as unknown as InputMapping, runInputs, upstreamArtifactsByStep);
+      await startTemplateRunStep(runStep.templateRunId, nextRunStep.id, runStep.templateRun.template.projectId, step.agentId, params);
+    }),
+  );
 }

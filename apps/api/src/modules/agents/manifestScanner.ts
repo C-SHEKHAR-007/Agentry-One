@@ -4,6 +4,7 @@ import path from "node:path";
 export interface AgentStepManifest {
   key: string;
   requiresCapability?: string;
+  requiresSocialAccount?: boolean;
   inputSchema: unknown;
   outputSchema: unknown;
   humanGate: boolean;

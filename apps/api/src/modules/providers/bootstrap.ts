@@ -17,19 +17,46 @@ export async function ensureCapabilitiesAndDefaults(): Promise<void> {
     create: {
       key: "text-generation",
       label: "Text generation",
-      description: "Generate/re-rank text via an LLM. Modeled for forward-compatibility -- no consumer or adapter in this build.",
+      description: "Generate/re-rank text via an LLM. Consumed by the Dynamic Skill agent (ollama_local / gemini / openai_compatible adapters).",
     },
   });
 
-  const existingDefault = await prisma.providerConfig.findFirst({
+  const audioGen = await prisma.capability.upsert({
+    where: { key: "audio-generation" },
+    update: {},
+    create: {
+      key: "audio-generation",
+      label: "Audio generation",
+      description: "Text-to-speech voiceover. Consumed by the Voice agent.",
+    },
+  });
+
+  const existingImageDefault = await prisma.providerConfig.findFirst({
     where: { capabilityId: imageGen.id, scope: "global", isDefault: true },
   });
-  if (!existingDefault) {
+  if (!existingImageDefault) {
     await prisma.providerConfig.create({
       data: {
         capabilityId: imageGen.id,
         providerType: "sd_turbo_local",
         name: "Local SD-Turbo (default)",
+        authMode: "none",
+        isDefault: true,
+        scope: "global",
+        status: "active",
+      },
+    });
+  }
+
+  const existingAudioDefault = await prisma.providerConfig.findFirst({
+    where: { capabilityId: audioGen.id, scope: "global", isDefault: true },
+  });
+  if (!existingAudioDefault) {
+    await prisma.providerConfig.create({
+      data: {
+        capabilityId: audioGen.id,
+        providerType: "pyttsx3_local",
+        name: "Local offline TTS (default)",
         authMode: "none",
         isDefault: true,
         scope: "global",

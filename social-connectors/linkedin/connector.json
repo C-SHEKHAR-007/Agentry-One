@@ -1,0 +1,15 @@
+{
+  "id": "linkedin",
+  "name": "LinkedIn",
+  "oauth": {
+    "authorizeUrl": "https://www.linkedin.com/oauth/v2/authorization",
+    "tokenUrl": "https://www.linkedin.com/oauth/v2/accessToken",
+    "scopes": ["openid", "profile", "email", "w_member_social"],
+    "usesPkce": false,
+    "tokenAuthStyle": "body-param",
+    "userinfoUrl": "https://api.linkedin.com/v2/userinfo",
+    "handlePath": "name",
+    "handlePrefix": ""
+  },
+  "credentialsEnv": { "clientId": "LINKEDIN_CLIENT_ID", "clientSecret": "LINKEDIN_CLIENT_SECRET" }
+}

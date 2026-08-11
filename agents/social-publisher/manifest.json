@@ -11,23 +11,28 @@
       "key": "run",
       "description": "Publish to Social Media",
       "humanGate": false,
+      "requiresSocialAccount": true,
       "inputSchema": {
         "type": "object",
         "properties": {
-          "platform": {
+          "socialAccountId": {
             "type": "string",
-            "enum": ["instagram", "twitter", "linkedin"],
-            "title": "Social Platform"
+            "title": "Connected Account"
+          },
+          "text": {
+            "type": "string",
+            "title": "Caption (overrides an input text artifact if both are present)"
           }
         },
-        "required": ["platform"]
+        "required": ["socialAccountId"]
       },
       "consumesArtifactKinds": ["text", "image", "video"],
       "producesArtifactKinds": ["text"],
       "outputSchema": {
         "type": "object",
         "properties": {
-          "text": { "type": "string" }
+          "text": { "type": "string" },
+          "url": { "type": "string" }
         }
       }
     }

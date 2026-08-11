@@ -56,3 +56,17 @@ def upload_artifact_bytes(
 
     storage_key = f"azure://{blob_name}"
     return storage_key, blob_name
+
+
+def download_artifact_bytes(storage_key: str) -> bytes:
+    """Downloads a blob previously written by upload_artifact_bytes. Accepts
+    either the raw blob name or the "azure://<blob_name>" storage_key form."""
+    from azure.storage.blob import BlobServiceClient
+
+    blob_name = storage_key.removeprefix("azure://")
+    conn_str = get_connection_string()
+    container_name = get_container_name()
+
+    service_client = BlobServiceClient.from_connection_string(conn_str)
+    container_client = service_client.get_container_client(container_name)
+    return container_client.get_blob_client(blob_name).download_blob().readall()

@@ -1,0 +1,15 @@
+{
+  "id": "twitter",
+  "name": "X (Twitter)",
+  "oauth": {
+    "authorizeUrl": "https://twitter.com/i/oauth2/authorize",
+    "tokenUrl": "https://api.twitter.com/2/oauth2/token",
+    "scopes": ["tweet.read", "tweet.write", "users.read", "offline.access"],
+    "usesPkce": true,
+    "tokenAuthStyle": "basic-header",
+    "userinfoUrl": "https://api.twitter.com/2/users/me",
+    "handlePath": "data.username",
+    "handlePrefix": "@"
+  },
+  "credentialsEnv": { "clientId": "TWITTER_CLIENT_ID", "clientSecret": "TWITTER_CLIENT_SECRET" }
+}

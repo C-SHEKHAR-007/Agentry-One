@@ -1,0 +1,27 @@
+{
+  "id": "voice-agent",
+  "name": "Voice Agent",
+  "version": "1.0.0",
+  "description": "Generates a voiceover audio clip from text using a local or configured text-to-speech provider.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.voice.worker",
+    "queueName": "agent.voice"
+  },
+  "steps": [
+    {
+      "key": "generate",
+      "requiresCapability": "audio-generation",
+      "inputSchema": { "$ref": "./schemas/generate.input.json" },
+      "outputSchema": { "$ref": "./schemas/generate.output.json" },
+      "humanGate": false,
+      "consumesArtifactKinds": ["text"],
+      "producesArtifactKinds": ["audio"]
+    }
+  ],
+  "resources": { "cpu": 1, "memoryMb": 512, "gpu": false },
+  "concurrency": 2,
+  "timeoutSec": 120,
+  "attempts": 2,
+  "backoff": { "type": "exponential", "delayMs": 3000 }
+}

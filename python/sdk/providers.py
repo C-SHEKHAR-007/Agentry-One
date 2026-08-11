@@ -214,6 +214,30 @@ def _generate_openai_compatible(ctx: dict, prompt: str, **kwargs) -> str:
     return choices[0].get("message", {}).get("content", "")
 
 
+def _generate_pyttsx3_local(text: str, out_path: str, voice: str | None = None) -> None:
+    """Fully offline text-to-speech via the system's own TTS engine (espeak on
+    Linux, NSSpeechSynthesizer on macOS, SAPI5 on Windows) -- no API key, no
+    network call, matches the zero-config local-default pattern SD-Turbo uses
+    for image-generation. Writes a WAV file to out_path."""
+    import pyttsx3
+
+    try:
+        engine = pyttsx3.init()
+    except Exception as exc:  # pyttsx3 raises a bare RuntimeError with an unhelpful message
+        raise RuntimeError(
+            "Local TTS engine failed to initialize -- on Linux this needs the 'espeak-ng' "
+            "system package installed alongside pyttsx3 (see agents/sketch/Dockerfile)."
+        ) from exc
+
+    if voice:
+        for v in engine.getProperty("voices"):
+            if voice.lower() in (v.name or "").lower() or voice.lower() in (v.id or "").lower():
+                engine.setProperty("voice", v.id)
+                break
+    engine.save_to_file(text, out_path)
+    engine.runAndWait()
+
+
 class CapabilityClient:
     def __init__(self, provider_context: dict | None):
         if provider_context is None:
@@ -241,3 +265,13 @@ class CapabilityClient:
         if provider_type == "openai_compatible":
             return _generate_openai_compatible(self.ctx, prompt, **kwargs)
         raise NotImplementedError(f"no text-generation adapter for provider type '{provider_type}'")
+
+    def generate_audio(self, text: str, out_path: str, voice: str | None = None) -> str:
+        """Synthesizes speech for `text`, writes it to `out_path`, and returns
+        that path (audio is written directly to disk rather than returned as
+        bytes, since that's how the underlying local TTS engine works)."""
+        provider_type = self.ctx["providerType"]
+        if provider_type == "pyttsx3_local":
+            _generate_pyttsx3_local(text, out_path, voice)
+            return out_path
+        raise NotImplementedError(f"no audio-generation adapter for provider type '{provider_type}'")

@@ -1,0 +1,26 @@
+{
+  "id": "video-agent",
+  "name": "Video Agent",
+  "version": "1.0.0",
+  "description": "Assembles a short-form video (image + optional voiceover + burned-in caption) locally via ffmpeg -- no generative video model or external API required.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.video.worker",
+    "queueName": "agent.video"
+  },
+  "steps": [
+    {
+      "key": "assemble",
+      "inputSchema": { "$ref": "./schemas/assemble.input.json" },
+      "outputSchema": { "$ref": "./schemas/assemble.output.json" },
+      "humanGate": false,
+      "consumesArtifactKinds": ["image", "audio", "text"],
+      "producesArtifactKinds": ["video"]
+    }
+  ],
+  "resources": { "cpu": 2, "memoryMb": 1024, "gpu": false },
+  "concurrency": 1,
+  "timeoutSec": 180,
+  "attempts": 2,
+  "backoff": { "type": "exponential", "delayMs": 3000 }
+}

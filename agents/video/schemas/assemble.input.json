@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["imagePath"],
+  "properties": {
+    "imagePath": { "type": "string", "title": "Background image (local file path)" },
+    "audioPath": { "type": "string", "title": "Voiceover audio (local file path, optional)" },
+    "caption": { "type": "string", "title": "Burned-in caption text (optional)" },
+    "durationSec": { "type": "number", "title": "Duration when no audio is given", "default": 6, "minimum": 1, "maximum": 120 }
+  }
+}

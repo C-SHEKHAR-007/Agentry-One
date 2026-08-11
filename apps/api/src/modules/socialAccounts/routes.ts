@@ -1,16 +1,67 @@
 import type { FastifyInstance } from "fastify";
+import crypto from "node:crypto";
 import { prisma } from "../../db/client.js";
+import { encryptSecret, decryptSecret } from "../providers/crypto.js";
+import { buildAuthorizeUrl, exchangeCode, generatePkce } from "./adapters.js";
+import { loadConnectors } from "./connectorRegistry.js";
+
+// "instagram" is connectable (mock-only for now -- Meta's Facebook-Login-for-
+// -Business flow doesn't fit the generic OAuth2 connector shape, see
+// social-connectors/README or the content-studio plan's Phase 3 note) even
+// though it has no social-connectors/instagram/connector.json.
+const PLATFORMS_WITHOUT_CONNECTORS = new Set(["instagram"]);
+
+async function isSocialPlatform(v: string): Promise<boolean> {
+  if (PLATFORMS_WITHOUT_CONNECTORS.has(v)) return true;
+  return (await loadConnectors()).has(v);
+}
+
+function serialize(account: { accessToken: string; refreshToken: string | null; [k: string]: unknown }) {
+  // Tokens are write-only from the API's perspective -- never re-exposed once stored.
+  const { accessToken, refreshToken, ...rest } = account;
+  return { ...rest, connected: true };
+}
+
+function getRedirectUri(req: any): string {
+  const host = req.headers["x-forwarded-host"] || req.headers.host || "localhost:4000";
+  const proto = req.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${host}/social-accounts/oauth/callback`;
+}
+
+/** Decrypts a SocialAccount's stored token for use inside the API process
+ * only (e.g. resolving publish context at enqueue time) -- never returned
+ * over HTTP. Mirrors provider-secret handling in providers/resolve.ts. */
+export async function decryptSocialAccountToken(accountId: string): Promise<{
+  accessToken: string;
+  refreshToken: string | null;
+  platform: string;
+  handle: string | null;
+  isMock: boolean;
+} | null> {
+  const account = await prisma.socialAccount.findUnique({ where: { id: accountId } });
+  if (!account) return null;
+  return {
+    accessToken: decryptSecret(account.accessToken),
+    refreshToken: account.refreshToken ? decryptSecret(account.refreshToken) : null,
+    platform: account.platform,
+    handle: account.handle,
+    isMock: account.status === "mock",
+  };
+}
 
 export async function socialAccountsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { projectId: string } }>("/social-accounts", async (req) => {
     const { projectId } = req.query;
-    return prisma.socialAccount.findMany({
+    const accounts = await prisma.socialAccount.findMany({
       where: { projectId },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
     });
+    return accounts.map(serialize);
   });
 
-  app.post<{ Body: { projectId: string; platform: string; handle: string; accessToken: string; refreshToken?: string } }>(
+  // Manual token entry (paste an already-issued token) -- still goes through
+  // the same encryption path as the OAuth flow below.
+  app.post<{ Body: { projectId: string; platform: string; handle?: string; accessToken: string; refreshToken?: string } }>(
     "/social-accounts",
     async (req, reply) => {
       const { projectId, platform, handle, accessToken, refreshToken } = req.body;
@@ -23,17 +74,18 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
           projectId,
           platform,
           handle,
-          accessToken,
-          refreshToken
-        }
+          accessToken: encryptSecret(accessToken),
+          refreshToken: refreshToken ? encryptSecret(refreshToken) : null,
+          status: "active",
+        },
       });
-      return reply.code(201).send(account);
-    }
+      return reply.code(201).send(serialize(account));
+    },
   );
 
   app.delete<{ Params: { id: string } }>("/social-accounts/:id", async (req, reply) => {
     await prisma.socialAccount.delete({
-      where: { id: req.params.id }
+      where: { id: req.params.id },
     });
     return reply.send({ success: true });
   });
@@ -44,69 +96,82 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
     "/social-accounts/oauth/authorize",
     async (req, reply) => {
       const { platform, projectId } = req.query;
-      
-      // In a real application, you would construct the provider's OAuth URL
-      // using process.env.TWITTER_CLIENT_ID, INSTAGRAM_CLIENT_ID, etc.
-      // e.g. https://api.twitter.com/oauth2/authorize?response_type=code&client_id=...
-      
-      // For this implementation, we will simulate the OAuth redirect to a mock provider
-      // or redirect back to the callback immediately to simulate successful login.
-      const state = Buffer.from(JSON.stringify({ platform, projectId })).toString("base64");
-      
-      // We will redirect to a mock consent screen that then hits our callback
-      // Or for a seamless UX in our demo, we just directly hit the callback
-      // to simulate the user saying "Yes, allow access".
-      
-      const callbackUrl = `${req.protocol}://${req.hostname}/social-accounts/oauth/callback?code=simulated_oauth_code_42&state=${state}`;
-      
-      // If we had real credentials:
-      // const oauthUrls: Record<string, string> = {
-      //   twitter: `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=...&redirect_uri=...&state=${state}`,
-      //   instagram: `https://api.instagram.com/oauth/authorize?client_id=...&redirect_uri=...&response_type=code&state=${state}`
-      // };
-      // return reply.redirect(oauthUrls[platform] || callbackUrl);
-      
-      return reply.redirect(callbackUrl);
-    }
+      if (!(await isSocialPlatform(platform))) {
+        return reply.code(400).send({ error: `unsupported platform: ${platform}` });
+      }
+
+      const redirectUri = getRedirectUri(req);
+      const { verifier, challenge } = generatePkce();
+      const state = Buffer.from(JSON.stringify({ platform, projectId, verifier, redirectUri })).toString("base64url");
+
+      const authorizeUrl = await buildAuthorizeUrl(platform, redirectUri, state, challenge);
+      if (!authorizeUrl) {
+        req.log.info(`no app credentials configured for ${platform}. Using local dev-mock connect flow.`);
+        return reply.redirect(`${redirectUri}?dev_mock=true&state=${state}`);
+      }
+
+      return reply.redirect(authorizeUrl);
+    },
   );
 
-  app.get<{ Querystring: { code: string; state: string } }>(
+  app.get<{ Querystring: { code?: string; state: string; error?: string; dev_mock?: string } }>(
     "/social-accounts/oauth/callback",
     async (req, reply) => {
-      const { code, state } = req.query;
-      
+      const { code, state, error, dev_mock } = req.query;
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+      let decodedState: { platform: string; projectId: string; verifier: string; redirectUri: string };
       try {
-        const decodedState = JSON.parse(Buffer.from(state, "base64").toString("utf-8"));
-        const { platform, projectId } = decodedState;
-        
-        // In a real app, we would POST the `code` to the provider's token endpoint
-        // e.g. POST https://api.twitter.com/2/oauth2/token
-        // const tokenResponse = await fetch(...)
-        // const { access_token, refresh_token } = await tokenResponse.json();
-        
-        // Simulate exchanging the code for an access token
-        const accessToken = `oauth_token_${platform}_${Math.random().toString(36).substring(7)}`;
-        const handle = `@user_${platform}`;
-        
+        decodedState = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+      } catch {
+        return reply.redirect(`${frontendUrl}/integrations?error=oauth_failed`);
+      }
+      const { platform, projectId, verifier, redirectUri } = decodedState;
+
+      if (error) {
+        req.log.warn({ error, platform }, "social OAuth callback error");
+        return reply.redirect(`${frontendUrl}/integrations?error=${encodeURIComponent(error)}`);
+      }
+
+      try {
+        let accessToken: string;
+        let refreshToken: string | null;
+        let handle: string | null;
+        let status: "active" | "mock";
+
+        if (dev_mock === "true") {
+          // Local dev fallback when no platform app credentials are configured --
+          // same intent as the /auth/google dev_mock path. Clearly tagged (status:
+          // "mock") so the publisher knows to simulate rather than call a real API.
+          accessToken = `dev_mock_${platform}_${crypto.randomUUID()}`;
+          refreshToken = null;
+          handle = `@dev_${platform}`;
+          status = "mock";
+        } else {
+          if (!code) throw new Error("missing authorization code");
+          const exchanged = await exchangeCode(platform, code, redirectUri, verifier);
+          accessToken = exchanged.accessToken;
+          refreshToken = exchanged.refreshToken;
+          handle = exchanged.handle;
+          status = "active";
+        }
+
         await prisma.socialAccount.create({
           data: {
             projectId,
             platform,
             handle,
-            accessToken,
-            refreshToken: "mock_refresh_token"
-          }
+            accessToken: encryptSecret(accessToken),
+            refreshToken: refreshToken ? encryptSecret(refreshToken) : null,
+            status,
+          },
         });
 
-        // Redirect back to the frontend Integrations page
-        // Assuming frontend runs on localhost:5173 or the referer host
-        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
         return reply.redirect(`${frontendUrl}/integrations`);
-        
       } catch (err) {
-        console.error("OAuth callback error", err);
-        return reply.redirect("http://localhost:5173/integrations?error=oauth_failed");
+        req.log.error({ err, platform }, "social OAuth exchange failed");
+        return reply.redirect(`${frontendUrl}/integrations?error=oauth_failed`);
       }
-    }
+    },
   );
 }

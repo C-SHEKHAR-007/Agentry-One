@@ -14,6 +14,7 @@ import { ExecutionsPage } from "./pages/ExecutionsPage.js";
 import { MyAgentsPage } from "./pages/MyAgentsPage.js";
 import { PromptsPage } from "./pages/PromptsPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { StudioPage } from "./pages/StudioPage.js";
 import { ProfilePage } from "./pages/ProfilePage.js";
 import { TeamPage } from "./pages/TeamPage.js";
 import { AgentsPage } from "./pages/AgentsPage.js";
@@ -62,6 +63,7 @@ export default function App() {
         }
       >
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/studio" element={<StudioPage />} />
         <Route path="/executions" element={<ExecutionsPage />} />
         <Route path="/artifacts" element={<ArtifactsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />

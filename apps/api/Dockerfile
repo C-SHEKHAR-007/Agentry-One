@@ -15,8 +15,10 @@ COPY src ./src
 COPY tsconfig.json ./
 
 # The registry scans AGENTS_DIR for manifest.json files at boot; the compose
-# file bind-mounts the repo's agents/ directory to this path.
+# file bind-mounts the repo's agents/ directory to this path. Same idea for
+# SOCIAL_CONNECTORS_DIR and social-connectors/<platform>/connector.json.
 ENV AGENTS_DIR=/agents
+ENV SOCIAL_CONNECTORS_DIR=/social-connectors
 ENV ARTIFACTS_DIR=/artifacts
 ENV PORT=4000
 

@@ -87,6 +87,32 @@ function StepNode({ data }: NodeProps<StepNodeData>) {
 
 const nodeTypes = { step: StepNode };
 
+/** Default node layout: depth = 1 + max(depth of its fromStep dependencies),
+ * 0 for a step with none -- lays out parallel/branching steps in columns by
+ * dependency depth instead of assuming a single linear lane. Purely a
+ * starting position; drags after that are free-form (see `positions` state
+ * below), so an unresolved/cyclic-looking depth just falls back to 0. */
+function computeDepths(steps: StepDraft[]): Map<number, number> {
+  const byOrder = new Map(steps.map((s) => [s.stepOrder, s]));
+  const depths = new Map<number, number>();
+
+  function depthOf(order: number, seen: Set<number>): number {
+    if (depths.has(order)) return depths.get(order)!;
+    if (seen.has(order)) return 0; // guard against a mid-edit dangling/cyclic reference
+    seen.add(order);
+    const step = byOrder.get(order);
+    const deps = step
+      ? [...new Set(Object.values(step.inputMapping).filter((v) => v.kind === "fromStep").map((v) => v.stepOrder))]
+      : [];
+    const depth = deps.length === 0 ? 0 : 1 + Math.max(...deps.map((d) => depthOf(d, seen)));
+    depths.set(order, depth);
+    return depth;
+  }
+
+  for (const s of steps) depthOf(s.stepOrder, new Set());
+  return depths;
+}
+
 /** React Flow projection of the draft: nodes/edges are derived from
  * StepDraft[] every render; RF only owns transient position/selection UI
  * state. Edges = fromStep mappings, red when that reference is invalid. */
@@ -103,12 +129,17 @@ export function TemplateCanvas({ draft }: { draft: TemplateDraft }) {
     return map;
   }, [draft.liveErrors]);
 
-  const nodes: Node<StepNodeData>[] = useMemo(
-    () =>
-      draft.steps.map((s, i) => ({
+  const nodes: Node<StepNodeData>[] = useMemo(() => {
+    const depths = computeDepths(draft.steps);
+    const seenAtDepth = new Map<number, number>();
+    return draft.steps.map((s, i) => {
+      const depth = depths.get(s.stepOrder) ?? 0;
+      const indexAtDepth = seenAtDepth.get(depth) ?? 0;
+      seenAtDepth.set(depth, indexAtDepth + 1);
+      return {
         id: String(s.stepOrder),
         type: "step",
-        position: positions[String(s.stepOrder)] ?? { x: s.stepOrder * 300 + 20, y: 80 },
+        position: positions[String(s.stepOrder)] ?? { x: depth * 320 + 20, y: indexAtDepth * 160 + 40 },
         selected: selectedOrder === s.stepOrder,
         data: {
           draft,
@@ -116,9 +147,9 @@ export function TemplateCanvas({ draft }: { draft: TemplateDraft }) {
           hasError: errorsByStep.get(s.stepOrder) ?? false,
           selected: selectedOrder === s.stepOrder,
         },
-      })),
-    [draft, positions, selectedOrder, errorsByStep],
-  );
+      };
+    });
+  }, [draft, positions, selectedOrder, errorsByStep]);
 
   const edges: Edge[] = useMemo(() => {
     const out: Edge[] = [];
