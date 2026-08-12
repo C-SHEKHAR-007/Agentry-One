@@ -25,9 +25,11 @@ async def run(job: AgentJob) -> dict:
     # params.text is either a literal caption or a Template `fromStep`
     # reference (an upstream text artifact's storage_key) -- resolve either.
     caption = read_text_artifact(job.params.get("text") or "") or "Default caption"
-    # Real media upload is platform-specific and gated behind elevated API
-    # access on most platforms' free tiers -- this agent posts text-only.
-    media_note = ""
+    # A public URL the platform can fetch the media from -- required by
+    # platforms (Instagram) that can't post a caption alone; optional for
+    # ones that can (X, LinkedIn -- not wired up to actually attach it yet).
+    media_url = job.params.get("mediaUrl") or None
+    media_note = "" if media_url else " (no media attached)"
 
     await job.report_progress(30, f"Connecting to {platform}...")
 
@@ -39,7 +41,7 @@ async def run(job: AgentJob) -> dict:
         receipt = f"[MOCK -- no app credentials configured] Would have posted to {platform}: {caption}{media_note}"
     else:
         await job.report_progress(60, f"Publishing to {platform}...")
-        post_url = load_publisher(platform)(access_token, caption)
+        post_url = load_publisher(platform)(access_token, caption, media_url)
         receipt = f"Posted to {platform}: {caption}{media_note}"
 
     await job.report_progress(100, "Successfully published!")

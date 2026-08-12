@@ -38,6 +38,8 @@ export async function buildAuthorizeUrl(
   state: string,
   pkceChallenge: string,
 ): Promise<string | null> {
+  if (platform === "instagram") return buildInstagramAuthorizeUrl(redirectUri, state);
+
   const config = (await loadConnectors()).get(platform);
   if (!config) return null;
   const creds = getCredentials(config);
@@ -64,6 +66,103 @@ export interface ExchangedToken {
   handle: string | null;
 }
 
+// Instagram doesn't fit the generic connector.json shape (see
+// social-connectors/README / the content-studio plan's Phase 3 note): it
+// logs in via Facebook, needs a short-lived -> long-lived token exchange,
+// and posting needs the Instagram Business/Creator Account id looked up
+// through a linked Facebook Page -- not a single userinfo GET. Handled here
+// as a deliberate, documented special case instead of forcing it into the
+// generic engine.
+const INSTAGRAM_GRAPH_VERSION = "v19.0";
+const INSTAGRAM_SCOPES = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement";
+
+function getInstagramCredentials(): PlatformCredentials | null {
+  const clientId = process.env.INSTAGRAM_CLIENT_ID;
+  const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET;
+  return clientId && clientSecret ? { clientId, clientSecret } : null;
+}
+
+function buildInstagramAuthorizeUrl(redirectUri: string, state: string): string | null {
+  const creds = getInstagramCredentials();
+  if (!creds) return null;
+  const params = new URLSearchParams({
+    client_id: creds.clientId,
+    redirect_uri: redirectUri,
+    scope: INSTAGRAM_SCOPES,
+    response_type: "code",
+    state,
+  });
+  return `https://www.facebook.com/${INSTAGRAM_GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
+}
+
+async function exchangeInstagramCode(code: string, redirectUri: string): Promise<ExchangedToken> {
+  const creds = getInstagramCredentials();
+  if (!creds) throw new Error("no app credentials configured for instagram");
+
+  const shortRes = await fetch(
+    `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/oauth/access_token?` +
+      new URLSearchParams({ client_id: creds.clientId, client_secret: creds.clientSecret, redirect_uri: redirectUri, code }),
+  );
+  const shortData = await shortRes.json();
+  if (!shortRes.ok || !shortData.access_token) {
+    throw new Error(shortData.error?.message || "instagram token exchange failed");
+  }
+
+  // Short-lived (~1-2hr) -> long-lived (~60 day) user token. Falls back to
+  // the short-lived token if this leg fails -- still usable immediately.
+  const longRes = await fetch(
+    `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/oauth/access_token?` +
+      new URLSearchParams({
+        grant_type: "fb_exchange_token",
+        client_id: creds.clientId,
+        client_secret: creds.clientSecret,
+        fb_exchange_token: shortData.access_token,
+      }),
+  );
+  const longData = await longRes.json();
+  const userToken = longRes.ok && longData.access_token ? longData.access_token : shortData.access_token;
+
+  // Find a Facebook Page (each with its own page access token) that has a
+  // linked Instagram Business/Creator account -- that's the account this
+  // connection will post as.
+  const pagesRes = await fetch(
+    `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/me/accounts?access_token=${encodeURIComponent(userToken)}`,
+  );
+  const pagesData = await pagesRes.json();
+  if (!pagesRes.ok) throw new Error(pagesData.error?.message || "failed to list Facebook Pages");
+
+  for (const page of pagesData.data ?? []) {
+    const igRes = await fetch(
+      `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${page.id}?fields=instagram_business_account&access_token=${encodeURIComponent(page.access_token)}`,
+    );
+    const igData = await igRes.json();
+    const igAccountId: string | undefined = igData?.instagram_business_account?.id;
+    if (!igAccountId) continue;
+
+    let handle: string | null = null;
+    try {
+      const profileRes = await fetch(
+        `https://graph.facebook.com/${INSTAGRAM_GRAPH_VERSION}/${igAccountId}?fields=username&access_token=${encodeURIComponent(page.access_token)}`,
+      );
+      const profile = await profileRes.json();
+      handle = profile?.username ? `@${profile.username}` : null;
+    } catch {
+      // Non-fatal.
+    }
+
+    // SocialAccount has no per-platform metadata column, so the linked IG
+    // Business Account id rides along packed into the stored token itself
+    // (encrypted the same way the token is) -- split back apart in
+    // social-connectors/instagram/publish.py.
+    return { accessToken: `${page.access_token}::${igAccountId}`, refreshToken: null, handle };
+  }
+
+  throw new Error(
+    "no Facebook Page with a linked Instagram Business/Creator account was found -- " +
+      "link the Instagram account to a Facebook Page first (Instagram app: Settings > Linked Accounts)",
+  );
+}
+
 async function fetchHandle(config: ConnectorConfig, accessToken: string): Promise<string | null> {
   if (!config.oauth.userinfoUrl) return null;
   try {
@@ -82,6 +181,8 @@ export async function exchangeCode(
   redirectUri: string,
   pkceVerifier: string,
 ): Promise<ExchangedToken> {
+  if (platform === "instagram") return exchangeInstagramCode(code, redirectUri);
+
   const config = (await loadConnectors()).get(platform);
   if (!config) throw new Error(`no connector registered for platform '${platform}'`);
   const creds = getCredentials(config);

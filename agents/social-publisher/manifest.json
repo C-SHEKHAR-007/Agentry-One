@@ -22,6 +22,10 @@
           "text": {
             "type": "string",
             "title": "Caption (overrides an input text artifact if both are present)"
+          },
+          "mediaUrl": {
+            "type": "string",
+            "title": "Public image/video URL (required by platforms like Instagram that can't post a caption alone)"
           }
         },
         "required": ["socialAccountId"]

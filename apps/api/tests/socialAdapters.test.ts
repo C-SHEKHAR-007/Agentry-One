@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAuthorizeUrl } from "../src/modules/socialAccounts/adapters.js";
 
-const ENV_KEYS = ["TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET", "LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"];
+const ENV_KEYS = [
+  "TWITTER_CLIENT_ID",
+  "TWITTER_CLIENT_SECRET",
+  "LINKEDIN_CLIENT_ID",
+  "LINKEDIN_CLIENT_SECRET",
+  "INSTAGRAM_CLIENT_ID",
+  "INSTAGRAM_CLIENT_SECRET",
+];
 
 afterEach(() => {
   for (const key of ENV_KEYS) delete process.env[key];
@@ -41,5 +48,22 @@ describe("buildAuthorizeUrl", () => {
     expect(params.get("client_id")).toBe("li-id");
     expect(params.has("code_challenge")).toBe(false);
     expect(params.get("scope")).toContain("w_member_social");
+  });
+
+  it("returns null for instagram when no app credentials are configured", async () => {
+    expect(await buildAuthorizeUrl("instagram", "http://localhost:4000/cb", "state", "unused-challenge")).toBeNull();
+  });
+
+  it("builds a Facebook Login authorize URL for instagram when credentials are configured", async () => {
+    process.env.INSTAGRAM_CLIENT_ID = "ig-id";
+    process.env.INSTAGRAM_CLIENT_SECRET = "ig-secret";
+    const url = await buildAuthorizeUrl("instagram", "http://localhost:4000/cb", "the-state", "unused-challenge");
+    expect(url).toContain("https://www.facebook.com/v19.0/dialog/oauth?");
+    const params = new URL(url!).searchParams;
+    expect(params.get("client_id")).toBe("ig-id");
+    expect(params.get("redirect_uri")).toBe("http://localhost:4000/cb");
+    expect(params.get("state")).toBe("the-state");
+    expect(params.has("code_challenge")).toBe(false); // Facebook Login doesn't use PKCE here
+    expect(params.get("scope")).toContain("instagram_content_publish");
   });
 });
