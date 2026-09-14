@@ -1,2 +1,4 @@
 bullmq
 requests
+instagrapi
+tweepy
