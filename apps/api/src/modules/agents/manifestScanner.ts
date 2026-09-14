@@ -71,6 +71,8 @@ export async function scanAgentManifests(): Promise<AgentManifest[]> {
     manifest.steps = await Promise.all(
       manifest.steps.map(async (step) => ({
         ...step,
+        humanGate: Boolean(step.humanGate ?? false),
+        producesArtifactKinds: step.producesArtifactKinds ?? [],
         inputSchema: await resolveSchemaRef(agentDir, step.inputSchema),
         outputSchema: await resolveSchemaRef(agentDir, step.outputSchema),
       })),

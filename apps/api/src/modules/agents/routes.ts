@@ -96,56 +96,134 @@ export async function agentsRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post<{ Body: { name: string; description: string; systemPrompt: string; inputSchema: any } }>(
-    "/agents/custom",
-    async (req, reply) => {
-      const { name, description, systemPrompt, inputSchema } = req.body;
-      if (!name || !systemPrompt) {
-        return reply.code(400).send({ error: "name and systemPrompt are required" });
-      }
+  app.post<{
+    Body: {
+      name: string;
+      description?: string;
+      systemPrompt: string;
+      capabilityKey?: string;
+      modelId?: string;
+      inputTypes?: string[];
+      outputTypes?: string[];
+      inputSchema?: any;
+      outputSchema?: any;
+    };
+  }>("/agents/custom", async (req, reply) => {
+    const {
+      name,
+      description = "",
+      systemPrompt,
+      capabilityKey = "text-generation",
+      modelId,
+      inputTypes = ["text"],
+      outputTypes = ["text"],
+      inputSchema,
+      outputSchema,
+    } = req.body;
 
-      // Generate a slugified ID for the custom skill
-      const id = "custom-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
+    if (!name || !systemPrompt) {
+      return reply.code(400).send({ error: "name and systemPrompt are required" });
+    }
 
-      const manifest = {
+    // Generate slugified ID
+    const id = "custom-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
+
+    const queueName = capabilityKey === "web-search" ? "agent.web-search" : "agent.dynamic";
+
+    const manifest = {
+      id,
+      name,
+      version: "1.0",
+      description,
+      isCustom: true,
+      entrypoint: { queueName },
+      steps: [
+        {
+          key: "run",
+          description: description || `Run ${name}`,
+          humanGate: false,
+          requiresCapability: capabilityKey,
+          consumesArtifactKinds: inputTypes,
+          producesArtifactKinds: outputTypes,
+          inputSchema: inputSchema || {
+            type: "object",
+            properties: {
+              prompt: { type: "string", title: "Prompt / Input" },
+            },
+          },
+          outputSchema: outputSchema || {
+            type: "object",
+            properties: {
+              text: { type: "string" },
+            },
+          },
+          ui_config: {
+            system_prompt: systemPrompt,
+            model_id: modelId,
+            input_types: inputTypes,
+            output_types: outputTypes,
+          },
+        },
+      ],
+    };
+
+    const agent = await prisma.agent.create({
+      data: {
         id,
         name,
         version: "1.0",
         description,
-        isCustom: true,
-        entrypoint: { queueName: "agent.dynamic" },
-        steps: [
-          {
-            key: "run",
-            description: "Run custom skill",
-            requiresCapability: "text-generation",
-            inputSchema,
-            outputSchema: {
-              type: "object",
-              properties: {
-                text: { type: "string" }
-              }
-            },
-            producesArtifactKinds: ["text"],
-            ui_config: {
-              system_prompt: systemPrompt
-            }
-          }
-        ]
-      };
+        manifest: manifest as any,
+        status: "active",
+      },
+    });
 
-      const agent = await prisma.agent.create({
-        data: {
-          id,
-          name,
-          version: "1.0",
-          description,
-          manifest: manifest as any,
-          status: "active"
-        }
-      });
+    wireQueueListeners(queueName);
+    return reply.code(201).send(agent);
+  });
 
-      return reply.code(201).send(agent);
+  app.put<{
+    Params: { id: string };
+    Body: {
+      name?: string;
+      description?: string;
+      systemPrompt?: string;
+      modelId?: string;
+      inputTypes?: string[];
+      outputTypes?: string[];
+      inputSchema?: any;
+    };
+  }>("/agents/:id", async (req, reply) => {
+    const existing = await prisma.agent.findUnique({ where: { id: req.params.id } });
+    if (!existing) return reply.code(404).send({ error: "agent_not_found" });
+
+    const manifest = existing.manifest as any;
+    if (req.body.name) manifest.name = req.body.name;
+    if (req.body.description !== undefined) manifest.description = req.body.description;
+    if (req.body.systemPrompt && manifest.steps?.[0]?.ui_config) {
+      manifest.steps[0].ui_config.system_prompt = req.body.systemPrompt;
     }
-  );
+    if (req.body.modelId && manifest.steps?.[0]?.ui_config) {
+      manifest.steps[0].ui_config.model_id = req.body.modelId;
+    }
+    if (req.body.outputTypes && manifest.steps?.[0]) {
+      manifest.steps[0].producesArtifactKinds = req.body.outputTypes;
+    }
+
+    const updated = await prisma.agent.update({
+      where: { id: req.params.id },
+      data: {
+        name: req.body.name || existing.name,
+        description: req.body.description !== undefined ? req.body.description : existing.description,
+        manifest,
+      },
+    });
+    return updated;
+  });
+
+  app.delete<{ Params: { id: string } }>("/agents/:id", async (req, reply) => {
+    await prisma.agent.delete({ where: { id: req.params.id } });
+    return reply.code(204).send();
+  });
 }
+

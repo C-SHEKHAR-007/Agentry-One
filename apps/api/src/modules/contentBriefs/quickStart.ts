@@ -3,7 +3,7 @@ import { createTemplate, runTemplate, TemplateError } from "../templates/service
 import type { InputMapping, TemplateStepInput } from "../templates/types.js";
 
 const WRITER_AGENT_ID = "content-brief-writer";
-const VALID_FORMATS = ["text", "image", "voice", "video"] as const;
+const VALID_FORMATS = ["search", "text", "image", "voice", "video", "publish"] as const;
 type Format = (typeof VALID_FORMATS)[number];
 
 export class ContentBriefError extends Error {
@@ -15,11 +15,6 @@ export class ContentBriefError extends Error {
   }
 }
 
-/** The one built-in Dynamic Skill every Content Brief uses to draft its
- * caption -- auto-provisioned the same way ensureCapabilitiesAndDefaults
- * seeds a default provider, so a fresh install works without the operator
- * manually creating a skill first (see /agents/custom for the general
- * user-created-skill path this borrows its shape from). */
 async function ensureWriterAgent(): Promise<void> {
   const existing = await prisma.agent.findUnique({ where: { id: WRITER_AGENT_ID } });
   if (existing) return;
@@ -28,12 +23,12 @@ async function ensureWriterAgent(): Promise<void> {
     id: WRITER_AGENT_ID,
     name: "Content Brief Writer",
     version: "1.0",
-    description: "Built-in skill the Content Studio uses to draft a caption from a topic + tone.",
+    description: "Multi-modal copywriter that drafts engaging captions, hashtags, and visual prompts from research or topics.",
     entrypoint: { queueName: "agent.dynamic" },
     steps: [
       {
         key: "run",
-        description: "Draft a caption",
+        description: "Draft viral social media caption and image prompt",
         requiresCapability: "text-generation",
         humanGate: false,
         inputSchema: {
@@ -42,14 +37,16 @@ async function ensureWriterAgent(): Promise<void> {
           properties: {
             topic: { type: "string" },
             tone: { type: "string" },
+            research_brief: { type: "string" },
           },
         },
         outputSchema: { type: "object", properties: { text: { type: "string" } } },
         producesArtifactKinds: ["text"],
         ui_config: {
           system_prompt:
-            "Write a short, engaging social media caption about: {{topic}}. Tone: {{tone}}. " +
-            "Keep it under 280 characters. No hashtags unless they read naturally.",
+            "You are an elite Social Media Copywriter and Creative Director. " +
+            "Based on the following topic and trend research, draft a high-converting, viral Instagram post caption with engaging hooks, emojis, and 5-8 relevant hashtags. " +
+            "Topic: {{topic}}. Tone: {{tone}}. \n\nResearch context: {{research_brief}}",
         },
       },
     ],
@@ -74,17 +71,11 @@ function fromStep(stepOrder: number, artifactKind: string): InputMapping[string]
   return { kind: "fromStep", stepOrder, artifactKind };
 }
 
-/** Translates a Content Studio brief into the step list for an ordinary
- * Template -- text/image start immediately (no dependencies), voice depends
- * on text, video depends on image (+ voice, if requested) + text (for its
- * caption). Pure (no DB access) so it's unit-testable on its own; all
- * execution (including the parallel/branching scheduling) goes through the
- * same generic Template engine every hand-built template uses
- * (templates/service.ts). */
 export function buildBriefSteps(
   topic: string,
   tone: string | undefined,
   formats: string[],
+  socialAccountId?: string,
 ): { steps: TemplateStepInput[]; requested: Format[] } {
   const requested = formats.filter((f): f is Format => (VALID_FORMATS as readonly string[]).includes(f));
   if (requested.length === 0) {
@@ -94,24 +85,44 @@ export function buildBriefSteps(
     throw new ContentBriefError("topic is required", 422);
   }
 
-  const wantsText = requested.some((f) => f === "text" || f === "voice" || f === "video");
-  const wantsImage = requested.some((f) => f === "image" || f === "video");
+  const wantsSearch = requested.includes("search");
+  const wantsText = requested.some((f) => f === "text" || f === "voice" || f === "video" || f === "publish");
+  const wantsImage = requested.some((f) => f === "image" || f === "video" || f === "publish");
   const wantsVoice = requested.some((f) => f === "voice" || f === "video");
   const wantsVideo = requested.includes("video");
+  const wantsPublish = requested.includes("publish") && Boolean(socialAccountId);
 
   const steps: TemplateStepInput[] = [];
   const orderOf: Partial<Record<Format, number>> = {};
   const nextOrder = () => steps.length;
 
+  if (wantsSearch) {
+    orderOf.search = nextOrder();
+    steps.push({
+      stepOrder: orderOf.search,
+      agentId: "web-search-agent",
+      agentStepKey: "search",
+      inputMapping: { query: fromRunInput("topic") },
+    });
+  }
+
   if (wantsText) {
     orderOf.text = nextOrder();
+    const textMapping: InputMapping = {
+      topic: fromRunInput("topic"),
+      tone: fromRunInput("tone"),
+    };
+    if (wantsSearch) {
+      textMapping.research_brief = fromStep(orderOf.search!, "text");
+    }
     steps.push({
       stepOrder: orderOf.text,
       agentId: WRITER_AGENT_ID,
       agentStepKey: "run",
-      inputMapping: { topic: fromRunInput("topic"), tone: fromRunInput("tone") },
+      inputMapping: textMapping,
     });
   }
+
   if (wantsImage) {
     orderOf.image = nextOrder();
     steps.push({
@@ -121,6 +132,7 @@ export function buildBriefSteps(
       inputMapping: { prompt: fromRunInput("imagePrompt") },
     });
   }
+
   if (wantsVoice) {
     orderOf.voice = nextOrder();
     steps.push({
@@ -130,6 +142,7 @@ export function buildBriefSteps(
       inputMapping: { text: fromStep(orderOf.text!, "text") },
     });
   }
+
   if (wantsVideo) {
     orderOf.video = nextOrder();
     const videoMapping: InputMapping = {
@@ -140,6 +153,23 @@ export function buildBriefSteps(
     steps.push({ stepOrder: orderOf.video, agentId: "video-agent", agentStepKey: "assemble", inputMapping: videoMapping });
   }
 
+  if (wantsPublish) {
+    orderOf.publish = nextOrder();
+    const publishMapping: InputMapping = {
+      socialAccountId: fromRunInput("socialAccountId"),
+      text: fromStep(orderOf.text!, "text"),
+    };
+    if (wantsImage) {
+      publishMapping.mediaUrl = fromStep(orderOf.image!, "image");
+    }
+    steps.push({
+      stepOrder: orderOf.publish,
+      agentId: "social-publisher",
+      agentStepKey: "run",
+      inputMapping: publishMapping,
+    });
+  }
+
   return { steps, requested };
 }
 
@@ -148,8 +178,9 @@ export async function createContentBriefTemplate(
   topic: string,
   tone: string | undefined,
   formats: string[],
+  socialAccountId?: string,
 ) {
-  const { steps, requested } = buildBriefSteps(topic, tone, formats);
+  const { steps, requested } = buildBriefSteps(topic, tone, formats, socialAccountId);
 
   await ensureWriterAgent();
 
@@ -157,7 +188,7 @@ export async function createContentBriefTemplate(
 
   let template;
   try {
-    template = await createTemplate(projectId, name, `Generated from the Content Studio brief form (formats: ${requested.join(", ")}).`, steps);
+    template = await createTemplate(projectId, name, `Multi-agent pipeline (steps: ${requested.join(" -> ")}).`, steps);
   } catch (err) {
     if (err instanceof TemplateError) throw new ContentBriefError(err.message, err.statusCode);
     throw err;
@@ -165,8 +196,9 @@ export async function createContentBriefTemplate(
 
   const runInputs: Record<string, unknown> = {
     topic,
-    tone: tone || "friendly and engaging",
-    imagePrompt: tone ? `${topic}, ${tone} style` : topic,
+    tone: tone || "engaging, trendy and viral",
+    imagePrompt: tone ? `${topic}, ${tone} style, high quality photography, vibrant colors` : `${topic}, modern digital artwork, ultra-detailed`,
+    socialAccountId: socialAccountId || undefined,
   };
 
   let run;
@@ -179,3 +211,4 @@ export async function createContentBriefTemplate(
 
   return { templateId: template.id, runId: run.id };
 }
+

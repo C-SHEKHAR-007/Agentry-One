@@ -12,6 +12,13 @@ import {
   Download,
   Loader2,
   Layers,
+  Search,
+  CheckCircle2,
+  Share2,
+  ExternalLink,
+  Bot,
+  Flame,
+  Copy,
 } from "lucide-react";
 import { api, downloadUrl } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
@@ -23,23 +30,22 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import { Spinner } from "../components/ui/spinner";
+import { Badge } from "../components/ui/badge";
 
 interface Project {
   id: string;
   name: string;
 }
 
-type Role = "text" | "image" | "voice" | "video";
+type Role = "search" | "text" | "image" | "voice" | "video" | "publish";
 
-// A brief is generated into an ordinary Template (see apps/api/src/modules
-// /contentBriefs/quickStart.ts) -- each generated step's role is just which
-// built-in agent it runs, so it's derived from agentId rather than tracked
-// as its own field.
 const AGENT_TO_ROLE: Record<string, Role> = {
+  "web-search-agent": "search",
   "content-brief-writer": "text",
   "sketch-agent": "image",
   "voice-agent": "voice",
   "video-agent": "video",
+  "social-publisher": "publish",
 };
 
 interface TemplateRunStep {
@@ -48,28 +54,34 @@ interface TemplateRunStep {
   workflowId: string | null;
   templateStep: { stepOrder: number; agentId: string };
 }
+
 interface TemplateRun {
   id: string;
   status: string;
   steps: TemplateRunStep[];
 }
+
 interface WorkflowArtifact {
   id: string;
   kind: string;
   mimeType: string;
   sizeBytes: number | null;
 }
+
 interface SocialAccount {
   id: string;
   platform: string;
   handle: string | null;
+  status: string;
 }
 
-const FORMAT_OPTIONS: { id: Role; label: string; icon: React.ElementType; hint: string }[] = [
-  { id: "text", label: "Caption", icon: Type, hint: "A short caption drafted from your topic" },
-  { id: "image", label: "Image", icon: ImageIcon, hint: "A generated image to go with it" },
-  { id: "voice", label: "Voiceover", icon: Mic, hint: "Narrates the caption — needs Caption" },
-  { id: "video", label: "Short video", icon: Clapperboard, hint: "Image + voiceover assembled into an MP4 — needs Image" },
+const FORMAT_OPTIONS: { id: Role; label: string; icon: React.ElementType; hint: string; badge: string }[] = [
+  { id: "search", label: "Web Search & Trends", icon: Search, hint: "Scrapes live web & social trends for viral angles", badge: "Live Intel" },
+  { id: "text", label: "Instagram Caption & Prompt", icon: Type, hint: "Drafts viral caption, hashtags & image prompt", badge: "Copy & Prompt" },
+  { id: "image", label: "Visual / Reel Image", icon: ImageIcon, hint: "Synthesizes high-res visual from image prompt", badge: "AI Visual" },
+  { id: "voice", label: "Voiceover Narration", icon: Mic, hint: "Narrates the caption via text-to-speech", badge: "TTS Audio" },
+  { id: "video", label: "Short Video / Reel", icon: Clapperboard, hint: "Assembles visual + audio + caption overlay into MP4", badge: "Reel MP4" },
+  { id: "publish", label: "Auto-Publish to Instagram", icon: Send, hint: "Publishes post directly to connected social account", badge: "Auto-Post" },
 ];
 
 function useWorkflowArtifacts(workflowId: string | undefined | null, enabled: boolean) {
@@ -96,37 +108,60 @@ function RoleCard({ role, step }: { role: Role; step: TemplateRunStep | undefine
   const primary = artifacts?.[0];
 
   return (
-    <Card glass>
-      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Icon className="h-4 w-4 text-primary" />
+    <Card glass className="overflow-hidden border-border/70 shadow-md">
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0 pb-3 bg-secondary/20">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+          <span className="p-1.5 rounded-lg bg-primary/10 text-primary">
+            <Icon className="h-4 w-4" />
+          </span>
           {meta.label}
         </CardTitle>
-        <StatusBadge status={status === "pending" ? "queued" : status} />
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="text-[10px] hidden sm:inline-flex">{meta.badge}</Badge>
+          <StatusBadge status={status === "pending" ? "queued" : status} />
+        </div>
       </CardHeader>
-      <CardContent>
+
+      <CardContent className="pt-4">
         {status !== "completed" && status !== "failed" && (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {step ? "Generating…" : `Waiting on ${meta.hint.includes("needs") ? meta.hint.split("needs ")[1] : "a prior step"}…`}
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            {step ? "Agent executing in worker pipeline…" : `Waiting on prior step in workflow…`}
           </div>
         )}
-        {status === "failed" && <p className="py-4 text-sm text-destructive">This step failed. Check its workflow for details.</p>}
+
+        {status === "failed" && (
+          <p className="py-4 text-sm text-destructive font-medium">This pipeline step failed. Check executions log.</p>
+        )}
+
         {status === "completed" && primary && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {primary.mimeType.startsWith("image/") && (
-              <img src={downloadUrl(primary.id)} alt="" className="w-full rounded-md border border-border" />
+              <div className="relative group rounded-lg overflow-hidden border border-border">
+                <img src={downloadUrl(primary.id)} alt="Generated Visual" className="w-full object-cover max-h-72" />
+              </div>
             )}
-            {primary.mimeType.startsWith("audio/") && <audio controls src={downloadUrl(primary.id)} className="w-full" />}
+
+            {primary.mimeType.startsWith("audio/") && (
+              <div className="p-2 rounded-lg bg-secondary/30 border border-border">
+                <audio controls src={downloadUrl(primary.id)} className="w-full" />
+              </div>
+            )}
+
             {primary.mimeType.startsWith("video/") && (
-              <video controls src={downloadUrl(primary.id)} className="w-full rounded-md border border-border" />
+              <video controls src={downloadUrl(primary.id)} className="w-full rounded-lg border border-border max-h-80" />
             )}
-            {primary.mimeType === "text/plain" && role === "text" && <CaptionPreview artifactId={primary.id} />}
-            <a href={downloadUrl(primary.id)} download>
-              <Button size="sm" variant="ghost">
-                <Download className="h-3.5 w-3.5" /> Download
-              </Button>
-            </a>
+
+            {primary.mimeType === "text/plain" && (
+              <TextArtifactView artifactId={primary.id} isSearch={role === "search"} />
+            )}
+
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <a href={downloadUrl(primary.id)} download className="inline-flex items-center gap-1 text-primary hover:underline">
+                <Download className="h-3.5 w-3.5" /> Download Artifact
+              </a>
+              <span className="text-muted-foreground font-mono text-[11px]">{primary.kind}</span>
+            </div>
           </div>
         )}
       </CardContent>
@@ -134,14 +169,41 @@ function RoleCard({ role, step }: { role: Role; step: TemplateRunStep | undefine
   );
 }
 
-function CaptionPreview({ artifactId }: { artifactId: string }) {
+function TextArtifactView({ artifactId, isSearch }: { artifactId: string; isSearch?: boolean }) {
   const { data: text } = useArtifactText(artifactId);
-  return <p className="rounded-md border border-border bg-secondary/30 p-3 text-sm">{text ?? "…"}</p>;
+
+  const copyToClipboard = () => {
+    if (text) {
+      navigator.clipboard.writeText(text);
+      toast.success("Copied to clipboard!");
+    }
+  };
+
+  if (!text) return <p className="text-sm text-muted-foreground">Loading artifact...</p>;
+
+  return (
+    <div className="relative group">
+      <button
+        onClick={copyToClipboard}
+        className="absolute top-2 right-2 p-1.5 rounded bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+        title="Copy text"
+      >
+        <Copy className="h-3.5 w-3.5" />
+      </button>
+      <pre className="rounded-lg border border-border/70 bg-secondary/30 p-3 text-xs font-sans whitespace-pre-wrap max-h-56 overflow-y-auto leading-relaxed text-foreground">
+        {text}
+      </pre>
+    </div>
+  );
 }
 
-function PublishPanel({ projectId, textStep }: { projectId: string; textStep: TemplateRunStep | undefined }) {
-  const { data: artifacts } = useWorkflowArtifacts(textStep?.workflowId, textStep?.status === "completed");
-  const textArtifact = artifacts?.find((a) => a.kind === "text");
+function PublishPanel({ projectId, textStep, imageStep }: { projectId: string; textStep?: TemplateRunStep; imageStep?: TemplateRunStep }) {
+  const { data: textArtifacts } = useWorkflowArtifacts(textStep?.workflowId, textStep?.status === "completed");
+  const { data: imageArtifacts } = useWorkflowArtifacts(imageStep?.workflowId, imageStep?.status === "completed");
+  
+  const textArtifact = textArtifacts?.find((a) => a.kind === "text");
+  const imageArtifact = imageArtifacts?.find((a) => a.kind === "image");
+  
   const { data: fetchedCaption } = useArtifactText(textArtifact?.id);
 
   const [caption, setCaption] = useState("");
@@ -160,48 +222,63 @@ function PublishPanel({ projectId, textStep }: { projectId: string; textStep: Te
     mutationFn: (socialAccountId: string) =>
       api.post(`/projects/${projectId}/workflows`, {
         agentId: "social-publisher",
-        input: { socialAccountId, text: caption },
+        input: {
+          socialAccountId,
+          text: caption,
+          mediaUrl: imageArtifact ? downloadUrl(imageArtifact.id) : undefined,
+        },
       }),
-    onSuccess: () => toast.success("Publish job queued — check Executions for the post link."),
+    onSuccess: () => toast.success("Publish job dispatched to Instagram / Social network! Check Executions for status."),
     onError: (err: Error) => toast.error(err.message),
   });
 
-  if (!textArtifact) return null;
+  if (!textArtifact && !imageArtifact) return null;
 
   return (
-    <Card glass>
-      <CardHeader>
-        <CardTitle className="text-base">Publish</CardTitle>
+    <Card glass className="border-primary/40 shadow-xl">
+      <CardHeader className="bg-primary/5 pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Send className="h-4 w-4 text-primary" /> One-Click Social Media Publisher
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Review your generated caption and visual asset, then publish directly to your connected accounts.
+        </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-4">
         <div>
-          <Label>Caption</Label>
+          <Label className="text-xs">Final Caption & Hashtags</Label>
           <Textarea
             value={caption}
             onChange={(e) => {
               setTouched(true);
               setCaption(e.target.value);
             }}
-            rows={3}
+            rows={4}
+            className="text-sm font-sans"
           />
         </div>
+
         {(!accounts || accounts.length === 0) && (
-          <p className="text-sm text-muted-foreground">
-            No social accounts connected yet — connect one on the{" "}
-            <a href="/integrations" className="text-primary hover:underline">Integrations</a> page.
-          </p>
+          <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center justify-between">
+            <span>No social accounts connected yet.</span>
+            <Link to="/integrations" className="font-semibold text-primary hover:underline">
+              Connect Instagram Account &rarr;
+            </Link>
+          </div>
         )}
-        <div className="flex flex-wrap gap-2">
+
+        <div className="flex flex-wrap gap-2 pt-1">
           {accounts?.map((acc) => (
             <Button
               key={acc.id}
-              variant="outline"
+              variant="default"
               size="sm"
               disabled={publish.isPending || !caption.trim()}
               onClick={() => publish.mutate(acc.id)}
+              className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
             >
               <Send className="h-3.5 w-3.5" />
-              Post to {acc.platform} {acc.handle ? `(${acc.handle})` : ""}
+              Publish to {acc.platform.toUpperCase()} {acc.handle ? `(${acc.handle})` : ""}
             </Button>
           ))}
         </div>
@@ -218,26 +295,34 @@ export function StudioPage() {
   });
   const activeProjectId = projectId || projects?.[0]?.id || "";
 
-  const [topic, setTopic] = useState("");
-  const [tone, setTone] = useState("");
-  const [formats, setFormats] = useState<Role[]>(["text", "image"]);
+  const { data: accounts } = useQuery({
+    queryKey: ["socialAccounts", activeProjectId],
+    queryFn: () => api.get<SocialAccount[]>(`/social-accounts?projectId=${activeProjectId}`),
+    enabled: Boolean(activeProjectId),
+  });
+
+  const [topic, setTopic] = useState("AI Agents in 2025: Autonomous workflows that work for creators");
+  const [tone, setTone] = useState("viral, energetic, value-driven with emojis");
+  const [selectedSocialAccountId, setSelectedSocialAccountId] = useState("");
+  const [formats, setFormats] = useState<Role[]>(["search", "text", "image"]);
   const [runId, setRunId] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<string | null>(null);
 
   const toggleFormat = (id: Role) =>
     setFormats((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
 
-  const createBrief = useMutation({
+  const createWorkflow = useMutation({
     mutationFn: () =>
       api.post<{ templateId: string; runId: string }>(`/projects/${activeProjectId}/briefs`, {
         topic,
         tone: tone || undefined,
         formats,
+        socialAccountId: selectedSocialAccountId || undefined,
       }),
     onSuccess: (result) => {
       setRunId(result.runId);
       setTemplateId(result.templateId);
-      toast.success("Generating your content…");
+      toast.success("Multi-agent workflow launched!");
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -246,49 +331,77 @@ export function StudioPage() {
     queryKey: ["template-run", runId],
     queryFn: () => api.get<TemplateRun>(`/template-runs/${runId}`),
     enabled: Boolean(runId),
-    refetchInterval: (query) => (query.state.data?.status === "running" ? 2500 : false),
+    refetchInterval: (query) => (query.state.data?.status === "running" ? 2000 : false),
   });
 
   const stepByRole = (role: Role) => run?.steps.find((s) => AGENT_TO_ROLE[s.templateStep.agentId] === role);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8 pb-12">
       <PageHeader
-        title="Content Studio"
-        description="Write a brief once — generate every format, then post it straight to your connected accounts."
+        title="Multi-Modal Content Studio"
+        description="Compose end-to-end multi-agent pipelines: Search web trends -> Generate viral hooks & captions -> Synthesize visuals & reels -> Publish straight to Instagram & social networks."
       />
 
-      <Card glass>
-        <CardContent className="space-y-4 pt-5">
-          {projects && projects.length > 1 && (
-            <div className="max-w-xs">
-              <Label>Project</Label>
-              <Select value={activeProjectId} onChange={(e) => setProjectId(e.target.value)}>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </div>
-          )}
+      {/* Main Workflow Configurator */}
+      <Card glass className="border-primary/20 shadow-xl">
+        <CardContent className="space-y-5 pt-6">
+          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+            {projects && projects.length > 1 && (
+              <div className="w-full sm:w-72">
+                <Label className="text-xs">Project</Label>
+                <Select value={activeProjectId} onChange={(e) => setProjectId(e.target.value)}>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            {accounts && accounts.length > 0 && (
+              <div className="w-full sm:w-72">
+                <Label className="text-xs">Connected Social Account (For Auto-Publish)</Label>
+                <Select value={selectedSocialAccountId} onChange={(e) => setSelectedSocialAccountId(e.target.value)}>
+                  <option value="">Manual publish review</option>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.platform.toUpperCase()} {acc.handle ? `(${acc.handle})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+          </div>
 
           <div>
-            <Label>What's this about?</Label>
+            <Label className="text-sm font-semibold flex items-center gap-1.5">
+              <Flame className="h-4 w-4 text-orange-500" /> Niche, Topic or Campaign Concept
+            </Label>
             <Textarea
-              placeholder="e.g. Launching our new cold-brew flavor this weekend"
+              placeholder="e.g. 5 hidden AI tools for creators that save 10 hours a week"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              rows={3}
+              rows={2}
+              className="mt-1 font-medium"
             />
           </div>
 
           <div>
-            <Label>Tone (optional)</Label>
-            <Input placeholder="playful, professional, excited…" value={tone} onChange={(e) => setTone(e.target.value)} />
+            <Label className="text-xs">Tone & Style Guidelines (Optional)</Label>
+            <Input
+              placeholder="e.g. punchy, viral Instagram hook, professional insights, aesthetic cyberpunk..."
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              className="mt-1 text-sm"
+            />
           </div>
 
+          {/* Pipeline Step Selector */}
           <div>
-            <Label>Generate</Label>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Multi-Agent Pipeline Steps:
+            </Label>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 mt-2">
               {FORMAT_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
                 const checked = formats.includes(opt.id);
@@ -297,13 +410,15 @@ export function StudioPage() {
                     key={opt.id}
                     type="button"
                     onClick={() => toggleFormat(opt.id)}
-                    className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center text-xs transition-colors ${
-                      checked ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-secondary/40"
+                    className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all ${
+                      checked
+                        ? "border-primary bg-primary/10 text-primary shadow-sm font-semibold"
+                        : "border-border text-muted-foreground hover:bg-secondary/40"
                     }`}
                     title={opt.hint}
                   >
-                    <Icon className="h-5 w-5" />
-                    {opt.label}
+                    <Icon className={`h-5 w-5 ${checked ? "text-primary scale-110" : ""}`} />
+                    <span className="text-xs leading-tight">{opt.label}</span>
                   </button>
                 );
               })}
@@ -311,34 +426,53 @@ export function StudioPage() {
           </div>
 
           <Button
-            onClick={() => createBrief.mutate()}
-            disabled={createBrief.isPending || !topic.trim() || formats.length === 0 || !activeProjectId}
+            size="lg"
+            onClick={() => createWorkflow.mutate()}
+            disabled={createWorkflow.isPending || !topic.trim() || formats.length === 0 || !activeProjectId}
+            className="w-full sm:w-auto shadow-lg bg-gradient-to-r from-primary to-accent hover:opacity-95"
           >
-            {createBrief.isPending ? <Spinner className="mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            Generate
+            {createWorkflow.isPending ? <Spinner className="mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />}
+            Execute Multi-Agent Workflow Pipeline
           </Button>
         </CardContent>
       </Card>
 
+      {/* Live Pipeline Execution Output */}
       {run && (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {formats.map((role) => (
-              <RoleCard key={role} role={role} step={stepByRole(role)} />
-            ))}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" /> Active Workflow Execution
+            </h3>
+            <StatusBadge status={run.status} />
           </div>
-          <PublishPanel projectId={activeProjectId} textStep={stepByRole("text")} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {formats
+              .filter((role) => role !== "publish")
+              .map((role) => (
+                <RoleCard key={role} role={role} step={stepByRole(role)} />
+              ))}
+          </div>
+
+          <PublishPanel
+            projectId={activeProjectId}
+            textStep={stepByRole("text")}
+            imageStep={stepByRole("image")}
+          />
+
           {templateId && (
-            <p className="text-center text-sm text-muted-foreground">
-              This generation is saved as a reusable template —{" "}
-              <Link to={`/templates/${templateId}/edit`} className="inline-flex items-center gap-1 text-primary hover:underline">
-                <Layers className="h-3.5 w-3.5" /> open it in the Builder
+            <p className="text-center text-sm text-muted-foreground pt-2">
+              This workflow is saved dynamically in the database —{" "}
+              <Link to={`/templates/${templateId}/edit`} className="inline-flex items-center gap-1 text-primary hover:underline font-medium">
+                <Layers className="h-3.5 w-3.5" /> Open in Workflow Builder
               </Link>{" "}
-              to edit, rerun with a new topic, or schedule it.
+              to customize steps, adjust input mappings, or set automated cron schedules.
             </p>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
+

@@ -1,0 +1,35 @@
+{
+  "id": "web-search-agent",
+  "name": "Web Search & Trend Agent",
+  "version": "1.0.0",
+  "description": "Searches the live web and social trends for breaking news, trending hashtags, and domain insights.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.web-search.worker",
+    "queueName": "agent.web-search"
+  },
+  "steps": [
+    {
+      "key": "search",
+      "description": "Search web for trending content and insights",
+      "humanGate": false,
+      "requiresCapability": "web-search",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "title": "Search Query / Topic / Niche" },
+          "time_range": { "type": "string", "title": "Time range", "default": "week" }
+        },
+        "required": ["query"]
+      },
+      "producesArtifactKinds": ["text"],
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string" },
+          "summary": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
