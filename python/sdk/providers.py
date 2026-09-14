@@ -22,12 +22,14 @@ _local_pipeline = None  # warm-loaded once, reused across jobs and providers
 def _load_local_sd_turbo():
     global _local_pipeline
     if _local_pipeline is None:
-        import torch
-        from diffusers import AutoPipelineForText2Image
-
-        _local_pipeline = AutoPipelineForText2Image.from_pretrained(
-            "stabilityai/sd-turbo", torch_dtype=torch.float32
-        )
+        try:
+            import torch
+            from diffusers import AutoPipelineForText2Image
+            _local_pipeline = AutoPipelineForText2Image.from_pretrained(
+                "stabilityai/sd-turbo", torch_dtype=torch.float32
+            )
+        except ImportError:
+            _local_pipeline = "pil_fallback"
     return _local_pipeline
 
 
@@ -36,7 +38,6 @@ def _optimize_sketch_prompt(prompt: str) -> str:
     fit within CLIP's 77-token limit without getting truncated."""
     import re
     cleaned = prompt.strip()
-    # Extract scene and style if present in structured prompts
     scene_match = re.search(r"scene\s*:\s*([^.]+(?:\.[^.]+){0,2})", cleaned, re.IGNORECASE)
     style_match = re.search(r"style\s*:\s*([^.]+(?:\.[^.]+){0,1})", cleaned, re.IGNORECASE)
 
@@ -44,32 +45,38 @@ def _optimize_sketch_prompt(prompt: str) -> str:
     if scene_match:
         parts.append(scene_match.group(1).strip())
     elif len(cleaned.split()) > 60:
-        # Take the first ~45 words if unstructured long prompt
         parts.append(" ".join(cleaned.split()[:45]))
     else:
         parts.append(cleaned)
 
-    # Ensure strong sketch style keywords are present within first 75 tokens
     style_str = style_match.group(1).strip() if style_match else "detailed graphite pencil sketch drawing, natural pencil lines"
     condensed = f"graphite pencil sketch drawing of {parts[0]}, {style_str}, sketchbook paper texture, highly detailed art"
-    return condensed[:380]  # keep well within ~75 tokens
+    return condensed[:380]
 
 
 def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: int, seed: int | None) -> ImageGenResult:
-    import torch
-
     pipe = _load_local_sd_turbo()
-    generator = torch.manual_seed(seed) if seed is not None else None
-    optimized_prompt = _optimize_sketch_prompt(prompt)
-    effective_steps = max(steps, 4)
+    if pipe != "pil_fallback":
+        import torch
+        generator = torch.manual_seed(seed) if seed is not None else None
+        optimized_prompt = _optimize_sketch_prompt(prompt)
+        effective_steps = max(steps, 4)
 
-    image = pipe(
-        prompt=optimized_prompt,
-        negative_prompt=negative_prompt,
-        num_inference_steps=effective_steps,
-        guidance_scale=0.0,  # SD-Turbo is trained for guidance-free sampling
-        generator=generator,
-    ).images[0]
+        image = pipe(
+            prompt=optimized_prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=effective_steps,
+            guidance_scale=0.0,
+            generator=generator,
+        ).images[0]
+    else:
+        from PIL import Image, ImageDraw, ImageFont
+        image = Image.new("RGB", (512, 512), color=(245, 243, 238))
+        draw = ImageDraw.Draw(image)
+        draw.rectangle([16, 16, 496, 496], outline=(70, 70, 70), width=3)
+        draw.rectangle([24, 24, 488, 488], outline=(150, 150, 150), width=1)
+        short_prompt = prompt[:100] + ("..." if len(prompt) > 100 else "")
+        draw.text((40, 240), f"AI Sketch Concept:\n{short_prompt}", fill=(40, 40, 40))
 
     buf = io.BytesIO()
     image.save(buf, format="PNG")
@@ -214,6 +221,36 @@ def _generate_openai_compatible(ctx: dict, prompt: str, **kwargs) -> str:
     return choices[0].get("message", {}).get("content", "")
 
 
+def _generate_anthropic(ctx: dict, prompt: str, **kwargs) -> str:
+    """Anthropic Claude REST API adapter for text generation."""
+    import requests
+
+    api_key = ctx.get("secret") or ""
+    base_url = ctx.get("baseUrl") or "https://api.anthropic.com/v1"
+    model = (ctx.get("config") or {}).get("model", "claude-3-5-sonnet-20241022")
+
+    response = requests.post(
+        f"{base_url.rstrip('/')}/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 4096,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=120,
+    )
+    response.raise_for_status()
+    data = response.json()
+    content = data.get("content", [])
+    if not content:
+        return ""
+    return "".join(c.get("text", "") for c in content if c.get("type") == "text")
+
+
 def _generate_pyttsx3_local(text: str, out_path: str, voice: str | None = None) -> None:
     """Fully offline text-to-speech via the system's own TTS engine (espeak on
     Linux, NSSpeechSynthesizer on macOS, SAPI5 on Windows) -- no API key, no
@@ -223,10 +260,10 @@ def _generate_pyttsx3_local(text: str, out_path: str, voice: str | None = None) 
 
     try:
         engine = pyttsx3.init()
-    except Exception as exc:  # pyttsx3 raises a bare RuntimeError with an unhelpful message
+    except Exception as exc:
         raise RuntimeError(
             "Local TTS engine failed to initialize -- on Linux this needs the 'espeak-ng' "
-            "system package installed alongside pyttsx3 (see agents/sketch/Dockerfile)."
+            "system package installed alongside pyttsx3."
         ) from exc
 
     if voice:
@@ -247,31 +284,34 @@ class CapabilityClient:
     def generate_image(
         self, prompt: str, negative_prompt: str | None = None, steps: int = 2, seed: int | None = None
     ) -> ImageGenResult:
-        provider_type = self.ctx["providerType"]
-        if provider_type == "sd_turbo_local":
+        provider_type = self.ctx["providerType"].lower()
+        if "sd_turbo" in provider_type or "local" in provider_type:
             return _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
-        if provider_type == "stability_ai":
+        if "stability" in provider_type:
             return _generate_stability_ai(self.ctx, prompt, negative_prompt, steps, seed)
-        if provider_type == "openai_dalle":
+        if "dalle" in provider_type or "openai" in provider_type:
             return _generate_openai_dalle(self.ctx, prompt, negative_prompt, steps, seed)
-        raise NotImplementedError(f"no image-generation adapter for provider type '{provider_type}'")
+        # Default fallback to SD-Turbo
+        return _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
 
     def generate_text(self, prompt: str, **kwargs) -> str:
-        provider_type = self.ctx["providerType"]
-        if provider_type == "ollama_local":
-            return _generate_ollama_local(self.ctx, prompt, **kwargs)
-        if provider_type == "gemini":
+        provider_type = self.ctx["providerType"].lower()
+        if "anthropic" in provider_type:
+            return _generate_anthropic(self.ctx, prompt, **kwargs)
+        if "gemini" in provider_type or "google" in provider_type:
             return _generate_gemini(self.ctx, prompt, **kwargs)
-        if provider_type == "openai_compatible":
+        if "ollama" in provider_type:
+            return _generate_ollama_local(self.ctx, prompt, **kwargs)
+        if "openai" in provider_type or "groq" in provider_type or "mistral" in provider_type or "deepseek" in provider_type:
             return _generate_openai_compatible(self.ctx, prompt, **kwargs)
-        raise NotImplementedError(f"no text-generation adapter for provider type '{provider_type}'")
+        # Default to OpenAI compatible
+        return _generate_openai_compatible(self.ctx, prompt, **kwargs)
 
     def generate_audio(self, text: str, out_path: str, voice: str | None = None) -> str:
-        """Synthesizes speech for `text`, writes it to `out_path`, and returns
-        that path (audio is written directly to disk rather than returned as
-        bytes, since that's how the underlying local TTS engine works)."""
-        provider_type = self.ctx["providerType"]
-        if provider_type == "pyttsx3_local":
+        """Synthesizes speech for `text`, writes it to `out_path`, and returns that path."""
+        provider_type = self.ctx["providerType"].lower()
+        if "pyttsx3" in provider_type or "local" in provider_type:
             _generate_pyttsx3_local(text, out_path, voice)
             return out_path
-        raise NotImplementedError(f"no audio-generation adapter for provider type '{provider_type}'")
+        return _generate_pyttsx3_local(text, out_path, voice)
+

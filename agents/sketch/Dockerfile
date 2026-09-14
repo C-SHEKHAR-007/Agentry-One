@@ -2,28 +2,34 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Shared worker-runner image: python/sdk/worker_supervisor.py auto-discovers
-# and spawns every agents/<id>/worker.py, so this one image's system + pip
-# deps need to cover every agent, not just sketch. espeak-ng backs the Voice
-# agent's offline pyttsx3 TTS; ffmpeg backs the Video agent's local assembly.
+# System dependencies: espeak-ng for TTS, ffmpeg for video assembly, fonts for video captions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng \
     ffmpeg \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-COPY agents ./agents
-# The trailing `; true` some versions of this loop used to have would mask a
-# genuinely failed/timed-out pip install (build "succeeds" with a package
-# silently missing) -- `|| exit 1` makes any real install failure fail the
-# build instead.
-RUN for req in agents/*/requirements.txt; do \
-      pip install --no-cache-dir -r "$req" || exit 1; \
-    done
+# OPTIMIZATION: Copy ONLY requirements first to leverage Docker layer caching.
+# Modifying agent code (*.py, manifests) will NO LONGER re-trigger heavy pip downloads (like PyTorch ~2GB).
+COPY agents/sketch/requirements.txt ./req_sketch.txt
+COPY agents/social-publisher/requirements.txt ./req_social.txt
+COPY agents/voice/requirements.txt ./req_voice.txt
+COPY agents/video/requirements.txt ./req_video.txt
+COPY agents/dynamic/requirements.txt ./req_dynamic.txt
+COPY agents/web-search/requirements.txt ./req_search.txt
 
-# The workers import python.sdk from the repo root, so the build context is
-# the repo root (see docker-compose.yml).
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r req_sketch.txt \
+                -r req_social.txt \
+                -r req_voice.txt \
+                -r req_video.txt \
+                -r req_dynamic.txt \
+                -r req_search.txt
+
+# Copy source code after dependencies are installed and cached
+COPY agents ./agents
 COPY python ./python
+COPY social-connectors ./social-connectors
 
 ENV ARTIFACTS_DIR=/artifacts
 ENV HF_HOME=/root/.cache/huggingface
