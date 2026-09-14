@@ -63,6 +63,7 @@ export interface Artifact {
   sizeBytes: number | null;
   checksum: string | null;
   createdAt: string;
+  metadata?: Record<string, any> | null;
   previewUrl?: string | null;
   downloadUrl?: string | null;
 }

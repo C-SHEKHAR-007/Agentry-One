@@ -5,10 +5,13 @@ import {
   Activity,
   CheckCircle2,
   Clock,
+  FileText,
+  Headphones,
   Play,
   Plug,
   Sparkles,
   Star,
+  Video as VideoIcon,
 } from "lucide-react";
 import { api } from "../api/client.js";
 import type { ProviderConfig } from "../api/types";
@@ -36,31 +39,75 @@ interface AgentDetail {
   manifest: { steps: AgentStep[] };
 }
 
-/** Per-image component so useSasPreviewUrl hook is at top-level per item */
-function RecentOutputImage({
+/** Per-output component supporting images, text, audio, and videos */
+function RecentOutputItem({
   artifactId,
   workflowId,
   kind,
+  mimeType,
   previewUrl,
+  metadata,
 }: {
   artifactId: string;
   workflowId: string;
   kind: string;
+  mimeType: string;
   previewUrl?: string | null;
+  metadata?: Record<string, any> | null;
 }) {
-  const { data: sas } = useSasPreviewUrl(!previewUrl ? artifactId : undefined);
+  const isImage = mimeType.startsWith("image/");
+  const isAudio = mimeType.startsWith("audio/");
+  const isVideo = mimeType.startsWith("video/");
+  const isText = mimeType.startsWith("text/") || mimeType.includes("json") || kind === "text" || kind === "search_brief";
+
+  const { data: sas } = useSasPreviewUrl(!previewUrl && isImage ? artifactId : undefined);
   const url = previewUrl || sas?.url;
+
   return (
-    <Link to={`/workflows/${workflowId}`} className="group overflow-hidden rounded-md border border-border">
-      {url ? (
-        <img
-          src={url}
-          alt={kind}
-          loading="lazy"
-          className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-        />
+    <Link to={`/workflows/${workflowId}`} className="group overflow-hidden rounded-lg border border-border bg-card/60 transition-all hover:border-primary/50 hover:shadow-md block">
+      {isImage ? (
+        url ? (
+          <img
+            src={url}
+            alt={kind}
+            loading="lazy"
+            className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="aspect-square w-full animate-pulse bg-secondary" />
+        )
+      ) : isAudio ? (
+        <div className="aspect-square w-full p-4 bg-secondary/20 flex flex-col items-center justify-center gap-2 text-center">
+          <span className="p-3 rounded-full bg-primary/20 text-primary">
+            <Headphones className="h-6 w-6" />
+          </span>
+          <span className="text-xs font-medium truncate capitalize">{kind}</span>
+          <span className="text-[10px] text-muted-foreground">Audio Track</span>
+        </div>
+      ) : isText ? (
+        <div className="aspect-square w-full p-3.5 bg-secondary/15 flex flex-col justify-between overflow-hidden">
+          <div className="flex items-center gap-1.5 text-primary">
+            <FileText className="h-4 w-4 shrink-0" />
+            <span className="text-xs font-semibold capitalize truncate">{kind}</span>
+          </div>
+          <p className="font-mono text-[11px] text-foreground/80 line-clamp-4 leading-snug bg-background/60 p-2 rounded border border-border/40">
+            {metadata?.preview || "Generated text response..."}
+          </p>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Document</span>
+        </div>
+      ) : isVideo ? (
+        <div className="aspect-square w-full p-4 bg-secondary/20 flex flex-col items-center justify-center gap-2 text-center">
+          <span className="p-3 rounded-full bg-primary/20 text-primary">
+            <VideoIcon className="h-6 w-6" />
+          </span>
+          <span className="text-xs font-medium truncate capitalize">{kind}</span>
+          <span className="text-[10px] text-muted-foreground">Video MP4</span>
+        </div>
       ) : (
-        <div className="aspect-square w-full animate-pulse bg-secondary" />
+        <div className="aspect-square w-full p-4 bg-secondary/20 flex flex-col items-center justify-center gap-2 text-center">
+          <span className="text-xs font-medium truncate capitalize">{kind}</span>
+          <span className="text-[10px] text-muted-foreground">{mimeType}</span>
+        </div>
       )}
     </Link>
   );
@@ -84,7 +131,7 @@ export function AgentDetailPage() {
 
   const { data: artifacts } = useArtifacts({ limit: 24 });
   const recentOutputs = (artifacts ?? [])
-    .filter((a) => a.agentId === agentId && a.mimeType.startsWith("image/"))
+    .filter((a) => a.agentId === agentId)
     .slice(0, 8);
 
   if (!agent) {
@@ -243,7 +290,15 @@ export function AgentDetailPage() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {recentOutputs.map((a) => (
-                <RecentOutputImage key={a.id} artifactId={a.id} workflowId={a.workflowId} kind={a.kind} previewUrl={a.previewUrl} />
+                <RecentOutputItem
+                  key={a.id}
+                  artifactId={a.id}
+                  workflowId={a.workflowId}
+                  kind={a.kind}
+                  mimeType={a.mimeType}
+                  previewUrl={a.previewUrl}
+                  metadata={a.metadata}
+                />
               ))}
             </div>
           </CardContent>

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { FileStack, Play, Plus, Trash2 } from "lucide-react";
+import { FileStack, FileText, Headphones, Play, Plus, Trash2 } from "lucide-react";
 import { api } from "../api/client.js";
 import { useArtifacts } from "../api/queries";
 import { downloadUrl } from "../api/client.js";
@@ -66,7 +66,7 @@ export function ProjectPage() {
     );
   }
 
-  const images = (artifacts ?? []).filter((a) => a.mimeType.startsWith("image/"));
+  const recentArtifacts = (artifacts ?? []).slice(0, 12);
 
   return (
     <div className="space-y-6">
@@ -128,7 +128,7 @@ export function ProjectPage() {
         </CardContent>
       </Card>
 
-      {images.length > 0 && (
+      {recentArtifacts.length > 0 && (
         <Card glass>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">Recent Artifacts</CardTitle>
@@ -138,20 +138,44 @@ export function ProjectPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-              {images.map((a) => (
-                <Link
-                  key={a.id}
-                  to={`/workflows/${a.workflowId}`}
-                  className="group overflow-hidden rounded-md border border-border"
-                >
-                  <img
-                    src={downloadUrl(a.id)}
-                    alt={a.kind}
-                    loading="lazy"
-                    className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </Link>
-              ))}
+              {recentArtifacts.map((a) => {
+                const isImage = a.mimeType.startsWith("image/");
+                const isAudio = a.mimeType.startsWith("audio/");
+                const isText = a.mimeType.startsWith("text/") || a.mimeType.includes("json") || a.kind === "text" || a.kind === "search_brief";
+
+                return (
+                  <Link
+                    key={a.id}
+                    to={`/workflows/${a.workflowId}`}
+                    className="group overflow-hidden rounded-md border border-border bg-card/60 transition-all hover:border-primary/50 block"
+                  >
+                    {isImage ? (
+                      <img
+                        src={downloadUrl(a.id)}
+                        alt={a.kind}
+                        loading="lazy"
+                        className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : isAudio ? (
+                      <div className="aspect-square w-full p-2 bg-secondary/20 flex flex-col items-center justify-center text-center gap-1">
+                        <Headphones className="h-5 w-5 text-primary" />
+                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
+                      </div>
+                    ) : isText ? (
+                      <div className="aspect-square w-full p-2.5 bg-secondary/15 flex flex-col justify-between overflow-hidden">
+                        <FileText className="h-4 w-4 text-primary" />
+                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
+                        <span className="text-[9px] text-muted-foreground uppercase">Doc</span>
+                      </div>
+                    ) : (
+                      <div className="aspect-square w-full p-2 bg-secondary/20 flex flex-col items-center justify-center text-center gap-1">
+                        <FileStack className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

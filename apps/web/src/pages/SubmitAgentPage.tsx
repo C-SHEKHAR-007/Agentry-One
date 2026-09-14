@@ -2,7 +2,7 @@ import Form from "@rjsf/core";
 import validator from "@rjsf/validator-ajv8";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { BookmarkPlus, Sparkles } from "lucide-react";
 import { api } from "../api/client.js";
@@ -94,6 +94,18 @@ export function SubmitAgentPage() {
   });
   const activeProviders = providers?.filter((p) => p.status === "active") ?? [];
 
+  // Auto-select default provider or only active provider so submissions never fail with 422
+  useEffect(() => {
+    if (!providerConfigId && activeProviders.length > 0) {
+      const defaultProvider = activeProviders.find((p) => p.isDefault);
+      if (defaultProvider) {
+        setProviderConfigId(defaultProvider.id);
+      } else if (activeProviders.length === 1) {
+        setProviderConfigId(activeProviders[0].id);
+      }
+    }
+  }, [activeProviders, providerConfigId]);
+
   const submit = useMutation({
     mutationFn: (input: unknown) =>
       api.post<Workflow>(`/projects/${projectId}/workflows`, {
@@ -139,17 +151,26 @@ export function SubmitAgentPage() {
             </Select>
           </div>
 
-          {requiredCapability && activeProviders.length > 1 && (
+          {requiredCapability && (
             <div>
-              <Label>Provider ({requiredCapability})</Label>
-              <Select value={providerConfigId} onChange={(e) => setProviderConfigId(e.target.value)}>
-                <option value="">Use default</option>
-                {activeProviders.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.providerType}){p.isDefault ? " - default" : ""}
-                  </option>
-                ))}
-              </Select>
+              <Label>AI Provider / Model ({requiredCapability})</Label>
+              {activeProviders.length === 0 ? (
+                <div className="mt-1.5 flex items-center justify-between rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+                  <span>No active provider configured for capability "{requiredCapability}".</span>
+                  <Link to="/providers" className="font-semibold underline ml-2 hover:text-warning-foreground">
+                    Register Provider →
+                  </Link>
+                </div>
+              ) : (
+                <Select value={providerConfigId} onChange={(e) => setProviderConfigId(e.target.value)}>
+                  <option value="">Use system default provider</option>
+                  {activeProviders.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.providerType}){p.isDefault ? " — default" : ""}
+                    </option>
+                  ))}
+                </Select>
+              )}
             </div>
           )}
 

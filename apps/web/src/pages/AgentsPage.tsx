@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import type { Agent } from "../api/types";
 import { useAgentStats } from "../api/queries";
@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 
 export function AgentsPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const installedOnly = searchParams.get("filter") === "installed";
 
@@ -33,7 +34,7 @@ export function AgentsPage() {
             : "Install, orchestrate, and run AI capabilities from one workspace. New agents appear automatically after an API restart — no platform code changes."
         }
         actions={
-          <Button onClick={() => window.location.href = "/agents/create-skill"} className="bg-primary hover:bg-primary/90">
+          <Button onClick={() => navigate("/agents/create-skill")} className="bg-primary hover:bg-primary/90">
             <Plus className="h-4 w-4 mr-2" /> Create Custom Skill
           </Button>
         }

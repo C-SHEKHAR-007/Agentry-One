@@ -1,14 +1,21 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Download,
   ExternalLink,
   FileArchive,
+  FileText,
+  Headphones,
   Images,
   Clock,
   X,
   Eye,
+  Check,
+  Copy,
+  Video as VideoIcon,
 } from "lucide-react";
 import { useArtifacts, useProjects, useSasPreviewUrl, useSasDownloadUrl } from "../api/queries";
 import type { ArtifactListItem } from "../api/types";
@@ -32,6 +39,14 @@ function ArtifactCard({
   onPreview: (a: ArtifactListItem) => void;
 }) {
   const isImage = artifact.mimeType.startsWith("image/");
+  const isAudio = artifact.mimeType.startsWith("audio/");
+  const isVideo = artifact.mimeType.startsWith("video/");
+  const isText =
+    artifact.mimeType.startsWith("text/") ||
+    artifact.mimeType.includes("json") ||
+    artifact.kind === "text" ||
+    artifact.kind === "search_brief";
+
   const { data: sas } = useSasPreviewUrl(!artifact.previewUrl && isImage ? artifact.id : undefined);
   const url = artifact.previewUrl || sas?.url;
 
@@ -64,13 +79,40 @@ function ArtifactCard({
           ) : (
             <Skeleton className="aspect-square w-full" />
           )
+        ) : isAudio ? (
+          <div className="p-6 bg-secondary/15 flex flex-col items-center justify-center gap-2 text-center min-h-[120px]">
+            <span className="p-3 rounded-full bg-primary/10 text-primary">
+              <Headphones className="h-6 w-6" />
+            </span>
+            <span className="text-xs font-medium text-foreground">Audio Recording</span>
+            <span className="text-[10px] text-muted-foreground">{artifact.mimeType}</span>
+          </div>
+        ) : isText ? (
+          <div className="p-5 bg-secondary/10 flex flex-col justify-between min-h-[120px]">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                {artifact.kind}
+              </span>
+            </div>
+            <p className="mt-2 text-xs font-mono text-foreground/80 line-clamp-3 bg-background/50 p-2 rounded border border-border/40">
+              {artifact.metadata?.preview || "Click to view full text output & copy..."}
+            </p>
+          </div>
+        ) : isVideo ? (
+          <div className="p-6 bg-secondary/15 flex flex-col items-center justify-center gap-2 text-center min-h-[120px]">
+            <span className="p-3 rounded-full bg-primary/10 text-primary">
+              <VideoIcon className="h-6 w-6" />
+            </span>
+            <span className="text-xs font-medium text-foreground">Video Render</span>
+          </div>
         ) : (
           <div className="flex items-center gap-3 p-6">
             <FileArchive className="h-6 w-6 shrink-0 text-muted-foreground" />
             <span className="truncate text-sm font-medium">{artifact.kind}</span>
           </div>
         )}
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="flex items-center justify-between px-3 py-2 border-t border-border/40">
           <p className="truncate text-xs text-muted-foreground">
             {artifact.projectName} · {timeAgo(artifact.createdAt)}
           </p>
@@ -91,12 +133,48 @@ function PreviewDialog({
   artifact: ArtifactListItem | null;
   onClose: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
   const isImage = artifact?.mimeType.startsWith("image/") ?? false;
+  const isAudio = artifact?.mimeType.startsWith("audio/") ?? false;
+  const isVideo = artifact?.mimeType.startsWith("video/") ?? false;
+  const isText =
+    artifact &&
+    (artifact.mimeType.startsWith("text/") ||
+      artifact.mimeType.includes("json") ||
+      artifact.kind === "text" ||
+      artifact.kind === "search_brief");
+
   const { data: previewSas } = useSasPreviewUrl(!artifact?.previewUrl ? artifact?.id : undefined);
   const { data: downloadSas } = useSasDownloadUrl(!artifact?.downloadUrl ? artifact?.id : undefined);
   const previewUrl = artifact?.previewUrl || previewSas?.url;
   const downloadUrl = artifact?.downloadUrl || downloadSas?.url;
   const expiresAt = previewSas?.expiresAt;
+
+  // Text content loader
+  const { data: textContent, isLoading: textLoading } = useQuery({
+    queryKey: ["preview-artifact-text", artifact?.id],
+    queryFn: async () => {
+      const targetUrl = downloadUrl || previewUrl;
+      if (!targetUrl) return "";
+      const res = await fetch(targetUrl);
+      if (!res.ok) throw new Error("Could not fetch artifact content");
+      return res.text();
+    },
+    enabled: Boolean(isText && (downloadUrl || previewUrl)),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const handleCopy = async () => {
+    if (!textContent) return;
+    try {
+      await navigator.clipboard.writeText(textContent);
+      setCopied(true);
+      toast.success("Copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy");
+    }
+  };
 
   return (
     <Dialog open={!!artifact} onOpenChange={(o) => !o && onClose()}>
@@ -112,23 +190,67 @@ function PreviewDialog({
             >
               <X className="h-4 w-4" />
             </button>
+
             {/* Preview area */}
-            {isImage ? (
-              previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt={artifact.kind}
-                  className="w-full"
-                />
+            <div className="max-h-[70vh] overflow-y-auto">
+              {isImage ? (
+                previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt={artifact.kind}
+                    className="w-full object-contain max-h-[65vh]"
+                  />
+                ) : (
+                  <Skeleton className="aspect-video w-full" />
+                )
+              ) : isAudio ? (
+                <div className="p-8 space-y-4 text-center bg-secondary/10">
+                  <div className="flex justify-center">
+                    <span className="p-4 rounded-full bg-primary/20 text-primary">
+                      <Headphones className="h-8 w-8" />
+                    </span>
+                  </div>
+                  <h4 className="font-semibold text-base capitalize">{artifact.kind}</h4>
+                  <audio controls src={previewUrl || downloadUrl} className="w-full max-w-md mx-auto" autoPlay />
+                </div>
+              ) : isVideo ? (
+                <div className="p-4 bg-black">
+                  <video controls src={previewUrl || downloadUrl} className="w-full rounded-lg max-h-[60vh]" autoPlay />
+                </div>
+              ) : isText ? (
+                <div className="p-6 bg-secondary/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Document Content
+                    </span>
+                    {textContent && (
+                      <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={handleCopy}>
+                        {copied ? <Check className="h-3.5 w-3.5 mr-1 text-success" /> : <Copy className="h-3.5 w-3.5 mr-1" />}
+                        {copied ? "Copied" : "Copy Text"}
+                      </Button>
+                    )}
+                  </div>
+                  {textLoading ? (
+                    <div className="space-y-2 py-4">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </div>
+                  ) : textContent ? (
+                    <pre className="p-4 rounded-lg bg-background/80 border border-border font-mono text-xs whitespace-pre-wrap break-words leading-relaxed max-h-[50vh] overflow-y-auto">
+                      {textContent}
+                    </pre>
+                  ) : (
+                    <p className="text-xs text-muted-foreground py-4">Unable to display text preview.</p>
+                  )}
+                </div>
               ) : (
-                <Skeleton className="aspect-video w-full" />
-              )
-            ) : (
-              <div className="flex items-center gap-3 p-14">
-                <FileArchive className="h-10 w-10 text-muted-foreground" />
-                <span className="text-lg font-medium">{artifact.kind}</span>
-              </div>
-            )}
+                <div className="flex items-center gap-3 p-14">
+                  <FileArchive className="h-10 w-10 text-muted-foreground" />
+                  <span className="text-lg font-medium">{artifact.kind}</span>
+                </div>
+              )}
+            </div>
 
             {/* Footer */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/80 px-5 py-4 backdrop-blur-sm">

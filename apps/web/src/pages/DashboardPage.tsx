@@ -22,6 +22,7 @@ import {
   useSystemHealth,
 } from "../api/queries";
 import { formatDuration, formatPercent, greeting, timeAgo } from "../lib/format";
+import { useAuth } from "../auth/AuthContext.js";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ExecutionsTable } from "../components/ExecutionsTable";
 import { StatCard } from "../components/StatCard";
@@ -139,6 +140,7 @@ function ViewAll({ to, label = "View all" }: { to: string; label?: string }) {
 
 // ── Dashboard page ────────────────────────────────────────────────────────────
 export function DashboardPage() {
+  const { user } = useAuth();
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
   const { data: events } = useEvents(12);
@@ -146,6 +148,7 @@ export function DashboardPage() {
   const { data: health } = useSystemHealth();
   const { data: projects } = useProjects();
 
+  const displayName = user?.firstName?.trim() || user?.email?.split("@")[0] || "there";
   const series = overview?.series.completedPerDay.map((d) => d.count) ?? [];
   const agents = agentStats?.agents ?? [];
   const totalJobs = agents.reduce((a, s) => a + s.runs, 0);
@@ -157,7 +160,7 @@ export function DashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight">
           {greeting()},{" "}
           <span className="bg-gradient-to-r from-primary via-violet-400 to-chart-3 bg-clip-text text-transparent">
-            Shekhar
+            {displayName}
           </span>{" "}
           👋
         </h1>
