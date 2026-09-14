@@ -3,7 +3,7 @@ services:
     build: ./apps/api
     network_mode: "host"
     volumes:
-      - ./agents:/agents:ro
+      - ./agents:/agents
       - ./social-connectors:/social-connectors:ro
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgresql://agentry:agentry_dev@localhost:5432/agentry}

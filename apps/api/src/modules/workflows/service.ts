@@ -135,7 +135,7 @@ export async function startWorkflow(
           workflowId: workflow.id,
           stepKey: step.key,
           sequence: index,
-          humanGate: step.humanGate,
+          humanGate: Boolean(step.humanGate ?? false),
           status: index === 0 ? "queued" : "pending",
         },
       }),

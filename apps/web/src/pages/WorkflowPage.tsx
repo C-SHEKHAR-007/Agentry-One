@@ -1,29 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Ban,
   Bot,
   CheckCircle2,
-  Download,
   Eye,
-  FileArchive,
   Flag,
   ImagePlus,
   Rocket,
   XCircle,
 } from "lucide-react";
-import { api, downloadUrl, sseUrl } from "../api/client.js";
+import { api, sseUrl } from "../api/client.js";
 import type { Workflow, WorkflowEvent } from "../api/types";
-import { formatBytes, timeAgo } from "../lib/format";
+import { timeAgo } from "../lib/format";
+import { ArtifactPreview } from "../components/ArtifactPreview";
 import { PageHeader } from "../components/PageHeader";
 import { RunProgress } from "../components/RunProgress";
 import { StatusBadge } from "../components/StatusBadge";
 import { StepTimeline } from "../components/StepTimeline";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Textarea } from "../components/ui/textarea";
 import { Skeleton } from "../components/ui/skeleton";
 
 interface TimelineEntry {
@@ -77,6 +76,7 @@ export function WorkflowPage() {
   const { workflowId } = useParams();
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<{ percent?: number; message?: string }>({});
+  const [reviewNotes, setReviewNotes] = useState("");
 
   const { data: workflow } = useQuery({
     queryKey: ["workflow", workflowId],
@@ -96,6 +96,8 @@ export function WorkflowPage() {
   const activeJobId = workflow?.steps?.find(
     (s) => s.status === "running" || s.status === "queued",
   )?.job?.id;
+
+  const awaitingStep = workflow?.steps?.find((s) => s.status === "awaiting_review");
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -119,6 +121,20 @@ export function WorkflowPage() {
       toast.success("Cancellation requested");
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const advanceStepMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/workflows/${workflowId}/steps/${awaitingStep?.stepKey}/advance`, {
+        notes: reviewNotes,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflow", workflowId] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-events", workflowId] });
+      toast.success(`Step "${awaitingStep?.stepKey}" approved — workflow continuing!`);
+      setReviewNotes("");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (!workflow) {
@@ -155,7 +171,7 @@ export function WorkflowPage() {
               onClick={() => cancelWorkflow.mutate()}
               disabled={cancelWorkflow.isPending}
             >
-              <Ban className="h-4 w-4" /> Cancel
+              <Ban className="h-4 w-4 mr-1.5" /> Cancel
             </Button>
           )
         }
@@ -167,9 +183,47 @@ export function WorkflowPage() {
         </Card>
       )}
 
-      {workflow.status === "awaiting_review" && (
-        <Card className="border-warning/40 bg-warning/10 p-4 text-sm text-warning">
-          This workflow is awaiting your review (human-gated step).
+      {workflow.status === "awaiting_review" && awaitingStep && (
+        <Card glass className="border-warning/60 bg-warning/5 p-5 shadow-lg">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1 max-w-2xl">
+              <div className="flex items-center gap-2 text-warning font-semibold text-base">
+                <Eye className="h-5 w-5" />
+                <span>Human Review Required for Step: <code className="bg-warning/20 px-2 py-0.5 rounded text-sm text-foreground">{awaitingStep.stepKey}</code></span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This workflow is paused at a human checkpoint. Review the outputs generated so far, supply optional notes or prompt adjustments below, and approve to resume execution.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => cancelWorkflow.mutate()}
+                disabled={cancelWorkflow.isPending}
+              >
+                <Ban className="h-4 w-4 mr-1 text-destructive" /> Reject
+              </Button>
+              <Button
+                size="sm"
+                className="bg-warning hover:bg-warning/90 text-black font-semibold shadow-sm"
+                onClick={() => advanceStepMutation.mutate()}
+                disabled={advanceStepMutation.isPending}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+                {advanceStepMutation.isPending ? "Approving..." : "Approve & Advance"}
+              </Button>
+            </div>
+          </div>
+          <div className="mt-4">
+            <Textarea
+              value={reviewNotes}
+              onChange={(e) => setReviewNotes(e.target.value)}
+              placeholder="Optional: Add reviewer remarks or parameter overrides for next step..."
+              className="text-xs bg-background/60 border-border/80"
+              rows={2}
+            />
+          </div>
         </Card>
       )}
 
@@ -177,43 +231,21 @@ export function WorkflowPage() {
         <div className="space-y-6 lg:col-span-2">
           {/* Output */}
           <Card glass>
-            <CardHeader>
-              <CardTitle className="text-base">Output</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Outputs & Artifacts</CardTitle>
+              {allArtifacts.length > 0 && (
+                <span className="text-xs text-muted-foreground">{allArtifacts.length} item{allArtifacts.length > 1 ? "s" : ""}</span>
+              )}
             </CardHeader>
             <CardContent>
               {allArtifacts.length === 0 && (
-                <p className="py-6 text-center text-sm text-muted-foreground">
+                <p className="py-8 text-center text-sm text-muted-foreground">
                   {isActive ? "The result will appear here when the run finishes." : "No artifacts produced."}
                 </p>
               )}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {allArtifacts.map((a) => (
-                  <motion.div
-                    key={a.id}
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden rounded-lg border border-border"
-                  >
-                    {a.mimeType.startsWith("image/") ? (
-                      <img src={downloadUrl(a.id)} alt={a.kind} className="w-full" />
-                    ) : (
-                      <div className="flex items-center gap-2 p-4">
-                        <FileArchive className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-sm">{a.kind}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between border-t border-border px-3 py-2">
-                      <span className="text-xs text-muted-foreground">
-                        {a.kind} · {formatBytes(a.sizeBytes)}
-                      </span>
-                      <a href={downloadUrl(a.id)} download>
-                        <Button size="sm" variant="ghost">
-                          <Download className="h-3.5 w-3.5" /> Download
-                        </Button>
-                      </a>
-                    </div>
-                  </motion.div>
+                  <ArtifactPreview key={a.id} artifact={a} />
                 ))}
               </div>
             </CardContent>
