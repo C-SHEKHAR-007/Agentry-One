@@ -27,17 +27,20 @@ def _publish_via_instagrapi(username: str, password: str, text: str, media_url: 
     # Configure realistic mobile user agent and device settings
     cl.delay_range = [1, 3]
 
-    is_session = username.lower().startswith("sessionid") or password.lower().startswith("sessionid")
     session_val = None
-    if is_session:
-        session_val = password if not username.lower().startswith("sessionid") else username.split("::")[-1]
+    if username.lower().startswith("sessionid"):
+        # The session cookie was passed in the password argument
+        session_val = password.replace("sessionid::", "").replace("sessionid=", "").lstrip(":=").strip()
+    elif password.lower().startswith("sessionid") or "%3a" in password.lower():
+        session_val = password.replace("sessionid::", "").replace("sessionid=", "").lstrip(":=").strip()
 
     # Check if session exists in temp to reuse session cookies
     session_file = Path(tempfile.gettempdir()) / f"agentry_ig_session_{username}.json"
     
     try:
         if session_val:
-            cl.login_by_sessionid(session_val.replace("sessionid=", "").strip())
+            print(f"[instagram] Logging in via sessionid cookie (prefix: {session_val[:15]}...)...")
+            cl.login_by_sessionid(session_val)
         elif session_file.exists():
             try:
                 cl.load_settings(session_file)
@@ -74,6 +77,21 @@ def _publish_via_instagrapi(username: str, password: str, text: str, media_url: 
         temp_media.write(res.content)
         temp_media.close()
         local_path = temp_media.name
+    elif media_url.startswith("/"):
+        if Path(media_url).exists() and not Path(media_url).is_dir():
+            local_path = media_url
+        else:
+            api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000")
+            api_key = os.environ.get("AGENTRY_API_KEY", "dev-local-api-key")
+            sep = "&" if "?" in media_url else "?"
+            download_url = f"{api_url}{media_url}{sep}key={api_key}"
+            suffix = ".mp4" if any(ext in media_url.lower() for ext in [".mp4", ".mov", "video"]) else ".jpg"
+            temp_media = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            res = requests.get(download_url, timeout=60)
+            res.raise_for_status()
+            temp_media.write(res.content)
+            temp_media.close()
+            local_path = temp_media.name
     else:
         local_path = media_url
 
@@ -147,8 +165,8 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
         return f"https://www.instagram.com/p/{fake_id}/"
 
     # 1.5 Session ID Cookie
-    if access_token.startswith("sessionid::"):
-        session_val = access_token.replace("sessionid::", "").strip()
+    if access_token.startswith("sessionid"):
+        session_val = access_token.replace("sessionid", "", 1).lstrip(":=").strip()
         return _publish_via_instagrapi("sessionid", session_val, text, media_url)
 
     # 2. Direct Username & Password Login

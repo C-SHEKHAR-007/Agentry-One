@@ -134,12 +134,19 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
     if (platform === "instagram") {
       if (username && password) {
         const cleanUser = username.trim().replace(/^@/, "");
-        packedToken = `direct::${cleanUser}::${password}`;
-        handle = handle || `@${cleanUser}`;
+        const cleanPass = password.trim();
+        if (cleanPass.startsWith("sessionid") || cleanPass.includes("%3A") || cleanPass.length > 50) {
+          const val = cleanPass.replace(/^sessionid[:=]*/, "").replace(/^[:=]+/, "");
+          packedToken = `sessionid::${val}`;
+          handle = handle || `@${cleanUser}`;
+        } else {
+          packedToken = `direct::${cleanUser}::${cleanPass}`;
+          handle = handle || `@${cleanUser}`;
+        }
       } else if (accessToken) {
         const cleanToken = accessToken.trim();
-        if (cleanToken.startsWith("sessionid")) {
-          const val = cleanToken.replace(/^sessionid[:=]/, "");
+        if (cleanToken.startsWith("sessionid") || cleanToken.includes("%3A") || cleanToken.length > 50) {
+          const val = cleanToken.replace(/^sessionid[:=]*/, "").replace(/^[:=]+/, "");
           packedToken = `sessionid::${val}`;
           handle = handle || "@instagram_session";
         } else {

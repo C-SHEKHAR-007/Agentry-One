@@ -36,12 +36,33 @@ async def run(job: AgentJob) -> dict:
             scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
             local_path = resolve_to_local_path(raw_media, scratch_dir)
             sas_url = resolve_to_public_url(raw_media)
-            if platform in ("facebook", "telegram", "discord") and Path(local_path).exists():
+            if platform in ("facebook", "telegram", "discord", "instagram") and Path(local_path).exists():
                 media_url = local_path
             elif sas_url and sas_url.startswith("http"):
                 media_url = sas_url
             else:
                 media_url = local_path
+        elif raw_media.startswith("/"):
+            if Path(raw_media).exists() and not Path(raw_media).is_dir():
+                media_url = raw_media
+            else:
+                api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000")
+                api_key = os.environ.get("AGENTRY_API_KEY", "dev-local-api-key")
+                sep = "&" if "?" in raw_media else "?"
+                download_url = f"{api_url}{raw_media}{sep}key={api_key}"
+                scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
+                scratch_dir.mkdir(parents=True, exist_ok=True)
+                local_f = str(scratch_dir / f"{uuid.uuid4()}.jpg")
+                try:
+                    import requests
+                    r = requests.get(download_url, timeout=30)
+                    if r.ok:
+                        Path(local_f).write_bytes(r.content)
+                        media_url = local_f
+                    else:
+                        media_url = raw_media
+                except Exception:
+                    media_url = raw_media
         elif Path(raw_media).exists():
             media_url = raw_media
         else:
