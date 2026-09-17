@@ -89,7 +89,7 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         collapsed={collapsed}
         onToggle={handleToggle}
@@ -114,12 +114,12 @@ export function Layout() {
         </DialogPortal>
       </DialogPrimitive.Root>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
         <Topbar
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
-        <main className="w-full flex-1 p-4 md:p-8">
+        <main className="w-full flex-1 overflow-y-auto p-4 md:p-8">
           <Outlet />
         </main>
       </div>

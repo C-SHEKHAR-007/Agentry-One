@@ -123,7 +123,7 @@ export function SidebarContent({
       </div>
 
       {/* Nav */}
-      <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden pb-2", collapsed ? "px-0" : "px-3")}>
+      <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden pb-2 scrollbar-thin", collapsed ? "px-0" : "px-3")}>
         {NAV_SECTIONS.map((section, i) => (
           <div key={i} className="mt-2 first:mt-0">
             {section.label && !collapsed && (
@@ -239,7 +239,7 @@ export function Sidebar({
     <aside
       style={{ width: collapsed ? 64 : width }}
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 border-r border-border/60 bg-card/80 backdrop-blur md:flex md:flex-col relative group/sidebar",
+        "hidden h-full shrink-0 border-r border-border/60 bg-card/80 backdrop-blur md:flex md:flex-col relative group/sidebar",
         isDragging ? "transition-none select-none" : "transition-[width] duration-200",
       )}
     >
