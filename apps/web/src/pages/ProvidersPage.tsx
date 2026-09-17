@@ -146,6 +146,7 @@ export function ProvidersPage() {
     setShowAddModal(false);
   };
 
+  const [isCustomModelMode, setIsCustomModelMode] = useState<boolean>(false);
   const [editingProvider, setEditingProvider] = useState<{
     id: string;
     name: string;
@@ -154,7 +155,49 @@ export function ProvidersPage() {
     model: string;
     status: string;
     availableModels?: DiscoveredModel[];
+    isLoadingSecret?: boolean;
   } | null>(null);
+
+  const handleOpenEdit = async (p: ProviderConfig) => {
+    const currentModel = (p.config as any)?.model || (p.models && p.models.length > 0 ? p.models[0].modelId : "");
+    const hasModels = Boolean(p.models && p.models.length > 0);
+    const modelInList = hasModels && p.models!.some((m) => m.modelId === currentModel);
+    setIsCustomModelMode(!modelInList && Boolean(currentModel) && Boolean(hasModels));
+    setShowEditSecret(false);
+    setEditingProvider({
+      id: p.id,
+      name: p.name,
+      baseUrl: p.baseUrl || "",
+      secret: "",
+      model: currentModel,
+      status: p.status || "active",
+      availableModels: p.models || [],
+      isLoadingSecret: p.hasSecret,
+    });
+
+    if (p.hasSecret) {
+      try {
+        const res = await api.get<{ secret: string | null }>(`/providers/${p.id}/secret`);
+        setEditingProvider((prev) => {
+          if (!prev || prev.id !== p.id) return prev;
+          return {
+            ...prev,
+            secret: res.secret || "",
+            isLoadingSecret: false,
+          };
+        });
+      } catch (err: any) {
+        setEditingProvider((prev) => {
+          if (!prev || prev.id !== p.id) return prev;
+          return {
+            ...prev,
+            isLoadingSecret: false,
+          };
+        });
+        toast.error(`Failed to load saved API key: ${err.message}`);
+      }
+    }
+  };
 
   const toggleProviderExpand = (providerId: string) => {
     setExpandedProviders((prev) => ({
@@ -193,8 +236,8 @@ export function ProvidersPage() {
       if (!editingProvider) throw new Error("No provider selected for edit");
       return api.put(`/providers/${editingProvider.id}`, {
         name: editingProvider.name,
-        baseUrl: editingProvider.baseUrl ? editingProvider.baseUrl : undefined,
-        secret: editingProvider.secret ? editingProvider.secret : undefined,
+        baseUrl: editingProvider.baseUrl,
+        secret: editingProvider.secret,
         config: editingProvider.model ? { model: editingProvider.model } : {},
         status: editingProvider.status,
       });
@@ -606,17 +649,7 @@ export function ProvidersPage() {
                       size="sm"
                       variant="outline"
                       className="h-8 text-xs gap-1.5 border-border/60 hover:border-primary/40"
-                      onClick={() =>
-                        setEditingProvider({
-                          id: p.id,
-                          name: p.name,
-                          baseUrl: p.baseUrl || "",
-                          secret: "",
-                          model: currentDefaultModel,
-                          status: p.status || "active",
-                          availableModels: p.models || [],
-                        })
-                      }
+                      onClick={() => handleOpenEdit(p)}
                       title="Edit Provider Settings"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -1179,13 +1212,29 @@ export function ProvidersPage() {
                 </div>
 
                 <div>
-                  <Label className="text-xs">Default Model</Label>
-                  {editingProvider.availableModels && editingProvider.availableModels.length > 0 ? (
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs">Default Model</Label>
+                    {editingProvider.availableModels && editingProvider.availableModels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomModelMode(!isCustomModelMode)}
+                        className="text-[10px] text-primary hover:underline"
+                      >
+                        {isCustomModelMode ? "Choose from list" : "Enter custom model ID"}
+                      </button>
+                    )}
+                  </div>
+                  {editingProvider.availableModels && editingProvider.availableModels.length > 0 && !isCustomModelMode ? (
                     <Select
                       value={editingProvider.model}
                       onChange={(e) => setEditingProvider({ ...editingProvider, model: e.target.value })}
                     >
                       <option value="">-- Select Default Model --</option>
+                      {editingProvider.model && !editingProvider.availableModels.some((m) => m.modelId === editingProvider.model) && (
+                        <option value={editingProvider.model}>
+                          {editingProvider.model} (Current)
+                        </option>
+                      )}
                       {editingProvider.availableModels.map((m) => (
                         <option key={m.modelId} value={m.modelId}>
                           {m.name} ({m.modelId})
@@ -1199,7 +1248,7 @@ export function ProvidersPage() {
                       placeholder="e.g. gpt-4o, gemini-1.5-pro, qwen3:8b"
                       value={editingProvider.model}
                       onChange={(e) => setEditingProvider({ ...editingProvider, model: e.target.value })}
-                      className="h-9 text-xs"
+                      className="h-9 text-xs font-mono"
                     />
                   )}
                 </div>
@@ -1214,28 +1263,46 @@ export function ProvidersPage() {
                     onChange={(e) => setEditingProvider({ ...editingProvider, baseUrl: e.target.value })}
                     className="h-9 text-xs font-mono"
                   />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Leave blank to use default API endpoint.
+                  </p>
                 </div>
 
                 <div className="sm:col-span-2">
-                  <Label className="text-xs">New API Key / Secret (Leave blank to keep existing)</Label>
+                  <div className="flex items-center justify-between mb-1">
+                    <Label className="text-xs">API Key / Secret</Label>
+                    {editingProvider.isLoadingSecret && (
+                      <span className="text-[10px] text-primary flex items-center gap-1 animate-pulse">
+                        <Spinner className="h-3 w-3" /> Decrypting key...
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Input
                       name="edit_provider_secret_key"
                       autoComplete="new-password"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                       type={showEditSecret ? "text" : "password"}
-                      placeholder="Enter new key only if updating"
+                      placeholder={editingProvider.isLoadingSecret ? "Decrypting saved API key..." : "Enter API key or leave blank"}
                       value={editingProvider.secret}
+                      disabled={editingProvider.isLoadingSecret}
                       onChange={(e) => setEditingProvider({ ...editingProvider, secret: e.target.value })}
-                      className="h-9 text-xs pr-9"
+                      className="h-9 text-xs pr-10 font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowEditSecret(!showEditSecret)}
-                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                      disabled={editingProvider.isLoadingSecret}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      title={showEditSecret ? "Hide key" : "Show key"}
                     >
                       {showEditSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Your stored key is decrypted above so you can verify, edit, or replace it.
+                  </p>
                 </div>
 
                 <div>
@@ -1253,7 +1320,7 @@ export function ProvidersPage() {
                   <Button type="button" variant="ghost" size="sm" onClick={() => setEditingProvider(null)}>
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={updateProvider.isPending}>
+                  <Button type="submit" size="sm" disabled={updateProvider.isPending || Boolean(editingProvider.isLoadingSecret)}>
                     {updateProvider.isPending ? <Spinner className="mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
                     Save Changes
                   </Button>

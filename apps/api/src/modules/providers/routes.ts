@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
-import { encryptSecret } from "./crypto.js";
+import { encryptSecret, decryptSecret } from "./crypto.js";
 import { discoverProviderModels } from "./discovery.js";
 
 function serialize(config: { encryptedSecret: string | null; [k: string]: unknown }) {
@@ -83,20 +83,66 @@ export async function providersRoutes(app: FastifyInstance) {
       include: { capability: true, models: true },
     });
     if (!config) return reply.code(404).send({ error: "provider_not_found" });
-    return serialize(config);
+    let secret: string | null = null;
+    if (config.encryptedSecret) {
+      try {
+        secret = decryptSecret(config.encryptedSecret);
+      } catch {
+        secret = null;
+      }
+    }
+    return {
+      ...serialize(config),
+      secret,
+    };
+  });
+
+  app.get<{ Params: { id: string } }>("/providers/:id/secret", async (req, reply) => {
+    const config = await prisma.providerConfig.findUnique({
+      where: { id: req.params.id },
+    });
+    if (!config) return reply.code(404).send({ error: "provider_not_found" });
+    let secret: string | null = null;
+    if (config.encryptedSecret) {
+      try {
+        secret = decryptSecret(config.encryptedSecret);
+      } catch {
+        secret = null;
+      }
+    }
+    return { secret };
   });
 
   app.put<{ Params: { id: string }; Body: { name?: string; baseUrl?: string; secret?: string; config?: Record<string, unknown>; status?: string } }>(
     "/providers/:id",
-    async (req) => {
+    async (req, reply) => {
+      const existing = await prisma.providerConfig.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!existing) return reply.code(404).send({ error: "provider_not_found" });
+
+      const currentConfig = (existing.config as Record<string, unknown>) || {};
+      const newConfig = req.body.config !== undefined
+        ? { ...currentConfig, ...req.body.config }
+        : currentConfig;
+
+      let encryptedSecret = existing.encryptedSecret;
+      if (req.body.secret !== undefined) {
+        if (req.body.secret.trim() === "") {
+          encryptedSecret = null;
+        } else {
+          encryptedSecret = encryptSecret(req.body.secret.trim());
+        }
+      }
+
       const updated = await prisma.providerConfig.update({
         where: { id: req.params.id },
         data: {
-          name: req.body.name,
-          baseUrl: req.body.baseUrl,
-          encryptedSecret: req.body.secret ? encryptSecret(req.body.secret) : undefined,
-          config: req.body.config as object | undefined,
-          status: req.body.status,
+          name: req.body.name !== undefined ? req.body.name : existing.name,
+          baseUrl: req.body.baseUrl !== undefined ? (req.body.baseUrl.trim() || null) : existing.baseUrl,
+          encryptedSecret,
+          config: newConfig as object,
+          status: req.body.status !== undefined ? req.body.status : existing.status,
         },
         include: { capability: true, models: true },
       });
