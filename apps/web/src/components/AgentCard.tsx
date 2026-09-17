@@ -40,10 +40,12 @@ function Stars({ count = 4 }: { count?: number }) {
 export function InstalledAgentCard({
   agent,
   runs,
+  online,
   delay = 0,
 }: {
   agent: Agent;
   runs?: number;
+  online?: boolean;
   delay?: number;
 }) {
   return (
@@ -58,7 +60,26 @@ export function InstalledAgentCard({
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/15 text-primary">
               <Sparkles className="h-5 w-5" />
             </span>
-            <Badge variant="success">Installed</Badge>
+            <div className="flex items-center gap-1.5">
+              {agent.id.startsWith("custom-") ? (
+                <Badge variant="secondary" className="bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px]">
+                  Custom
+                </Badge>
+              ) : (
+                <Badge variant="success" className="text-[10px]">
+                  Installed
+                </Badge>
+              )}
+              {online !== undefined && (
+                <span
+                  className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-secondary border border-border"
+                  title={online ? "Worker Online" : "Worker Offline"}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${online ? "bg-emerald-400" : "bg-rose-400"}`} />
+                  <span className="text-[10px] text-muted-foreground">{online ? "online" : "offline"}</span>
+                </span>
+              )}
+            </div>
           </div>
           <h3 className="mt-4 font-semibold group-hover:text-primary">{agent.name}</h3>
           <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted-foreground">

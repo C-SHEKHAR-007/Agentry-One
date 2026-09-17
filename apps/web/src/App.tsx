@@ -70,7 +70,7 @@ export default function App() {
         <Route path="/costs" element={<CostMonitorPage />} />
         <Route path="/prompts" element={<PromptsPage />} />
         <Route path="/team" element={<TeamPage />} />
-        <Route path="/my-agents" element={<MyAgentsPage />} />
+        <Route path="/my-agents" element={<Navigate to="/agents?tab=workers" replace />} />
         <Route path="/builder" element={<BuilderPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

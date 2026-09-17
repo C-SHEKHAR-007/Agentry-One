@@ -43,9 +43,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     label: "AI Agents",
     items: [
-      { label: "Marketplace", icon: Store, to: "/agents", end: true },
-      { label: "Installed Agents", icon: Bot, to: "/agents?filter=installed" },
-      { label: "My Agents", icon: UserCog, to: "/my-agents" },
+      { label: "Agents & Skills", icon: Bot, to: "/agents" },
     ],
   },
   {
