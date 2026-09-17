@@ -14,8 +14,8 @@ export function TopAgents({ agents }: { agents: AgentStats[] }) {
     return <p className="py-4 text-sm text-muted-foreground">No agent runs yet.</p>;
   }
   return (
-    <div className="space-y-4">
-      {agents.slice(0, 4).map((a, i) => (
+    <div className="space-y-3.5">
+      {agents.slice(0, 5).map((a, i) => (
         <Link key={a.agentId} to={`/agents/${a.agentId}`} className="group block">
           <div className="flex items-center gap-2">
             <span

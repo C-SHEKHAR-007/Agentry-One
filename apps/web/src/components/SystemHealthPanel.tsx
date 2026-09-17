@@ -64,7 +64,7 @@ export function SystemHealthPanel({ health }: { health: SystemHealth }) {
           </span>
         </div>
 
-        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
+        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5 max-h-[160px] overflow-y-auto pr-2 scrollbar-thin">
           {health.workers.map((w) => {
             const prettyName = w.agentId
               .replace(/^custom-/, "")

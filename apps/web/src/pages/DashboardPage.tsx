@@ -441,7 +441,7 @@ export function DashboardPage() {
                 </p>
               </div>
             ) : (
-              <div className="h-48 w-full">
+              <div className="h-52 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={trendPoints} barCategoryGap="25%">
                     <CartesianGrid stroke={CHART.grid} vertical={false} />
