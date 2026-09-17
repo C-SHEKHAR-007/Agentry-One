@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Sparkles, ChevronsLeft, ChevronsRight, ChevronDown, Zap } from "lucide-react";
+import { Sparkles, ChevronsLeft, ChevronsRight, Zap } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Badge } from "../ui/badge";
 import { Tooltip } from "../ui/tooltip";
@@ -98,23 +98,6 @@ export function SidebarContent({
         )}
       </div>
 
-      {/* Workspace selector */}
-      {!collapsed && (
-        <div className="mx-3 mb-3">
-          <button className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-white/5 px-3 py-2 transition-colors hover:bg-white/8">
-            <div className="flex items-center gap-2.5">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-primary/30 text-xs font-bold text-primary">
-                P
-              </span>
-              <div className="text-left">
-                <p className="text-[10px] text-muted-foreground">Workspace</p>
-                <p className="text-xs font-medium truncate max-w-[120px]">Personal Workspace</p>
-              </div>
-            </div>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          </button>
-        </div>
-      )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 pb-2">
