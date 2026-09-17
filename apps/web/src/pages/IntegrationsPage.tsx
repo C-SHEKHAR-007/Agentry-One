@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -140,28 +140,101 @@ export function IntegrationsPage() {
   const [authMode, setAuthMode] = useState<"direct" | "raw_token">("direct");
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [browserLoggingIn, setBrowserLoggingIn] = useState<boolean>(false);
+  const [browserLoginStatus, setBrowserLoginStatus] = useState<string>("");
+  const [helperOnline, setHelperOnline] = useState<boolean | null>(null);
+  const pollTimerRef = useRef<any>(null);
+
+  // Check if local browser helper daemon is running
+  useEffect(() => {
+    if (!showModal || selectedPlatform !== "instagram") return;
+    fetch("http://localhost:4005/status")
+      .then((r) => r.json())
+      .then((d) => setHelperOnline(Boolean(d.ready)))
+      .catch(() => setHelperOnline(false));
+  }, [showModal, selectedPlatform]);
+
+  // Clean up polling timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
+
+  const cancelBrowserLogin = async () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    try {
+      await fetch("http://localhost:4005/login/cancel", { method: "POST" });
+    } catch {}
+    setBrowserLoggingIn(false);
+    setBrowserLoginStatus("");
+  };
 
   const handleBrowserLogin = async () => {
     setBrowserLoggingIn(true);
+    setBrowserLoginStatus("Opening Google Chrome on your desktop...");
     try {
-      toast.info("Opening Google Chrome on your desktop... Please log into Instagram in the opened window.");
-      const res = await fetch("http://localhost:4005/login", {
+      const startRes = await fetch("http://localhost:4005/login/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: activeProjectId }),
       });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Instagram account ${data.handle} connected successfully!`);
-        queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-        setShowModal(false);
-      } else {
-        toast.error(data.error || "Browser login failed or was closed.");
+      if (!startRes.ok) {
+        throw new Error("Helper daemon failed to start login session");
       }
+
+      setHelperOnline(true);
+      setBrowserLoginStatus("Chrome is open! Please log into Instagram in Chrome...");
+      toast.info("Google Chrome opened! Please log into Instagram in the browser window.");
+
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch("http://localhost:4005/login/status");
+          if (!statusRes.ok) return;
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "success") {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setBrowserLoggingIn(false);
+            setBrowserLoginStatus("");
+            toast.success(`Instagram account ${statusData.handle || ""} connected successfully!`);
+            queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
+            setShowModal(false);
+          } else if (statusData.status === "closed") {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setBrowserLoggingIn(false);
+            setBrowserLoginStatus("");
+            toast.warning("Chrome window was closed before Instagram login completed.");
+          } else if (statusData.status === "failed") {
+            clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+            setBrowserLoggingIn(false);
+            setBrowserLoginStatus("");
+            toast.error(statusData.error || "Instagram login failed.");
+          } else if (statusData.status === "in_progress") {
+            setBrowserLoginStatus(
+              statusData.elapsed > 0
+                ? `Waiting for login in Chrome window (${statusData.elapsed}s)...`
+                : "Waiting for login in Chrome window..."
+            );
+          }
+        } catch {
+          // Keep polling through transient errors
+        }
+      }, 1500);
     } catch (err: any) {
-      toast.error("Could not reach local browser helper. Make sure scripts/instagram_browser_login.py is running.");
-    } finally {
       setBrowserLoggingIn(false);
+      setBrowserLoginStatus("");
+      setHelperOnline(false);
+      toast.error(
+        "Could not reach local browser helper daemon at http://localhost:4005. Make sure scripts/instagram_browser_login.py is running."
+      );
     }
   };
 
@@ -252,26 +325,6 @@ export function IntegrationsPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const connectMock = useMutation({
-    mutationFn: (platform: string) =>
-      api.post("/social-accounts/direct-login", {
-        projectId: activeProjectId,
-        platform,
-        username: `dev_${platform}`,
-        password: "mock_password_123",
-        handle: `@dev_${platform}`,
-        botToken: "mock_bot_token_12345",
-        chatId: "@dev_channel",
-        webhookUrl: "https://discord.com/api/webhooks/mock/test",
-        accessToken: "mock_access_token_xyz",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-      toast.success(`⚡ Quick mock ${selectedPlatform} account connected! Ready for pipeline testing.`);
-      setShowModal(false);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
 
   const openConnectModal = (platformId: string) => {
     setSelectedPlatform(platformId);
@@ -340,10 +393,10 @@ export function IntegrationsPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold capitalize text-foreground">{acc.platform}</span>
                       <Badge
-                        variant={acc.status === "active" ? "default" : acc.status === "mock" ? "secondary" : "destructive"}
+                        variant={acc.status === "active" ? "default" : "destructive"}
                         className="text-xs"
                       >
-                        {acc.status === "active" ? "Connected & Ready" : acc.status === "mock" ? "Dev Mock Active" : acc.status}
+                        {acc.status === "active" ? "Connected & Ready" : acc.status}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
@@ -449,29 +502,7 @@ export function IntegrationsPage() {
             </CardHeader>
 
             <CardContent className="pt-5 space-y-5">
-              {/* 1-Click Quick Mock Account */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-primary/20 text-primary">
-                    <Zap className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <span className="font-semibold text-foreground">Dev &amp; Testing Mode</span>
-                    <p className="text-muted-foreground text-[11px]">Connect a simulated {currentPlatformMeta.name} mock account in 1-click.</p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-primary/40 text-primary hover:bg-primary/20 shrink-0 text-xs h-8 px-3"
-                  disabled={connectMock.isPending}
-                  onClick={() => connectMock.mutate(selectedPlatform)}
-                >
-                  {connectMock.isPending ? <Spinner className="h-3 w-3 mr-1" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
-                  ⚡ Quick Mock
-                </Button>
-              </div>
+
 
               {/* Platform Selector & Mode Toggle */}
               <div className="grid gap-4 sm:grid-cols-2">
@@ -537,24 +568,44 @@ export function IntegrationsPage() {
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         Opens a real Google Chrome window on your screen to log into Instagram. Once logged in, Agentry automatically captures your session cookie and connects your account without touching DevTools.
                       </p>
-                      <Button
-                        type="button"
-                        onClick={handleBrowserLogin}
-                        disabled={browserLoggingIn}
-                        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 hover:from-purple-500 hover:to-orange-400 text-white font-medium text-xs h-9 shadow-md flex items-center justify-center gap-2"
-                      >
-                        {browserLoggingIn ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Waiting for login in Chrome window...
-                          </>
-                        ) : (
-                          <>
-                            <ExternalLink className="h-4 w-4" />
-                            Open Instagram in Browser &amp; Auto-Connect
-                          </>
-                        )}
-                      </Button>
+                      {helperOnline === false && (
+                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
+                          <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <div>
+                            <span>Local browser helper daemon is currently offline.</span>
+                            <span className="block text-muted-foreground mt-0.5">
+                              Run <code>python3 scripts/instagram_browser_login.py --daemon</code> on your desktop, or use the manual credential inputs below.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {browserLoggingIn ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-center gap-2.5 p-3 rounded-lg bg-purple-950/40 border border-purple-500/40 text-xs text-purple-200">
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-purple-400" />
+                            <span className="font-medium">{browserLoginStatus || "Waiting for Instagram login in Chrome..."}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={cancelBrowserLogin}
+                            className="w-full text-xs text-muted-foreground hover:text-foreground h-7"
+                          >
+                            Cancel browser login
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={handleBrowserLogin}
+                          className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 hover:from-purple-500 hover:to-orange-400 text-white font-medium text-xs h-9 shadow-md flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Instagram in Browser &amp; Auto-Connect
+                        </Button>
+                      )}
                     </div>
 
                     <div className="relative flex py-1 items-center">
