@@ -20,7 +20,8 @@ def load_publisher(platform: str) -> Callable[[str, str, Optional[str]], str]:
     function from social-connectors/<platform>/publish.py. Raises
     NotImplementedError with a clear message if that platform has no publish
     adapter yet."""
-    publish_path = SOCIAL_CONNECTORS_DIR / platform / "publish.py"
+    platform_key = "twitter" if platform.lower() in ("x", "twitter") else platform.lower()
+    publish_path = SOCIAL_CONNECTORS_DIR / platform_key / "publish.py"
     if not publish_path.exists():
         raise NotImplementedError(f"no publish adapter for platform '{platform}' ({publish_path} not found)")
 

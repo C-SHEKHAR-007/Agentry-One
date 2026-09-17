@@ -16,14 +16,24 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
     chat_id = parts[1].strip() if len(parts) > 1 and parts[1].strip() else "@agentry_feed"
 
     if media_url:
+        import os
         is_video = any(ext in media_url.lower() for ext in [".mp4", ".mov", ".mkv", "video"])
         endpoint = "sendVideo" if is_video else "sendPhoto"
         field_name = "video" if is_video else "photo"
-        resp = requests.post(
-            f"https://api.telegram.org/bot{bot_token}/{endpoint}",
-            data={"chat_id": chat_id, "caption": text, field_name: media_url},
-            timeout=30,
-        )
+        if os.path.isfile(media_url):
+            with open(media_url, "rb") as f:
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/{endpoint}",
+                    data={"chat_id": chat_id, "caption": text},
+                    files={field_name: f},
+                    timeout=60,
+                )
+        else:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{bot_token}/{endpoint}",
+                data={"chat_id": chat_id, "caption": text, field_name: media_url},
+                timeout=30,
+            )
     else:
         resp = requests.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",

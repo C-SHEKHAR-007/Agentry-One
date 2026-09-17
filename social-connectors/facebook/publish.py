@@ -18,19 +18,38 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
     page_id = parts[1].strip() if len(parts) > 1 and parts[1].strip() else "me"
 
     if media_url:
+        import os
         is_video = any(ext in media_url.lower() for ext in [".mp4", ".mov", ".mkv", "video"])
         if is_video:
-            resp = requests.post(
-                f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/videos",
-                data={"access_token": page_token, "description": text, "file_url": media_url},
-                timeout=60,
-            )
+            if os.path.isfile(media_url):
+                with open(media_url, "rb") as f:
+                    resp = requests.post(
+                        f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/videos",
+                        data={"access_token": page_token, "description": text},
+                        files={"source": f},
+                        timeout=120,
+                    )
+            else:
+                resp = requests.post(
+                    f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/videos",
+                    data={"access_token": page_token, "description": text, "file_url": media_url},
+                    timeout=60,
+                )
         else:
-            resp = requests.post(
-                f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/photos",
-                data={"access_token": page_token, "caption": text, "url": media_url},
-                timeout=30,
-            )
+            if os.path.isfile(media_url):
+                with open(media_url, "rb") as f:
+                    resp = requests.post(
+                        f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/photos",
+                        data={"access_token": page_token, "caption": text},
+                        files={"source": f},
+                        timeout=60,
+                    )
+            else:
+                resp = requests.post(
+                    f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/photos",
+                    data={"access_token": page_token, "caption": text, "url": media_url},
+                    timeout=30,
+                )
     else:
         resp = requests.post(
             f"https://graph.facebook.com/{GRAPH_VERSION}/{page_id}/feed",

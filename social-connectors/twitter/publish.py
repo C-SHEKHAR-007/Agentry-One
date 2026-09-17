@@ -22,7 +22,27 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
                 access_token=user_token,
                 access_token_secret=user_secret,
             )
-            resp = client.create_tweet(text=text)
+            media_ids = []
+            if media_url:
+                import os
+                local_file = media_url
+                if (media_url.startswith("http://") or media_url.startswith("https://")) and not os.path.exists(media_url):
+                    import tempfile
+                    res = requests.get(media_url, timeout=60)
+                    if res.ok:
+                        temp_m = tempfile.NamedTemporaryFile(delete=False)
+                        temp_m.write(res.content)
+                        temp_m.close()
+                        local_file = temp_m.name
+                if os.path.isfile(local_file):
+                    try:
+                        auth = tweepy.OAuth1UserHandler(api_key, api_secret, user_token, user_secret)
+                        api = tweepy.API(auth)
+                        media_upload = api.media_upload(local_file)
+                        media_ids = [media_upload.media_id]
+                    except Exception:
+                        pass
+            resp = client.create_tweet(text=text, media_ids=media_ids if media_ids else None)
             tweet_id = resp.data["id"]
             return f"https://twitter.com/i/web/status/{tweet_id}"
 

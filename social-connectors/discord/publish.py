@@ -12,12 +12,17 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
 
     token_str = access_token.replace("direct::", "").strip()
 
+    import os
     # Webhook URL support
     if token_str.startswith("https://discord.com/api/webhooks/") or token_str.startswith("https://discordapp.com/api/webhooks/"):
-        payload: dict = {"content": text}
-        if media_url:
-            payload["embeds"] = [{"image": {"url": media_url}}]
-        resp = requests.post(token_str, json=payload, timeout=30)
+        if media_url and os.path.isfile(media_url):
+            with open(media_url, "rb") as f:
+                resp = requests.post(token_str, data={"content": text}, files={"file": f}, timeout=60)
+        else:
+            payload: dict = {"content": text}
+            if media_url:
+                payload["embeds"] = [{"image": {"url": media_url}}]
+            resp = requests.post(token_str, json=payload, timeout=30)
         resp.raise_for_status()
         return "https://discord.com/channels/@me"
 
@@ -26,16 +31,26 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
     bot_token = parts[0].strip()
     channel_id = parts[1].strip() if len(parts) > 1 else ""
 
-    payload = {"content": text}
-    if media_url:
-        payload["embeds"] = [{"image": {"url": media_url}}]
+    if media_url and os.path.isfile(media_url):
+        with open(media_url, "rb") as f:
+            resp = requests.post(
+                f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                headers={"Authorization": f"Bot {bot_token}"},
+                data={"content": text},
+                files={"file": f},
+                timeout=60,
+            )
+    else:
+        payload = {"content": text}
+        if media_url:
+            payload["embeds"] = [{"image": {"url": media_url}}]
 
-    resp = requests.post(
-        f"https://discord.com/api/v10/channels/{channel_id}/messages",
-        headers={"Authorization": f"Bot {bot_token}"},
-        json=payload,
-        timeout=30,
-    )
+        resp = requests.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages",
+            headers={"Authorization": f"Bot {bot_token}"},
+            json=payload,
+            timeout=30,
+        )
     resp.raise_for_status()
     msg_id = resp.json().get("id", "")
     return f"https://discord.com/channels/{channel_id}/{msg_id}"

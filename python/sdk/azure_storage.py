@@ -70,3 +70,37 @@ def download_artifact_bytes(storage_key: str) -> bytes:
     service_client = BlobServiceClient.from_connection_string(conn_str)
     container_client = service_client.get_container_client(container_name)
     return container_client.get_blob_client(blob_name).download_blob().readall()
+
+
+def generate_sas_url(storage_key: str, expires_in_minutes: int = 120) -> str:
+    """Generates a temporary read SAS URL for an azure:// blob reference so external
+    services (Meta Graph API, webhook downloaders, etc.) can fetch it over HTTP/HTTPS."""
+    from datetime import datetime, timedelta, timezone
+    from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+
+    blob_name = storage_key.removeprefix("azure://")
+    conn_str = get_connection_string()
+    container_name = get_container_name()
+
+    service_client = BlobServiceClient.from_connection_string(conn_str)
+    container_client = service_client.get_container_client(container_name)
+    blob_client = container_client.get_blob_client(blob_name)
+
+    account_name = getattr(service_client, "account_name", None)
+    cred = getattr(service_client, "credential", None)
+    account_key = getattr(cred, "account_key", None)
+
+    if account_key and account_name:
+        try:
+            sas_token = generate_blob_sas(
+                account_name=account_name,
+                container_name=container_name,
+                blob_name=blob_name,
+                account_key=account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes),
+            )
+            return f"{blob_client.url}?{sas_token}"
+        except Exception:
+            return blob_client.url
+    return blob_client.url

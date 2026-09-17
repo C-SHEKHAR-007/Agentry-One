@@ -82,3 +82,12 @@ def resolve_to_local_path(storage_key: str, scratch_dir: Path) -> str:
         local_path.write_bytes(download_artifact_bytes(storage_key))
         return str(local_path)
     return storage_key
+
+
+def resolve_to_public_url(storage_key: str) -> str:
+    """Given a storage_key that may be an 'azure://...' blob reference or a public HTTP URL,
+    generates a temporary SAS URL if azure, or returns the URL directly."""
+    if storage_key.startswith("azure://"):
+        from .azure_storage import generate_sas_url
+        return generate_sas_url(storage_key)
+    return storage_key

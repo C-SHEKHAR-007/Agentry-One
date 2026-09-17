@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from python.sdk.agent_job import AgentJob
-from python.sdk.artifact_io import read_text_artifact, write_artifact_file
+from python.sdk.artifact_io import read_text_artifact, resolve_to_local_path, resolve_to_public_url, write_artifact_file
 from python.sdk.runner import run_agent
 from python.sdk.social_connectors import load_publisher
 
@@ -25,10 +25,28 @@ async def run(job: AgentJob) -> dict:
     # params.text is either a literal caption or a Template `fromStep`
     # reference (an upstream text artifact's storage_key) -- resolve either.
     caption = read_text_artifact(job.params.get("text") or "") or "Default caption"
-    # A public URL the platform can fetch the media from -- required by
-    # platforms (Instagram) that can't post a caption alone; optional for
-    # ones that can (X, LinkedIn -- not wired up to actually attach it yet).
-    media_url = job.params.get("mediaUrl") or None
+
+    # Resolve media URL / artifact if provided
+    raw_media = job.params.get("mediaUrl") or None
+    media_url = None
+    if raw_media:
+        if raw_media.startswith("http://") or raw_media.startswith("https://"):
+            media_url = raw_media
+        elif raw_media.startswith("azure://"):
+            scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
+            local_path = resolve_to_local_path(raw_media, scratch_dir)
+            sas_url = resolve_to_public_url(raw_media)
+            if platform in ("facebook", "telegram", "discord") and Path(local_path).exists():
+                media_url = local_path
+            elif sas_url and sas_url.startswith("http"):
+                media_url = sas_url
+            else:
+                media_url = local_path
+        elif Path(raw_media).exists():
+            media_url = raw_media
+        else:
+            media_url = raw_media
+
     media_note = "" if media_url else " (no media attached)"
 
     await job.report_progress(30, f"Connecting to {platform}...")
