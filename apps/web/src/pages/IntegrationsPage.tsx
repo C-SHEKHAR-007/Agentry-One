@@ -499,23 +499,26 @@ export function IntegrationsPage() {
                 {selectedPlatform === "instagram" && authMode === "direct" && (
                   <div className="space-y-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
                     <div className="flex items-center gap-2 text-xs font-semibold text-purple-400">
-                      <Camera className="h-4 w-4" /> Direct Mobile Login (No Meta Developer App Required!)
+                      <Camera className="h-4 w-4" /> Direct Mobile or Session Login (No Meta Developer App Required!)
                     </div>
                     <div>
-                      <Label>Instagram Username</Label>
+                      <Label>Instagram Username / Handle</Label>
                       <Input
-                        placeholder="your_instagram_username"
+                        placeholder="your_handle (do NOT enter your email address)"
                         value={form.username}
                         onChange={(e) => setForm({ ...form, username: e.target.value })}
                         required
                       />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Enter your exact Instagram handle (e.g. <code>my_handle</code>). Do not use your email address.
+                      </p>
                     </div>
                     <div>
-                      <Label>Instagram Password</Label>
+                      <Label>Instagram Password (or Session ID Cookie)</Label>
                       <div className="relative">
                         <Input
                           type={showPassword ? "text" : "password"}
-                          placeholder="••••••••••••"
+                          placeholder="Your Instagram Password or sessionid cookie"
                           value={form.password}
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
                           required
@@ -529,7 +532,7 @@ export function IntegrationsPage() {
                         </button>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1">
-                        🔒 Stored with AES-256 encryption. Used by the Python instagrapi mobile client to publish posts &amp; reels.
+                        💡 <strong>Tip:</strong> If Instagram triggers a security challenge (CAA challenge / 2FA), paste your <code>sessionid</code> cookie from browser DevTools to bypass login checkpoints completely.
                       </p>
                     </div>
                   </div>

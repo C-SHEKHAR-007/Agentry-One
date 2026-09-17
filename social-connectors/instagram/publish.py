@@ -16,31 +16,53 @@ GRAPH_VERSION = "v19.0"
 
 
 def _publish_via_instagrapi(username: str, password: str, text: str, media_url: str) -> str:
-    """Publishes directly using Instagram mobile client (username & password) without needing a Meta Developer App."""
+    """Publishes directly using Instagram mobile client (username & password, or sessionid cookie) without needing a Meta Developer App."""
     try:
         from instagrapi import Client
     except ImportError:
         raise RuntimeError("instagrapi is required for direct username/password login. Please run: pip install instagrapi")
 
+    username = username.strip().lstrip("@")
     cl = Client()
     # Configure realistic mobile user agent and device settings
     cl.delay_range = [1, 3]
-    
+
+    is_session = username.lower().startswith("sessionid") or password.lower().startswith("sessionid")
+    session_val = None
+    if is_session:
+        session_val = password if not username.lower().startswith("sessionid") else username.split("::")[-1]
+
     # Check if session exists in temp to reuse session cookies
     session_file = Path(tempfile.gettempdir()) / f"agentry_ig_session_{username}.json"
-    if session_file.exists():
-        try:
-            cl.load_settings(session_file)
+    
+    try:
+        if session_val:
+            cl.login_by_sessionid(session_val.replace("sessionid=", "").strip())
+        elif session_file.exists():
+            try:
+                cl.load_settings(session_file)
+                cl.login(username, password)
+            except Exception:
+                cl.login(username, password)
+                cl.dump_settings(session_file)
+        else:
             cl.login(username, password)
-        except Exception:
-            cl.login(username, password)
-            cl.dump_settings(session_file)
-    else:
-        cl.login(username, password)
-        try:
-            cl.dump_settings(session_file)
-        except Exception:
-            pass
+            try:
+                cl.dump_settings(session_file)
+            except Exception:
+                pass
+    except Exception as e:
+        err_msg = str(e)
+        if "CAA login did not return a session" in err_msg or "challenge" in err_msg.lower():
+            raise RuntimeError(
+                f"Instagram Security Challenge ('{err_msg}'). "
+                "Instagram blocked direct password login because automated logins from this IP/device require in-app approval, 2FA, or a valid Instagram username (not an email address). "
+                "Solutions: "
+                "1. Connect with your Instagram Session ID cookie (Application > Cookies > sessionid) which bypasses password checks. "
+                "2. Ensure you use your exact Instagram username (e.g. 'my_handle', not your email). "
+                "3. Use 1-Click Dev Mock for automated pipeline testing."
+            ) from e
+        raise
 
     # Fetch/resolve media file path
     local_path = None
@@ -123,6 +145,11 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
     if access_token.startswith("dev_mock_") or "mock" in access_token:
         fake_id = f"C{abs(hash(text)) % 10000000000}"
         return f"https://www.instagram.com/p/{fake_id}/"
+
+    # 1.5 Session ID Cookie
+    if access_token.startswith("sessionid::"):
+        session_val = access_token.replace("sessionid::", "").strip()
+        return _publish_via_instagrapi("sessionid", session_val, text, media_url)
 
     # 2. Direct Username & Password Login
     if access_token.startswith("direct::") or "::" in access_token and not access_token.startswith("EA"):

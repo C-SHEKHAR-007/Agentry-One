@@ -133,13 +133,21 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
 
     if (platform === "instagram") {
       if (username && password) {
-        packedToken = `direct::${username}::${password}`;
-        handle = handle || `@${username}`;
+        const cleanUser = username.trim().replace(/^@/, "");
+        packedToken = `direct::${cleanUser}::${password}`;
+        handle = handle || `@${cleanUser}`;
       } else if (accessToken) {
-        packedToken = accessToken;
-        handle = handle || "@instagram_business";
+        const cleanToken = accessToken.trim();
+        if (cleanToken.startsWith("sessionid")) {
+          const val = cleanToken.replace(/^sessionid[:=]/, "");
+          packedToken = `sessionid::${val}`;
+          handle = handle || "@instagram_session";
+        } else {
+          packedToken = cleanToken;
+          handle = handle || "@instagram_business";
+        }
       } else {
-        return reply.code(400).send({ error: "Instagram Username & Password or Access Token required" });
+        return reply.code(400).send({ error: "Instagram Username & Password, Session ID, or Access Token required" });
       }
     } else if (platform === "twitter" || platform === "x") {
       if (apiKey && apiSecret && accessToken && accessTokenSecret) {
