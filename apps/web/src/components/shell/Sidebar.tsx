@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Sparkles, ChevronsLeft, ChevronsRight, Zap } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -167,28 +168,112 @@ export function SidebarContent({
   );
 }
 
+export interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+  width?: number;
+  onResize?: (width: number) => void;
+  onResetWidth?: () => void;
+  minWidth?: number;
+  maxWidth?: number;
+}
+
 export function Sidebar({
   collapsed,
   onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
+  width = 240,
+  onResize,
+  onResetWidth,
+  minWidth = 190,
+  maxWidth = 400,
+}: SidebarProps) {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    const startX = e.clientX;
+    const startWidth = collapsed ? 64 : width;
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const newWidth = startWidth + deltaX;
+
+      if (newWidth < 120) {
+        if (!collapsed) {
+          onToggle();
+        }
+      } else {
+        if (collapsed) {
+          onToggle();
+        }
+        if (onResize) {
+          const clamped = Math.min(Math.max(newWidth, minWidth), maxWidth);
+          onResize(clamped);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleDoubleClick = () => {
+    if (onResetWidth) {
+      onResetWidth();
+    }
+  };
+
   return (
     <aside
+      style={{ width: collapsed ? 64 : width }}
       className={cn(
-        "sticky top-0 hidden h-screen shrink-0 border-r border-border/60 bg-card/80 backdrop-blur transition-[width] duration-200 md:flex md:flex-col",
-        collapsed ? "w-[64px]" : "w-60",
+        "sticky top-0 hidden h-screen shrink-0 border-r border-border/60 bg-card/80 backdrop-blur md:flex md:flex-col relative group/sidebar",
+        isDragging ? "transition-none select-none" : "transition-[width] duration-200",
       )}
     >
       <SidebarContent collapsed={collapsed} />
+
+      {/* Collapse / Expand Toggle Button */}
       <button
         onClick={onToggle}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute -right-3 top-16 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:text-foreground hover:bg-secondary"
+        className="absolute -right-3 top-16 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-all duration-150 hover:text-foreground hover:bg-secondary hover:scale-105 active:scale-95"
       >
         {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
       </button>
+
+      {/* Resizable edge handle (pick & move) */}
+      <div
+        onMouseDown={handleMouseDown}
+        onDoubleClick={handleDoubleClick}
+        title="Drag to resize sidebar (double-click to reset)"
+        className={cn(
+          "absolute -right-1.5 top-0 bottom-0 w-3 cursor-col-resize z-20 flex items-center justify-center select-none transition-colors",
+          "hover:bg-primary/10",
+          isDragging && "bg-primary/20",
+        )}
+      >
+        {/* Subtle pill indicator that glows on hover or drag */}
+        <div
+          className={cn(
+            "h-8 w-1 rounded-full bg-border/40 transition-all duration-150 group-hover/sidebar:bg-border/80",
+            "hover:!bg-primary hover:!h-12",
+            isDragging && "!bg-primary !h-16 !w-1.5 shadow-sm shadow-primary/40",
+          )}
+        />
+      </div>
     </aside>
   );
 }
