@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
-import { createTemplate, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
+import { createTemplate, handleWorkflowSettled, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
 import { addSchedule, removeSchedule } from "./scheduler.js";
 import type { TemplateStepInput } from "./types.js";
 
@@ -65,11 +65,43 @@ export async function templatesRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { id: string } }>("/template-runs/:id", async (req, reply) => {
-    const run = await prisma.templateRun.findUnique({
+    let run = await prisma.templateRun.findUnique({
       where: { id: req.params.id },
-      include: { steps: { include: { templateStep: true }, orderBy: { createdAt: "asc" } } },
+      include: {
+        steps: {
+          include: { templateStep: true, workflow: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
     if (!run) return reply.code(404).send({ error: "template_run_not_found" });
+
+    // Self-healing: if any step's linked workflow has settled but the templateRunStep is still unsynced
+    let didSync = false;
+    for (const step of run.steps) {
+      if (
+        step.workflowId &&
+        step.workflow &&
+        ["completed", "failed", "awaiting_review"].includes(step.workflow.status) &&
+        step.status !== step.workflow.status
+      ) {
+        await handleWorkflowSettled(step.workflowId, step.workflow.status as any);
+        didSync = true;
+      }
+    }
+
+    if (didSync) {
+      run = await prisma.templateRun.findUnique({
+        where: { id: req.params.id },
+        include: {
+          steps: {
+            include: { templateStep: true, workflow: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+    }
+
     return run;
   });
 

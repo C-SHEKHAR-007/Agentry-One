@@ -157,6 +157,12 @@ async function startTemplateRunStep(
     where: { id: templateRunStepId },
     data: { workflowId: workflow.id, status: "running" },
   });
+
+  // Guard against race condition where the workflow finishes before or during this update
+  const currentWf = await prisma.workflow.findUnique({ where: { id: workflow.id } });
+  if (currentWf && ["completed", "failed", "awaiting_review"].includes(currentWf.status)) {
+    await handleWorkflowSettled(currentWf.id, currentWf.status as any);
+  }
 }
 
 export async function runTemplate(templateId: string, runInputs: Record<string, unknown>) {
