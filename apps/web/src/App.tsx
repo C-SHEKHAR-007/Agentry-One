@@ -68,6 +68,7 @@ export default function App() {
         <Route path="/artifacts" element={<ArtifactsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/costs" element={<CostMonitorPage />} />
+        <Route path="/cost-monitor" element={<Navigate to="/costs" replace />} />
         <Route path="/prompts" element={<PromptsPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/my-agents" element={<Navigate to="/agents?tab=workers" replace />} />

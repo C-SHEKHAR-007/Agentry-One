@@ -257,7 +257,7 @@ export function DashboardPage() {
               series={series}
               color="hsl(var(--chart-4))"
               delay={0.15}
-              to="/cost-monitor"
+              to="/costs"
             />
           </>
         ) : (
