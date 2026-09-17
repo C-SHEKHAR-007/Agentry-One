@@ -107,6 +107,7 @@ export async function agentsRoutes(app: FastifyInstance) {
       outputTypes?: string[];
       inputSchema?: any;
       outputSchema?: any;
+      humanGate?: boolean;
     };
   }>("/agents/custom", async (req, reply) => {
     const {
@@ -119,6 +120,7 @@ export async function agentsRoutes(app: FastifyInstance) {
       outputTypes = ["text"],
       inputSchema,
       outputSchema,
+      humanGate = false,
     } = req.body;
 
     if (!name || !systemPrompt) {
@@ -141,7 +143,7 @@ export async function agentsRoutes(app: FastifyInstance) {
         {
           key: "run",
           description: description || `Run ${name}`,
-          humanGate: false,
+          humanGate: Boolean(humanGate),
           requiresCapability: capabilityKey,
           consumesArtifactKinds: inputTypes,
           producesArtifactKinds: outputTypes,
