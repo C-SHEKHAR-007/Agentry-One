@@ -70,6 +70,6 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const NAV_FOOTER: NavItem[] = [
   { label: "Profile", icon: UserCircle, to: "/profile" },
-  { label: "API Keys", icon: KeyRound, to: "/providers" },
+  { label: "AI Providers & Models", icon: KeyRound, to: "/providers" },
   { label: "Settings", icon: Settings, to: "/settings" },
 ];

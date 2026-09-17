@@ -1,13 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Play } from "lucide-react";
+import { Play, Plus, ExternalLink, MessageSquare } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Select } from "../components/ui/select";
 import { Label } from "../components/ui/label";
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
@@ -16,6 +18,7 @@ type MappingValue = { kind: "literal" | "fromStep" } | { kind: "fromRunInput"; f
 
 interface TemplateDetail {
   id: string;
+  projectId: string;
   name: string;
   steps: Array<{ inputMapping: Record<string, MappingValue> }>;
 }
@@ -41,6 +44,15 @@ export function TemplateRunPage() {
     }
     return Array.from(fields);
   }, [template]);
+
+  const { data: socialAccounts } = useQuery({
+    queryKey: ["socialAccounts", template?.projectId],
+    queryFn: () =>
+      api.get<Array<{ id: string; platform: string; handle?: string }>>(
+        `/social-accounts?projectId=${template?.projectId}`,
+      ),
+    enabled: Boolean(template?.projectId),
+  });
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [cronExpr, setCronExpr] = useState<string>("0 9 * * 2"); // Default Tuesday 9am
@@ -87,15 +99,69 @@ export function TemplateRunPage() {
               earlier step.
             </p>
           )}
-          {runInputFields.map((field) => (
-            <div key={field}>
-              <Label>{field}</Label>
-              <Input
-                value={values[field] ?? ""}
-                onChange={(e) => setValues({ ...values, [field]: e.target.value })}
-              />
-            </div>
-          ))}
+          {runInputFields.map((field) => {
+            const isSocial = field === "socialAccountId";
+            const isLongText = ["prompt", "caption", "text", "brief", "post_idea", "topic", "content"].some((k) =>
+              field.toLowerCase().includes(k),
+            );
+
+            if (isSocial) {
+              return (
+                <div key={field} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label>Target Social Account ({field})</Label>
+                    <Link to="/integrations" className="text-xs text-primary hover:underline flex items-center gap-1">
+                      Manage Accounts <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <Select
+                    value={values[field] ?? ""}
+                    onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+                  >
+                    <option value="">Select connected social account...</option>
+                    {(socialAccounts ?? []).map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.platform.toUpperCase()} — {acc.handle || acc.id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </Select>
+                  {(!socialAccounts || socialAccounts.length === 0) && (
+                    <p className="text-xs text-amber-500">
+                      No social accounts connected in this project.{" "}
+                      <Link to="/integrations" className="underline font-semibold">
+                        Connect one in Integrations
+                      </Link>
+                    </p>
+                  )}
+                </div>
+              );
+            }
+
+            if (isLongText) {
+              return (
+                <div key={field} className="space-y-1.5">
+                  <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
+                  <Textarea
+                    rows={3}
+                    value={values[field] ?? ""}
+                    placeholder={`Enter ${field}...`}
+                    onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+                  />
+                </div>
+              );
+            }
+
+            return (
+              <div key={field} className="space-y-1.5">
+                <Label className="capitalize">{field.replace(/([A-Z])/g, " $1")}</Label>
+                <Input
+                  value={values[field] ?? ""}
+                  placeholder={`Enter ${field}...`}
+                  onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+                />
+              </div>
+            );
+          })}
 
           <Button onClick={() => run.mutate()} disabled={run.isPending}>
             {run.isPending ? <Spinner className="mr-2" /> : <Play className="h-4 w-4 mr-2" />}

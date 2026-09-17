@@ -21,6 +21,8 @@ import {
   Tv,
   Eye,
   EyeOff,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
@@ -224,6 +226,27 @@ export function IntegrationsPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const connectMock = useMutation({
+    mutationFn: (platform: string) =>
+      api.post("/social-accounts/direct-login", {
+        projectId: activeProjectId,
+        platform,
+        username: `dev_${platform}`,
+        password: "mock_password_123",
+        handle: `@dev_${platform}`,
+        botToken: "mock_bot_token_12345",
+        chatId: "@dev_channel",
+        webhookUrl: "https://discord.com/api/webhooks/mock/test",
+        accessToken: "mock_access_token_xyz",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
+      toast.success(`⚡ Quick mock ${selectedPlatform} account connected! Ready for pipeline testing.`);
+      setShowModal(false);
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const openConnectModal = (platformId: string) => {
     setSelectedPlatform(platformId);
     setShowModal(true);
@@ -400,6 +423,30 @@ export function IntegrationsPage() {
             </CardHeader>
 
             <CardContent className="pt-5 space-y-5">
+              {/* 1-Click Quick Mock Account */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-primary/20 text-primary">
+                    <Zap className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Dev &amp; Testing Mode</span>
+                    <p className="text-muted-foreground text-[11px]">Connect a simulated {currentPlatformMeta.name} mock account in 1-click.</p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-primary/40 text-primary hover:bg-primary/20 shrink-0 text-xs h-8 px-3"
+                  disabled={connectMock.isPending}
+                  onClick={() => connectMock.mutate(selectedPlatform)}
+                >
+                  {connectMock.isPending ? <Spinner className="h-3 w-3 mr-1" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  ⚡ Quick Mock
+                </Button>
+              </div>
+
               {/* Platform Selector & Mode Toggle */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

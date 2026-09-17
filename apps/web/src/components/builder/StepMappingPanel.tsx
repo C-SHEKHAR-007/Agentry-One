@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../../api/client.js";
 import type { InputMappingValue } from "../../api/types";
 import type { TemplateDraft } from "../../hooks/useTemplateDraft";
 import { Input } from "../ui/input";
@@ -24,6 +26,15 @@ export function StepMappingPanel({ draft, index }: { draft: TemplateDraft; index
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agent?.id, manifestStep?.key]);
 
+  const { data: socialAccounts } = useQuery({
+    queryKey: ["socialAccounts", draft.targetProjectId],
+    queryFn: () =>
+      api.get<Array<{ id: string; platform: string; handle?: string }>>(
+        `/social-accounts?projectId=${draft.targetProjectId}`,
+      ),
+    enabled: Boolean(draft.targetProjectId),
+  });
+
   if (!step || !agent) return null;
 
   return (
@@ -44,6 +55,8 @@ export function StepMappingPanel({ draft, index }: { draft: TemplateDraft; index
       </div>
       {fields.map((field) => {
         const current = step.inputMapping[field];
+        const isSocialField = field === "socialAccountId";
+
         return (
           <div key={field} className="flex flex-wrap items-center gap-2 text-sm">
             <span className="w-28 shrink-0 truncate text-muted-foreground">{field}</span>
@@ -58,25 +71,57 @@ export function StepMappingPanel({ draft, index }: { draft: TemplateDraft; index
                   const earlierStep = draft.steps.find((s) => s.stepOrder < step.stepOrder) ?? draft.steps[0];
                   const earlierOrder = earlierStep?.stepOrder ?? 0;
                   const available = earlierStep ? draft.producesFor(earlierStep) : [];
+                  let defaultKind = available[0] ?? "text";
+                  if ((field === "mediaUrl" || field === "imagePath") && available.includes("image")) defaultKind = "image";
+                  if ((field === "mediaUrl" || field === "videoPath") && available.includes("video")) defaultKind = "video";
+                  if (field === "audioPath" && available.includes("audio")) defaultKind = "audio";
                   draft.updateMapping(index, field, {
                     kind: "fromStep",
                     stepOrder: earlierOrder,
-                    artifactKind: available[0] ?? "text",
+                    artifactKind: defaultKind,
                   });
                 }
               }}
-              className="h-8 w-auto min-w-40"
+              className="h-8 w-auto min-w-36"
             >
               <option value="literal">literal</option>
               <option value="fromRunInput">from run input</option>
               <option value="fromStep">from earlier step</option>
             </Select>
             {current?.kind === "literal" && (
-              <Input
-                value={String(current.value ?? "")}
-                onChange={(e) => draft.updateMapping(index, field, { kind: "literal", value: e.target.value })}
-                className="h-8 min-w-40 flex-1"
-              />
+              isSocialField ? (
+                <div className="flex flex-1 items-center gap-2">
+                  <Select
+                    value={String(current.value ?? "")}
+                    onChange={(e) => draft.updateMapping(index, field, { kind: "literal", value: e.target.value })}
+                    className="h-8 min-w-44 flex-1"
+                  >
+                    <option value="">Select connected account...</option>
+                    {(socialAccounts ?? []).map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.handle || acc.id} ({acc.platform})
+                      </option>
+                    ))}
+                  </Select>
+                  {(!socialAccounts || socialAccounts.length === 0) && (
+                    <a
+                      href="/integrations"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline shrink-0 hover:text-primary/80"
+                    >
+                      Connect
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  value={String(current.value ?? "")}
+                  onChange={(e) => draft.updateMapping(index, field, { kind: "literal", value: e.target.value })}
+                  className="h-8 min-w-40 flex-1"
+                  placeholder={`Enter ${field}...`}
+                />
+              )
             )}
             {current?.kind === "fromRunInput" && (
               <Input

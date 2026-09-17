@@ -249,6 +249,56 @@ export function ProvidersPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const [addModelForProvider, setAddModelForProvider] = useState<string | null>(null);
+  const [modelForm, setModelForm] = useState({
+    modelId: "",
+    name: "",
+    description: "",
+    inputTypes: ["text"],
+    outputTypes: ["text"],
+    contextLength: "128000",
+  });
+
+  const createModel = useMutation({
+    mutationFn: () => {
+      if (!addModelForProvider) throw new Error("No provider selected");
+      return api.post("/models", {
+        providerConfigId: addModelForProvider,
+        modelId: modelForm.modelId.trim(),
+        name: modelForm.name.trim() || modelForm.modelId.trim(),
+        description: modelForm.description.trim() || undefined,
+        inputTypes: modelForm.inputTypes,
+        outputTypes: modelForm.outputTypes,
+        contextLength: modelForm.contextLength ? parseInt(modelForm.contextLength, 10) : undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["providers"] });
+      queryClient.invalidateQueries({ queryKey: ["all-models"] });
+      toast.success(`Model "${modelForm.name || modelForm.modelId}" registered successfully!`);
+      setAddModelForProvider(null);
+      setModelForm({
+        modelId: "",
+        name: "",
+        description: "",
+        inputTypes: ["text"],
+        outputTypes: ["text"],
+        contextLength: "128000",
+      });
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteModel = useMutation({
+    mutationFn: (id: string) => api.delete(`/models/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["providers"] });
+      queryClient.invalidateQueries({ queryKey: ["all-models"] });
+      toast.success("Model removed");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   // Calculate stats
   const totalProviders = providers?.length || 0;
   const totalDiscoveredModels = useMemo(() => {
@@ -641,19 +691,41 @@ export function ProvidersPage() {
                       </span>
                     </div>
 
-                    {totalModelsCount > 6 && (
-                      <div className="relative w-full sm:w-64">
-                        <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input
-                          placeholder="Filter models in list..."
-                          value={modelSearchQuery[p.id] || ""}
-                          onChange={(e) =>
-                            setModelSearchQuery({ ...modelSearchQuery, [p.id]: e.target.value })
-                          }
-                          className="h-8 pl-8 text-xs bg-card/80 border-border/50"
-                        />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                        onClick={() => setAddModelForProvider(p.id)}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Add Model</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs gap-1.5 border-border/60"
+                        onClick={() => discoverModels.mutate(p.id)}
+                        disabled={discoverModels.isPending}
+                        title="Auto-discover models from API"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 text-primary ${discoverModels.isPending ? "animate-spin" : ""}`} />
+                        <span>Discover</span>
+                      </Button>
+                      {totalModelsCount > 6 && (
+                        <div className="relative w-full sm:w-48">
+                          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Filter list..."
+                            value={modelSearchQuery[p.id] || ""}
+                            onChange={(e) =>
+                              setModelSearchQuery({ ...modelSearchQuery, [p.id]: e.target.value })
+                            }
+                            className="h-8 pl-8 text-xs bg-card/80 border-border/50"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {modelsList.length > 0 ? (
@@ -712,8 +784,8 @@ export function ProvidersPage() {
                                 </div>
                               </div>
 
-                              {/* Compact Top-Right Default Button / Indicator */}
-                              <div className="shrink-0">
+                              {/* Compact Top-Right Default Button / Indicator & Delete */}
+                              <div className="shrink-0 flex items-center gap-1.5">
                                 {isDefault ? (
                                   <span
                                     title="Active Default Model"
@@ -733,6 +805,20 @@ export function ProvidersPage() {
                                     <span>Set</span>
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  title="Delete model"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Remove model "${m.name || m.modelId}" from this provider?`)) {
+                                      deleteModel.mutate(m.id);
+                                    }
+                                  }}
+                                  disabled={deleteModel.isPending}
+                                  className="p-1 rounded text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
                               </div>
                             </div>
 
@@ -1142,6 +1228,122 @@ export function ProvidersPage() {
                   <Button type="submit" size="sm" disabled={updateProvider.isPending}>
                     {updateProvider.isPending ? <Spinner className="mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
                     Save Changes
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ADD CUSTOM MODEL MODAL DIALOG */}
+      {addModelForProvider && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+          <Card className="w-full max-w-lg border-primary/30 shadow-2xl bg-card/95 backdrop-blur-md rounded-2xl overflow-hidden">
+            <div className="p-5 border-b border-border/50 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-primary" /> Register Custom Model
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Manually define a custom model identifier, modality outputs, and context capacity for this provider.
+                </p>
+              </div>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setAddModelForProvider(null)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <CardContent className="p-5">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  createModel.mutate();
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <Label className="text-xs">Model Identifier (API slug) *</Label>
+                  <Input
+                    required
+                    placeholder="e.g. llama-3.3-70b, gpt-4o-mini, qwen2.5:14b, claude-3-5-haiku"
+                    value={modelForm.modelId}
+                    onChange={(e) => setModelForm({ ...modelForm, modelId: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    The exact model name/slug passed in inference calls to the provider API.
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Display Name</Label>
+                  <Input
+                    placeholder="e.g. Meta Llama 3.3 70B Versatile"
+                    value={modelForm.name}
+                    onChange={(e) => setModelForm({ ...modelForm, name: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Output Modalities</Label>
+                    <div className="flex flex-wrap gap-1.5 pt-1.5">
+                      {["text", "image", "audio", "video"].map((mod) => {
+                        const isSelected = modelForm.outputTypes.includes(mod);
+                        return (
+                          <button
+                            key={mod}
+                            type="button"
+                            onClick={() => {
+                              const next = isSelected
+                                ? modelForm.outputTypes.filter((t) => t !== mod)
+                                : [...modelForm.outputTypes, mod];
+                              setModelForm({ ...modelForm, outputTypes: next.length ? next : ["text"] });
+                            }}
+                            className={`px-2.5 py-1 rounded text-xs font-medium border transition-colors capitalize ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-secondary text-muted-foreground border-border/50 hover:text-foreground"
+                            }`}
+                          >
+                            {mod}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">Context Length (Tokens)</Label>
+                    <Input
+                      type="number"
+                      placeholder="128000"
+                      value={modelForm.contextLength}
+                      onChange={(e) => setModelForm({ ...modelForm, contextLength: e.target.value })}
+                      className="h-9 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs">Description (Optional)</Label>
+                  <Input
+                    placeholder="Brief description of model characteristics or specialty"
+                    value={modelForm.description}
+                    onChange={(e) => setModelForm({ ...modelForm, description: e.target.value })}
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-border/40">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setAddModelForProvider(null)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={createModel.isPending || !modelForm.modelId.trim()}>
+                    {createModel.isPending ? <Spinner className="mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
+                    Register Model
                   </Button>
                 </div>
               </form>
