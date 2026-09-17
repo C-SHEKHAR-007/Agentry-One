@@ -8,22 +8,24 @@ function Row({
   ok,
   okLabel = "Healthy",
   badLabel = "Down",
+  tooltip,
 }: {
   icon: React.ElementType;
   label: string;
   ok: boolean;
   okLabel?: string;
   badLabel?: string;
+  tooltip?: string;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-border/60 py-2.5 last:border-0">
-      <span className="flex items-center gap-2.5 text-sm">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-        {label}
+    <div className="flex items-center justify-between py-2 border-b border-border/40 last:border-0" title={tooltip}>
+      <span className="flex items-center gap-2 text-xs truncate max-w-[200px]">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="truncate text-foreground/90">{label}</span>
       </span>
       <span
         className={cn(
-          "flex items-center gap-1.5 text-xs font-medium",
+          "flex items-center gap-1.5 text-[11px] font-medium shrink-0 ml-2",
           ok ? "text-success" : "text-destructive",
         )}
       >
@@ -35,34 +37,59 @@ function Row({
 }
 
 export function SystemHealthPanel({ health }: { health: SystemHealth }) {
-  const allOk =
-    health.api && health.db && health.redis && health.workers.every((w) => w.online);
+  const onlineCount = health.workers.filter((w) => w.online).length;
+
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between">
-        <span
-          className={cn(
-            "flex items-center gap-1.5 text-xs",
-            allOk ? "text-success" : "text-warning",
-          )}
-        >
-          <span className={cn("h-1.5 w-1.5 rounded-full", allOk ? "bg-success" : "bg-warning")} />
-          {allOk ? "All systems operational" : "Degraded"}
-        </span>
+    <div className="space-y-3">
+      {/* Core Services */}
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
+          Core Services
+        </p>
+        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5">
+          <Row icon={Globe} label="API Server" ok={health.api} />
+          <Row icon={Database} label="PostgreSQL Database" ok={health.db} />
+          <Row icon={Layers} label="Redis Queue Broker" ok={health.redis} />
+        </div>
       </div>
-      <Row icon={Globe} label="API" ok={health.api} />
-      <Row icon={Database} label="Database" ok={health.db} />
-      <Row icon={Layers} label="Redis Queue" ok={health.redis} />
-      {health.workers.map((w) => (
-        <Row
-          key={w.queue}
-          icon={Cpu}
-          label={`Worker · ${w.agentId}`}
-          ok={w.online}
-          okLabel="Running"
-          badLabel="Offline"
-        />
-      ))}
+
+      {/* Agent Workers (Scrollable) */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            Agent Workers
+          </p>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            {onlineCount}/{health.workers.length} running
+          </span>
+        </div>
+
+        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin">
+          {health.workers.map((w) => {
+            const prettyName = w.agentId
+              .replace(/^custom-/, "")
+              .replace(/-\d+$/, "")
+              .split("-")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+
+            return (
+              <Row
+                key={w.queue}
+                icon={Cpu}
+                label={prettyName}
+                ok={w.online}
+                okLabel="Running"
+                badLabel="Offline"
+                tooltip={`Worker for ${w.agentId} (${w.queue})`}
+              />
+            );
+          })}
+          {health.workers.length === 0 && (
+            <p className="py-2 text-xs text-muted-foreground">No workers registered.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

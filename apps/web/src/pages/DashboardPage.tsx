@@ -1,17 +1,22 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "../lib/utils";
 import {
   Activity as ActivityIcon,
   ArrowRight,
+  Bot,
   CheckCircle2,
   DollarSign,
   FolderKanban,
   Layers,
+  Play,
   Plus,
   TrendingUp,
   Workflow as WorkflowIcon,
 } from "lucide-react";
+import { api } from "../api/client.js";
 import {
   useAgentStats,
   useEvents,
@@ -28,11 +33,12 @@ import { ExecutionsTable } from "../components/ExecutionsTable";
 import { StatCard } from "../components/StatCard";
 import { SystemHealthPanel } from "../components/SystemHealthPanel";
 import { TopAgents } from "../components/TopAgents";
+import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Donut } from "../components/ui/donut";
 import { Skeleton } from "../components/ui/skeleton";
-import type { Project } from "../api/types";
+import type { Agent, Project } from "../api/types";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -147,11 +153,31 @@ export function DashboardPage() {
   const { data: recent } = useRecentWorkflows(6);
   const { data: health } = useSystemHealth();
   const { data: projects } = useProjects();
+  const { data: allAgents, isLoading: isLoadingAgents } = useQuery<Agent[]>({
+    queryKey: ["agents"],
+    queryFn: () => api.get<Agent[]>("/agents"),
+  });
 
   const displayName = user?.firstName?.trim() || user?.email?.split("@")[0] || "there";
   const series = overview?.series.completedPerDay.map((d) => d.count) ?? [];
   const agents = agentStats?.agents ?? [];
   const totalJobs = agents.reduce((a, s) => a + s.runs, 0);
+
+  const topFiveAgents = useMemo(() => {
+    if (!allAgents) return [];
+    const runsMap = new Map((agents || []).map((s) => [s.agentId, s.runs]));
+    return [...allAgents]
+      .sort((a, b) => {
+        const runsA = runsMap.get(a.id) ?? 0;
+        const runsB = runsMap.get(b.id) ?? 0;
+        if (runsB !== runsA) return runsB - runsA;
+        const isCustomA = a.id.startsWith("custom-") ? 1 : 0;
+        const isCustomB = b.id.startsWith("custom-") ? 1 : 0;
+        if (isCustomB !== isCustomA) return isCustomB - isCustomA;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 5);
+  }, [allAgents, agents]);
 
   return (
     <div className="space-y-6">
@@ -306,30 +332,117 @@ export function DashboardPage() {
             </div>
           </SectionCard>
 
-          {/* CTA banner */}
-          <Card
-            glass
-            className="flex flex-col items-start justify-between gap-4 overflow-hidden p-0 sm:flex-row sm:items-center"
-          >
-            <div className="flex flex-1 items-center gap-4 p-5">
-              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                <WorkflowIcon className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-semibold">Create your first custom agent</p>
-                <p className="text-sm text-muted-foreground">
-                  Build powerful AI agents tailored to your needs.
-                </p>
+          {/* Top 5 AI Agents & Skills */}
+          <SectionCard
+            title="Top AI Agents & Skills"
+            action={
+              <div className="flex items-center gap-2.5">
+                <Link to="/agents/create-skill">
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10">
+                    <Plus className="h-3.5 w-3.5" /> Create Agent
+                  </Button>
+                </Link>
+                <ViewAll to="/agents" label={`View all (${allAgents?.length ?? 0})`} />
               </div>
-            </div>
-            <div className="px-5 pb-5 sm:pb-0 sm:pr-6">
-              <Link to="/agents">
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" /> Create Agent
-                </Button>
-              </Link>
-            </div>
-          </Card>
+            }
+          >
+            {isLoadingAgents ? (
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-32 rounded-xl" />
+                ))}
+              </div>
+            ) : topFiveAgents.length > 0 ? (
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+                {topFiveAgents.map((agent) => {
+                  const runs = (agents || []).find((s) => s.agentId === agent.id)?.runs ?? 0;
+                  const isCustom = agent.id.startsWith("custom-");
+
+                  return (
+                    <div
+                      key={agent.id}
+                      className="group relative flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-primary/40 hover:bg-card/90 hover:shadow-md hover:shadow-primary/5"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <span
+                            className={cn(
+                              "inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm shrink-0",
+                              isCustom
+                                ? "bg-violet-500/15 text-violet-400 border border-violet-500/20"
+                                : "bg-primary/15 text-primary border border-primary/20",
+                            )}
+                          >
+                            <Bot className="h-4 w-4" />
+                          </span>
+                          <Badge
+                            variant={isCustom ? "default" : "outline"}
+                            className={cn(
+                              "text-[10px] px-1.5 py-0",
+                              isCustom && "bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/20",
+                            )}
+                          >
+                            {isCustom ? "Custom Skill" : "Built-in"}
+                          </Badge>
+                        </div>
+
+                        <Link to={`/agents/${agent.id}`} className="block">
+                          <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                            {agent.name}
+                          </h4>
+                        </Link>
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {agent.description || "Specialized AI workflow agent."}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between pt-2.5 border-t border-border/40">
+                        <span className="text-[11px] text-muted-foreground">
+                          {runs > 0 ? `${runs} runs` : "Ready"}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Link to={`/agents/${agent.id}`}>
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
+                              Details
+                            </Button>
+                          </Link>
+                          <Link to={`/agents/${agent.id}/submit`}>
+                            <Button size="sm" className="h-7 px-2.5 text-xs gap-1">
+                              <Play className="h-3 w-3 fill-current" /> Run
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card
+                glass
+                className="flex flex-col items-start justify-between gap-4 overflow-hidden p-0 sm:flex-row sm:items-center"
+              >
+                <div className="flex flex-1 items-center gap-4 p-5">
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
+                    <WorkflowIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="font-semibold">Create your first custom agent</p>
+                    <p className="text-sm text-muted-foreground">
+                      Build powerful AI agents tailored to your needs.
+                    </p>
+                  </div>
+                </div>
+                <div className="px-5 pb-5 sm:pb-0 sm:pr-6">
+                  <Link to="/agents/create-skill">
+                    <Button className="gap-2">
+                      <Plus className="h-4 w-4" /> Create Agent
+                    </Button>
+                  </Link>
+                </div>
+              </Card>
+            )}
+          </SectionCard>
         </div>
 
         {/* Right rail */}
