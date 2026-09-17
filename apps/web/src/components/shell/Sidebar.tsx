@@ -15,15 +15,18 @@ function NavEntry({
   onNavigate?: () => void;
 }) {
   const location = useLocation();
-  const base =
-    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-150 w-full min-w-0";
   const Icon = item.icon;
 
   if (!item.to) {
     const node = (
       <div
         aria-disabled
-        className={cn(base, "cursor-default text-muted-foreground/40 select-none")}
+        className={cn(
+          "flex items-center rounded-lg transition-all duration-150 cursor-default text-muted-foreground/40 select-none",
+          collapsed
+            ? "h-9 w-9 justify-center p-0"
+            : "w-full gap-3 px-2.5 py-2 text-sm",
+        )}
       >
         <Icon className="h-4 w-4 shrink-0" />
         {!collapsed && (
@@ -41,7 +44,13 @@ function NavEntry({
         )}
       </div>
     );
-    return collapsed ? <Tooltip label={`${item.label} (soon)`}>{node}</Tooltip> : node;
+    return collapsed ? (
+      <Tooltip label={`${item.label} (soon)`} className="w-full flex justify-center">
+        {node}
+      </Tooltip>
+    ) : (
+      node
+    );
   }
 
   const [pathname, search] = item.to.split("?");
@@ -56,7 +65,10 @@ function NavEntry({
       to={item.to}
       onClick={onNavigate}
       className={cn(
-        base,
+        "flex items-center rounded-lg transition-all duration-150",
+        collapsed
+          ? "h-9 w-9 justify-center p-0"
+          : "w-full gap-3 px-2.5 py-2 text-sm",
         isActive
           ? "bg-primary/20 text-primary font-medium shadow-sm"
           : "text-muted-foreground hover:text-foreground hover:bg-white/5",
@@ -76,7 +88,13 @@ function NavEntry({
       )}
     </NavLink>
   );
-  return collapsed ? <Tooltip label={item.label}>{node}</Tooltip> : node;
+  return collapsed ? (
+    <Tooltip label={item.label} className="w-full flex justify-center">
+      {node}
+    </Tooltip>
+  ) : (
+    node
+  );
 }
 
 export function SidebarContent({
@@ -89,8 +107,13 @@ export function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className={cn("flex items-center gap-2.5 px-4 py-4", collapsed && "justify-center px-2")}>
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+      <div
+        className={cn(
+          "flex items-center gap-3 py-4",
+          collapsed ? "justify-center px-0" : "px-3",
+        )}
+      >
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30 shrink-0">
           <Sparkles className="h-4 w-4" />
         </span>
         {!collapsed && (
@@ -98,17 +121,19 @@ export function SidebarContent({
         )}
       </div>
 
-
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 pb-2">
+      <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden pb-2", collapsed ? "px-0" : "px-3")}>
         {NAV_SECTIONS.map((section, i) => (
           <div key={i} className="mt-2 first:mt-0">
             {section.label && !collapsed && (
-              <p className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+              <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
                 {section.label}
               </p>
             )}
-            <div className="grid gap-0.5">
+            {collapsed && i > 0 && (
+              <div className="mx-auto my-2 h-px w-6 bg-border/40" />
+            )}
+            <div className={cn("grid gap-0.5", collapsed && "justify-items-center gap-1.5")}>
               {section.items.map((item) => (
                 <NavEntry key={item.label} item={item} collapsed={collapsed} onNavigate={onNavigate} />
               ))}
@@ -118,8 +143,8 @@ export function SidebarContent({
       </nav>
 
       {/* Footer nav */}
-      <div className="border-t border-border/60 px-2 py-2">
-        <div className="grid gap-0.5">
+      <div className={cn("border-t border-border/60 py-2", collapsed ? "px-0" : "px-3")}>
+        <div className={cn("grid gap-0.5", collapsed && "justify-items-center gap-1.5")}>
           {NAV_FOOTER.map((item) => (
             <NavEntry key={item.label} item={item} collapsed={collapsed} onNavigate={onNavigate} />
           ))}
