@@ -31,11 +31,11 @@ export function AgentsPage() {
         description={
           installedOnly
             ? "Agents discovered from their manifest.json at API boot or created via UI."
-            : "Install, orchestrate, and run AI capabilities from one workspace. New agents appear automatically after an API restart — no platform code changes."
+            : "Install, orchestrate, implement custom agents, and run AI capabilities from one workspace. Customize prompts, models, inputs, and human review gates directly from the UI."
         }
         actions={
           <Button onClick={() => navigate("/agents/create-skill")} className="bg-primary hover:bg-primary/90">
-            <Plus className="h-4 w-4 mr-2" /> Create Custom Skill
+            <Plus className="h-4 w-4 mr-2" /> Implement Custom Agent
           </Button>
         }
       />

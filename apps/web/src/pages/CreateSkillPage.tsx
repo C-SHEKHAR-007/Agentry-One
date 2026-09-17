@@ -89,6 +89,7 @@ export function CreateSkillPage() {
   const [outputTypes, setOutputTypes] = useState<string[]>(["text"]);
   const [systemPrompt, setSystemPrompt] = useState("You are an expert AI. Your task is to...\n\nTopic: {{topic}}");
   const [fields, setFields] = useState<SkillField[]>([{ key: "topic", title: "Topic" }]);
+  const [humanGate, setHumanGate] = useState(false);
 
   const { data: models } = useQuery({
     queryKey: ["all-models"],
@@ -121,6 +122,7 @@ export function CreateSkillPage() {
         outputTypes,
         systemPrompt,
         inputSchema,
+        humanGate,
       });
     },
     onSuccess: () => {
@@ -239,6 +241,23 @@ export function CreateSkillPage() {
                       </option>
                     ))}
                   </Select>
+                </div>
+
+                <div className="md:col-span-2 pt-3 border-t border-border/40">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={humanGate}
+                      onChange={(e) => setHumanGate(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-foreground">Human-in-the-Loop Review Gate</span>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, pipeline runs pause when this agent completes, requiring manual approval and review notes before advancing to the next step.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </div>
             </CardContent>
