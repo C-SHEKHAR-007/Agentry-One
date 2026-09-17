@@ -1,10 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { getQueue } from "../../queue/queues.js";
-import { advanceStep, startWorkflow, WorkflowError } from "./service.js";
+import { advanceStep, reapStaleWorkflows, startWorkflow, WorkflowError } from "./service.js";
 import { generateReadSasUrl } from "../artifacts/azureClient.js";
 
 export async function workflowsRoutes(app: FastifyInstance) {
+  app.post("/workflows/reap-stale", async () => {
+    const reaped = await reapStaleWorkflows();
+    return { reaped };
+  });
+
   app.post<{ Params: { id: string }; Body: { agentId: string; input: unknown; providerConfigId?: string } }>(
     "/projects/:id/workflows",
     async (req, reply) => {
@@ -26,6 +31,11 @@ export async function workflowsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { limit?: string; status?: string } }>(
     "/workflows/recent",
     async (req) => {
+      // Auto-reap stale or orphaned executions when viewing executions
+      if (!req.query.status || req.query.status === "running") {
+        await reapStaleWorkflows();
+      }
+
       const limit = Math.min(Number(req.query.limit ?? 10) || 10, 100);
       const workflows = await prisma.workflow.findMany({
         where: req.query.status ? { status: req.query.status } : undefined,
@@ -148,33 +158,53 @@ export async function workflowsRoutes(app: FastifyInstance) {
     });
     if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
 
-    // Remove any queued-but-not-started BullMQ jobs so they never run.
-    // A job already mid-execution is not interrupted (see docs/06-api-surface.md);
-    // once it settles, the workflow stays cancelled rather than progressing.
-    const manifest = workflow.agent.manifest as { entrypoint: { queueName: string } };
-    const queue = getQueue(manifest.entrypoint.queueName);
     let removedQueued = 0;
     let stillRunning = false;
 
-    for (const step of workflow.steps) {
-      if (!step.job || step.job.status !== "queued") {
-        if (step.status === "running") stillRunning = true;
-        continue;
+    try {
+      const manifest = workflow.agent?.manifest as { entrypoint?: { queueName?: string } };
+      const queueName = manifest?.entrypoint?.queueName;
+      if (queueName) {
+        const queue = getQueue(queueName);
+        for (const step of workflow.steps) {
+          if (step.job?.id) {
+            const bullJob = await queue.getJob(step.job.id);
+            const state = bullJob ? await bullJob.getState() : null;
+            if (bullJob && (state === "waiting" || state === "delayed" || state === "prioritized")) {
+              await bullJob.remove();
+              await prisma.job.update({ where: { id: step.job.id }, data: { status: "cancelled" } });
+              await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "failed" } });
+              removedQueued++;
+            } else if (state === "active") {
+              stillRunning = true;
+            }
+          }
+        }
       }
-      const bullJob = await queue.getJob(step.job.id);
-      const state = bullJob ? await bullJob.getState() : null;
-      if (bullJob && (state === "waiting" || state === "delayed" || state === "prioritized")) {
-        await bullJob.remove();
-        await prisma.job.update({ where: { id: step.job.id }, data: { status: "cancelled" } });
-        await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "failed" } });
-        removedQueued++;
-      } else if (state === "active") {
-        stillRunning = true;
-      }
+    } catch {
+      // queue access error
     }
 
     const status = stillRunning ? "cancelling" : "cancelled";
     await prisma.workflow.update({ where: { id: req.params.id }, data: { status } });
+    if (status === "cancelled") {
+      for (const s of workflow.steps) {
+        if (["running", "queued", "pending"].includes(s.status)) {
+          await prisma.workflowStep.update({ where: { id: s.id }, data: { status: "failed" } });
+        }
+      }
+      await prisma.event.create({
+        data: {
+          workflowId: workflow.id,
+          type: "workflow.cancelled",
+          payload: { cancelledAt: new Date() },
+        },
+      });
+      try {
+        const { handleWorkflowSettled } = await import("../templates/service.js");
+        await handleWorkflowSettled(workflow.id, "failed");
+      } catch {}
+    }
     return reply.code(202).send({ status, removedQueued });
   });
 }

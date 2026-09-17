@@ -9,6 +9,7 @@ export interface AgentStepManifest {
   outputSchema: unknown;
   humanGate: boolean;
   producesArtifactKinds: string[];
+  consumesArtifactKinds?: string[];
 }
 
 export interface AgentManifest {

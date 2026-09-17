@@ -128,37 +128,52 @@ export async function startWorkflow(
     },
   });
 
-  const stepRows = await Promise.all(
-    manifest.steps.map((step, index) =>
-      prisma.workflowStep.create({
-        data: {
-          workflowId: workflow.id,
-          stepKey: step.key,
-          sequence: index,
-          humanGate: Boolean(step.humanGate ?? false),
-          status: index === 0 ? "queued" : "pending",
-        },
-      }),
-    ),
-  );
+  try {
+    const stepRows = await Promise.all(
+      manifest.steps.map((step, index) =>
+        prisma.workflowStep.create({
+          data: {
+            workflowId: workflow.id,
+            stepKey: step.key,
+            sequence: index,
+            humanGate: Boolean(step.humanGate ?? false),
+            status: index === 0 ? "queued" : "pending",
+          },
+        }),
+      ),
+    );
 
-  const firstStep = manifest.steps[0];
-  await enqueueStepJob({
-    workflowId: workflow.id,
-    workflowStepId: stepRows[0].id,
-    agentId,
-    agentVersion: agent.version,
-    agentManifest: manifest,
-    step: firstStep,
-    queueName: manifest.entrypoint.queueName,
-    params: input,
-    projectId,
-    providerConfigId: opts.providerConfigId,
-    attempts: manifest.attempts,
-    backoffMs: manifest.backoff?.delayMs,
-  });
+    const firstStep = manifest.steps[0];
+    await enqueueStepJob({
+      workflowId: workflow.id,
+      workflowStepId: stepRows[0].id,
+      agentId,
+      agentVersion: agent.version,
+      agentManifest: manifest,
+      step: firstStep,
+      queueName: manifest.entrypoint.queueName,
+      params: input,
+      projectId,
+      providerConfigId: opts.providerConfigId,
+      attempts: manifest.attempts,
+      backoffMs: manifest.backoff?.delayMs,
+    });
 
-  return workflow;
+    return workflow;
+  } catch (err) {
+    await prisma.workflow.update({
+      where: { id: workflow.id },
+      data: { status: "failed" },
+    });
+    await prisma.event.create({
+      data: {
+        workflowId: workflow.id,
+        type: "workflow.failed",
+        payload: { error: (err as Error).message },
+      },
+    });
+    throw err;
+  }
 }
 
 export async function advanceOrCompleteWorkflow(
@@ -186,7 +201,10 @@ export async function advanceOrCompleteWorkflow(
         payload: {},
       },
     });
-    await handleWorkflowSettled(workflowId, "completed");
+    try {
+      const { handleWorkflowSettled } = await import("../templates/service.js");
+      await handleWorkflowSettled(workflowId, "completed");
+    } catch {}
     return { status: "completed" };
   }
 
@@ -261,3 +279,87 @@ export async function advanceStep(workflowId: string, stepKey: string, input: un
   const result = await advanceOrCompleteWorkflow(workflowId, step.id, input);
   return result.nextJob ?? null;
 }
+
+export async function reapStaleWorkflows(): Promise<number> {
+  const runningWorkflows = await prisma.workflow.findMany({
+    where: { status: { in: ["running", "cancelling"] } },
+    include: {
+      steps: {
+        include: { job: true },
+      },
+    },
+  });
+
+  let reaped = 0;
+  const now = Date.now();
+  const tenMinutesAgo = new Date(now - 10 * 60 * 1000);
+
+  for (const wf of runningWorkflows) {
+    let shouldReap = false;
+    let reason = "";
+
+    if (wf.steps.length === 0) {
+      shouldReap = true;
+      reason = "Execution initialized without steps";
+    } else if (wf.steps.some((s) => !s.job) && wf.createdAt < tenMinutesAgo) {
+      shouldReap = true;
+      reason = "Step job failed to enqueue or was orphaned";
+    } else if (wf.createdAt < tenMinutesAgo) {
+      let activeInQueue = false;
+      try {
+        const agent = await prisma.agent.findUnique({ where: { id: wf.agentId } });
+        const manifest = agent?.manifest as any;
+        if (manifest?.entrypoint?.queueName) {
+          const queue = getQueue(manifest.entrypoint.queueName);
+          for (const s of wf.steps) {
+            if (s.job?.id) {
+              const bJob = await queue.getJob(s.job.id);
+              const state = bJob ? await bJob.getState() : null;
+              if (state === "active" || state === "waiting" || state === "delayed") {
+                activeInQueue = true;
+                break;
+              }
+            }
+          }
+        }
+      } catch {
+        // queue inspection failure
+      }
+
+      if (!activeInQueue) {
+        shouldReap = true;
+        reason = "Execution timed out or worker process was terminated";
+      }
+    }
+
+    if (shouldReap) {
+      await prisma.workflow.update({
+        where: { id: wf.id },
+        data: { status: "failed" },
+      });
+      for (const s of wf.steps) {
+        if (["running", "queued", "pending"].includes(s.status)) {
+          await prisma.workflowStep.update({
+            where: { id: s.id },
+            data: { status: "failed" },
+          });
+        }
+      }
+      await prisma.event.create({
+        data: {
+          workflowId: wf.id,
+          type: "workflow.failed",
+          payload: { reason },
+        },
+      });
+      try {
+        const { handleWorkflowSettled } = await import("../templates/service.js");
+        await handleWorkflowSettled(wf.id, "failed");
+      } catch {}
+      reaped++;
+    }
+  }
+
+  return reaped;
+}
+

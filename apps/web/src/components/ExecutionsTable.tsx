@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
-import { Bot, ImageIcon, MoreHorizontal } from "lucide-react";
+import { Bot, ImageIcon, MoreHorizontal, Ban, Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api } from "../api/client";
 import type { RecentWorkflow } from "../api/types";
 import { useSasPreviewUrl } from "../api/queries";
 import { formatDuration, timeAgo } from "../lib/format";
@@ -16,6 +19,17 @@ function ThumbImage({ artifactId, previewUrl }: { artifactId?: string | null; pr
 }
 
 export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) {
+  const queryClient = useQueryClient();
+
+  const cancelMutation = useMutation({
+    mutationFn: (workflowId: string) => api.post(`/workflows/${workflowId}/cancel`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recent-workflows"] });
+      toast.success("Execution cancelled");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   if (workflows.length === 0) {
     return (
       <EmptyState
@@ -37,7 +51,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
             <th className="py-3 pr-3 font-medium">Status</th>
             <th className="py-3 pr-3 font-medium hidden md:table-cell">Duration</th>
             <th className="py-3 pr-1 font-medium text-right hidden md:table-cell">Age</th>
-            <th className="w-8 py-3"></th>
+            <th className="py-3 pr-2 text-right font-medium"></th>
           </tr>
         </thead>
         <tbody>
@@ -78,10 +92,18 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
               </td>
               <td className="py-2 pr-3 text-xs text-muted-foreground hidden md:table-cell">{formatDuration(w.durationMs)}</td>
               <td className="py-2 pr-1 text-right text-xs text-muted-foreground hidden md:table-cell">{timeAgo(w.createdAt)}</td>
-              <td className="py-2.5">
-                <button className="invisible group-hover:visible rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </button>
+              <td className="py-2.5 pr-2 text-right">
+                {w.status === "running" || w.status === "cancelling" ? (
+                  <button
+                    onClick={() => cancelMutation.mutate(w.id)}
+                    disabled={cancelMutation.isPending}
+                    title="Cancel execution"
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Cancel</span>
+                  </button>
+                ) : null}
               </td>
             </tr>
           ))}
