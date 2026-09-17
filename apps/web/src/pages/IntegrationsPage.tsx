@@ -23,6 +23,7 @@ import {
   EyeOff,
   Sparkles,
   Zap,
+  Loader2,
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
@@ -138,6 +139,31 @@ export function IntegrationsPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<string>("instagram");
   const [authMode, setAuthMode] = useState<"direct" | "raw_token">("direct");
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [browserLoggingIn, setBrowserLoggingIn] = useState<boolean>(false);
+
+  const handleBrowserLogin = async () => {
+    setBrowserLoggingIn(true);
+    try {
+      toast.info("Opening Google Chrome on your desktop... Please log into Instagram in the opened window.");
+      const res = await fetch("http://localhost:4005/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: activeProjectId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Instagram account ${data.handle} connected successfully!`);
+        queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
+        setShowModal(false);
+      } else {
+        toast.error(data.error || "Browser login failed or was closed.");
+      }
+    } catch (err: any) {
+      toast.error("Could not reach local browser helper. Make sure scripts/instagram_browser_login.py is running.");
+    } finally {
+      setBrowserLoggingIn(false);
+    }
+  };
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -497,43 +523,78 @@ export function IntegrationsPage() {
               >
                 {/* 1. INSTAGRAM DIRECT LOGIN */}
                 {selectedPlatform === "instagram" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-purple-400">
-                      <Camera className="h-4 w-4" /> Direct Mobile or Session Login (No Meta Developer App Required!)
-                    </div>
-                    <div>
-                      <Label>Instagram Username / Handle</Label>
-                      <Input
-                        placeholder="your_handle (do NOT enter your email address)"
-                        value={form.username}
-                        onChange={(e) => setForm({ ...form, username: e.target.value })}
-                        required
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Enter your exact Instagram handle (e.g. <code>my_handle</code>). Do not use your email address.
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Instagram Password (or Session ID Cookie)</Label>
-                      <div className="relative">
-                        <Input
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Your Instagram Password or sessionid cookie"
-                          value={form.password}
-                          onChange={(e) => setForm({ ...form, password: e.target.value })}
-                          required
-                        />
-                        <button
-                          type="button"
-                          className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
+                  <div className="space-y-4">
+                    {/* Automated Browser Login (No manual copy-paste) */}
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-purple-500/15 via-pink-500/10 to-orange-500/15 border border-purple-500/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-purple-300">
+                          <Globe className="h-4 w-4 text-purple-400" />
+                          1-Click Automated Browser Login
+                        </div>
+                        <Badge className="bg-purple-500/20 text-purple-300 text-[10px]">Zero Copy-Paste</Badge>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        💡 <strong>Tip:</strong> If Instagram triggers a security challenge (CAA challenge / 2FA), paste your <code>sessionid</code> cookie from browser DevTools to bypass login checkpoints completely.
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Opens a real Google Chrome window on your screen to log into Instagram. Once logged in, Agentry automatically captures your session cookie and connects your account without touching DevTools.
                       </p>
+                      <Button
+                        type="button"
+                        onClick={handleBrowserLogin}
+                        disabled={browserLoggingIn}
+                        className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 hover:from-purple-500 hover:to-orange-400 text-white font-medium text-xs h-9 shadow-md flex items-center justify-center gap-2"
+                      >
+                        {browserLoggingIn ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Waiting for login in Chrome window...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="h-4 w-4" />
+                            Open Instagram in Browser &amp; Auto-Connect
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    <div className="relative flex py-1 items-center">
+                      <div className="flex-grow border-t border-border/60"></div>
+                      <span className="flex-shrink mx-3 text-[11px] text-muted-foreground uppercase font-medium">Or enter credentials manually</span>
+                      <div className="flex-grow border-t border-border/60"></div>
+                    </div>
+
+                    <div className="space-y-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-purple-400">
+                        <Camera className="h-4 w-4" /> Manual Credentials / Session Cookie
+                      </div>
+                      <div>
+                        <Label>Instagram Username / Handle</Label>
+                        <Input
+                          placeholder="your_handle (do NOT enter your email address)"
+                          value={form.username}
+                          onChange={(e) => setForm({ ...form, username: e.target.value })}
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Enter your exact Instagram handle (e.g. <code>my_handle</code>). Do not use your email address.
+                        </p>
+                      </div>
+                      <div>
+                        <Label>Instagram Password (or Session ID Cookie)</Label>
+                        <div className="relative">
+                          <Input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Your Instagram Password or sessionid cookie"
+                            value={form.password}
+                            onChange={(e) => setForm({ ...form, password: e.target.value })}
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}

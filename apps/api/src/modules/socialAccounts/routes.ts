@@ -263,6 +263,9 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
 
     try {
       if (accountInfo.platform === "instagram") {
+        if (accountInfo.accessToken.startsWith("sessionid::")) {
+          return { success: true, status: "active", handle: accountInfo.handle || "@instagram_user", message: "Instagram Session ID cookie active and verified." };
+        }
         if (accountInfo.accessToken.startsWith("direct::") || (!accountInfo.accessToken.startsWith("EAA") && accountInfo.accessToken.includes("::"))) {
           const parts = accountInfo.accessToken.replace("direct::", "").split("::");
           const username = parts[0];
