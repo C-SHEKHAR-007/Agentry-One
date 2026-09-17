@@ -515,6 +515,7 @@ export function IntegrationsPage() {
               </div>
 
               <form
+                autoComplete="off"
                 onSubmit={(e) => {
                   e.preventDefault();
                   connectDirect.mutate();
@@ -569,6 +570,8 @@ export function IntegrationsPage() {
                       <div>
                         <Label>Instagram Username / Handle</Label>
                         <Input
+                          name="ig_manual_username"
+                          autoComplete="off"
                           placeholder="your_handle (do NOT enter your email address)"
                           value={form.username}
                           onChange={(e) => setForm({ ...form, username: e.target.value })}
@@ -581,6 +584,8 @@ export function IntegrationsPage() {
                         <Label>Instagram Password (or Session ID Cookie)</Label>
                         <div className="relative">
                           <Input
+                            name="ig_manual_secret"
+                            autoComplete="new-password"
                             type={showPassword ? "text" : "password"}
                             placeholder="Your Instagram Password or sessionid cookie"
                             value={form.password}
@@ -609,6 +614,8 @@ export function IntegrationsPage() {
                       <div>
                         <Label>API Key (Consumer Key)</Label>
                         <Input
+                          name="tw_consumer_key"
+                          autoComplete="off"
                           placeholder="e.g. abcd1234efgh"
                           value={form.apiKey}
                           onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
@@ -617,7 +624,9 @@ export function IntegrationsPage() {
                       <div>
                         <Label>API Key Secret</Label>
                         <Input
+                          name="tw_consumer_secret"
                           type="password"
+                          autoComplete="new-password"
                           placeholder="••••••••"
                           value={form.apiSecret}
                           onChange={(e) => setForm({ ...form, apiSecret: e.target.value })}
@@ -626,6 +635,8 @@ export function IntegrationsPage() {
                       <div>
                         <Label>User Access Token</Label>
                         <Input
+                          name="tw_user_token"
+                          autoComplete="off"
                           placeholder="e.g. 123456789-abcdef"
                           value={form.accessToken}
                           onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
@@ -634,7 +645,9 @@ export function IntegrationsPage() {
                       <div>
                         <Label>User Access Token Secret</Label>
                         <Input
+                          name="tw_token_secret"
                           type="password"
+                          autoComplete="new-password"
                           placeholder="••••••••"
                           value={form.accessTokenSecret}
                           onChange={(e) => setForm({ ...form, accessTokenSecret: e.target.value })}
@@ -644,7 +657,9 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Or Bearer Token (App-Only / User Token)</Label>
                       <Input
+                        name="tw_bearer_token"
                         type="password"
+                        autoComplete="new-password"
                         placeholder="AAAAAAAAAAAAAAAAAAAAA..."
                         value={form.accessToken}
                         onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
@@ -662,6 +677,8 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Telegram Bot Token (from @BotFather)</Label>
                       <Input
+                        name="tg_bot_token"
+                        autoComplete="off"
                         placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
                         value={form.botToken}
                         onChange={(e) => setForm({ ...form, botToken: e.target.value })}
@@ -671,6 +688,8 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Target Channel / Group ID (Optional)</Label>
                       <Input
+                        name="tg_chat_id"
+                        autoComplete="off"
                         placeholder="e.g. @your_channel or -100123456789"
                         value={form.chatId}
                         onChange={(e) => setForm({ ...form, chatId: e.target.value })}
@@ -691,6 +710,8 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Discord Channel Webhook URL</Label>
                       <Input
+                        name="dc_webhook_url"
+                        autoComplete="off"
                         placeholder="https://discord.com/api/webhooks/123456789/abcd_efgh..."
                         value={form.webhookUrl}
                         onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })}
@@ -701,7 +722,9 @@ export function IntegrationsPage() {
                       <div>
                         <Label>Bot Token</Label>
                         <Input
+                          name="dc_bot_token"
                           type="password"
+                          autoComplete="new-password"
                           placeholder="MTA2..."
                           value={form.botToken}
                           onChange={(e) => setForm({ ...form, botToken: e.target.value })}
@@ -710,6 +733,8 @@ export function IntegrationsPage() {
                       <div>
                         <Label>Channel ID</Label>
                         <Input
+                          name="dc_channel_id"
+                          autoComplete="off"
                           placeholder="123456789012345678"
                           value={form.chatId}
                           onChange={(e) => setForm({ ...form, chatId: e.target.value })}
@@ -728,7 +753,9 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Page Access Token</Label>
                       <Input
+                        name="fb_page_token"
                         type="password"
+                        autoComplete="new-password"
                         placeholder="EAA..."
                         value={form.accessToken}
                         onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
@@ -736,11 +763,14 @@ export function IntegrationsPage() {
                       />
                     </div>
                     <div>
-                      <Label>Page ID (Optional)</Label>
+                      <Label>Facebook Page ID</Label>
                       <Input
-                        placeholder="e.g. 10987654321"
+                        name="fb_page_id"
+                        autoComplete="off"
+                        placeholder="e.g. 104829105829104"
                         value={form.pageId}
                         onChange={(e) => setForm({ ...form, pageId: e.target.value })}
+                        required
                       />
                     </div>
                   </div>
@@ -755,7 +785,9 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Access Token / API Key</Label>
                       <Input
+                        name="platform_raw_token"
                         type="password"
+                        autoComplete="new-password"
                         placeholder={`Paste ${currentPlatformMeta.name} Access Token`}
                         value={form.accessToken}
                         onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
@@ -765,6 +797,8 @@ export function IntegrationsPage() {
                     <div>
                       <Label>Account Handle / Identifier (Optional)</Label>
                       <Input
+                        name="platform_raw_handle"
+                        autoComplete="off"
                         placeholder="e.g. @yourbrand"
                         value={form.handle}
                         onChange={(e) => setForm({ ...form, handle: e.target.value })}

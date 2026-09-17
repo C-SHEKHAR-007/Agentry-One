@@ -128,14 +128,19 @@ def launch_chrome_and_extract_session(project_id: str | None = None, timeout_sec
                 print(f"[agentry-ig] Could not resolve username from API: {e}")
 
         # 4. If project_id wasn't provided, get the first project from Agentry
+        api_key = os.environ.get("AGENTRY_API_KEY", "dev-local-api-key")
         if not project_id:
             try:
-                with urllib.request.urlopen(f"{API_URL}/projects", timeout=5) as p_resp:
+                p_req = urllib.request.Request(
+                    f"{API_URL}/projects",
+                    headers={"x-api-key": api_key}
+                )
+                with urllib.request.urlopen(p_req, timeout=5) as p_resp:
                     projects = json.loads(p_resp.read().decode())
                     if projects and len(projects) > 0:
                         project_id = projects[0]["id"]
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[agentry-ig] Warning: Could not fetch projects: {e}")
 
         if not project_id:
             return {"success": False, "error": "No project ID found to attach the account to."}
@@ -151,7 +156,10 @@ def launch_chrome_and_extract_session(project_id: str | None = None, timeout_sec
         post_req = urllib.request.Request(
             f"{API_URL}/social-accounts/direct-login",
             data=payload,
-            headers={"Content-Type": "application/json"}
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key
+            }
         )
         with urllib.request.urlopen(post_req, timeout=10) as link_resp:
             result = json.loads(link_resp.read().decode())

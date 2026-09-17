@@ -1020,22 +1020,25 @@ export function ProvidersPage() {
               </div>
 
               <form
+                autoComplete="off"
                 onSubmit={(e) => {
                   e.preventDefault();
                   createProvider.mutate();
                 }}
-                className="grid gap-3.5 sm:grid-cols-2 pt-3 border-t border-border/40"
+                className="grid gap-3.5 sm:grid-cols-2"
               >
                 <div>
-                  <Label className="text-xs">Capability Category</Label>
+                  <Label className="text-xs">Capability</Label>
                   <Select
                     value={form.capabilityKey}
                     onChange={(e) => setForm({ ...form, capabilityKey: e.target.value })}
                     required
+                    className="h-9 text-xs"
                   >
+                    <option value="">-- Select Capability --</option>
                     {capabilities?.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {c.label}
+                      <option key={c.id} value={c.key}>
+                        {c.label} ({c.key})
                       </option>
                     ))}
                   </Select>
@@ -1043,18 +1046,28 @@ export function ProvidersPage() {
 
                 <div>
                   <Label className="text-xs">Provider Type</Label>
-                  <Input
-                    placeholder="e.g. openai_compatible, gemini, ollama_local"
+                  <Select
                     value={form.providerType}
                     onChange={(e) => setForm({ ...form, providerType: e.target.value })}
                     required
                     className="h-9 text-xs"
-                  />
+                  >
+                    <option value="openai">OpenAI / Compatible</option>
+                    <option value="ollama">Ollama (Local)</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="elevenlabs">ElevenLabs (Audio)</option>
+                    <option value="replicate">Replicate (Multi-modal)</option>
+                    <option value="huggingface">HuggingFace Inference</option>
+                    <option value="custom_http">Custom HTTP Endpoint</option>
+                  </Select>
                 </div>
 
                 <div>
                   <Label className="text-xs">Display Name</Label>
                   <Input
+                    name="new_provider_display_name"
+                    autoComplete="off"
                     placeholder="e.g. OpenAI Cloud, Local Ollama"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -1066,6 +1079,8 @@ export function ProvidersPage() {
                 <div>
                   <Label className="text-xs">Default Model ID (Optional)</Label>
                   <Input
+                    name="new_provider_model_id"
+                    autoComplete="off"
                     placeholder="e.g. gpt-4o, gemini-1.5-pro, qwen3:8b"
                     value={form.model}
                     onChange={(e) => setForm({ ...form, model: e.target.value })}
@@ -1076,6 +1091,8 @@ export function ProvidersPage() {
                 <div className="sm:col-span-2">
                   <Label className="text-xs">Base URL (Optional)</Label>
                   <Input
+                    name="new_provider_base_url"
+                    autoComplete="off"
                     placeholder="e.g. https://api.openai.com/v1 or http://localhost:11434"
                     value={form.baseUrl}
                     onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
@@ -1087,6 +1104,8 @@ export function ProvidersPage() {
                   <Label className="text-xs">API Key / Secret (Optional)</Label>
                   <div className="relative">
                     <Input
+                      name="new_provider_api_key"
+                      autoComplete="new-password"
                       placeholder="Encrypted securely with AES-256 (Leave blank for local/free)"
                       type={showSecret ? "text" : "password"}
                       value={form.secret}
@@ -1140,6 +1159,7 @@ export function ProvidersPage() {
 
             <CardContent className="p-5">
               <form
+                autoComplete="off"
                 onSubmit={(e) => {
                   e.preventDefault();
                   updateProvider.mutate();
@@ -1149,6 +1169,8 @@ export function ProvidersPage() {
                 <div>
                   <Label className="text-xs">Display Name</Label>
                   <Input
+                    name="edit_provider_display_name"
+                    autoComplete="off"
                     value={editingProvider.name}
                     onChange={(e) => setEditingProvider({ ...editingProvider, name: e.target.value })}
                     required
@@ -1172,6 +1194,8 @@ export function ProvidersPage() {
                     </Select>
                   ) : (
                     <Input
+                      name="edit_provider_model_id"
+                      autoComplete="off"
                       placeholder="e.g. gpt-4o, gemini-1.5-pro, qwen3:8b"
                       value={editingProvider.model}
                       onChange={(e) => setEditingProvider({ ...editingProvider, model: e.target.value })}
@@ -1183,6 +1207,8 @@ export function ProvidersPage() {
                 <div className="sm:col-span-2">
                   <Label className="text-xs">Base URL (Optional)</Label>
                   <Input
+                    name="edit_provider_base_url"
+                    autoComplete="off"
                     placeholder="e.g. https://api.openai.com/v1"
                     value={editingProvider.baseUrl}
                     onChange={(e) => setEditingProvider({ ...editingProvider, baseUrl: e.target.value })}
@@ -1194,6 +1220,8 @@ export function ProvidersPage() {
                   <Label className="text-xs">New API Key / Secret (Leave blank to keep existing)</Label>
                   <div className="relative">
                     <Input
+                      name="edit_provider_secret_key"
+                      autoComplete="new-password"
                       type={showEditSecret ? "text" : "password"}
                       placeholder="Enter new key only if updating"
                       value={editingProvider.secret}
