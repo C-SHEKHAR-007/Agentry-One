@@ -1,11 +1,21 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { cn } from "../lib/utils";
 import {
   Activity as ActivityIcon,
   ArrowRight,
+  BarChart2,
   Bot,
   CheckCircle2,
   DollarSign,
@@ -17,6 +27,7 @@ import {
   Workflow as WorkflowIcon,
 } from "lucide-react";
 import { api } from "../api/client.js";
+import { CHART, ChartLegend, ChartTooltip } from "../components/charts/chartTheme";
 import {
   useAgentStats,
   useEvents,
@@ -38,7 +49,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Donut } from "../components/ui/donut";
 import { Skeleton } from "../components/ui/skeleton";
-import type { Agent, Project } from "../api/types";
+import type { Project } from "../api/types";
 
 const CHART_COLORS = [
   "hsl(var(--chart-1))",
@@ -53,30 +64,21 @@ function ProjectCard({ project }: { project: Project }) {
   const url = project.coverPreviewUrl || sas?.url;
   const initial = project.name[0]?.toUpperCase() ?? "P";
 
-  const gradients = [
-    "from-violet-900 via-purple-800 to-indigo-900",
-    "from-emerald-900 via-teal-800 to-cyan-900",
-    "from-rose-900 via-pink-800 to-fuchsia-900",
-    "from-amber-900 via-orange-800 to-red-900",
-  ];
-  const gradient = gradients[project.name.charCodeAt(0) % gradients.length];
-
   return (
     <Link
       to={`/projects/${project.id}`}
-      className="group overflow-hidden rounded-xl border border-border/60 transition-all duration-200 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 block"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-border/60 bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5"
     >
-      {/* Cover image */}
-      <div className="relative h-36 overflow-hidden">
+      {/* Cover / preview */}
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-secondary/50">
         {url ? (
           <img
             src={url}
             alt={project.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className={`h-full w-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary">
             <span className="text-4xl font-black text-white/20">{initial}</span>
           </div>
         )}
@@ -155,9 +157,14 @@ export function DashboardPage() {
   const { data: recent } = useRecentWorkflows(6);
   const { data: health } = useSystemHealth();
   const { data: projects } = useProjects();
-  const { data: allAgents, isLoading: isLoadingAgents } = useQuery<Agent[]>({
-    queryKey: ["agents"],
-    queryFn: () => api.get<Agent[]>("/agents"),
+
+  const [trendDays, setTrendDays] = useState<number>(14);
+  const { data: trendSeries, isLoading: isLoadingTrends } = useQuery<{
+    days: number;
+    perDay: { date: string; completed: number; failed: number; avgDurationMs: number | null }[];
+  }>({
+    queryKey: ["stats", "series", trendDays],
+    queryFn: () => api.get(`/stats/series?days=${trendDays}`),
   });
 
   const displayName = user?.firstName?.trim() || user?.email?.split("@")[0] || "there";
@@ -165,21 +172,19 @@ export function DashboardPage() {
   const agents = agentStats?.agents ?? [];
   const totalJobs = agents.reduce((a, s) => a + s.runs, 0);
 
-  const topFiveAgents = useMemo(() => {
-    if (!allAgents) return [];
-    const runsMap = new Map((agents || []).map((s) => [s.agentId, s.runs]));
-    return [...allAgents]
-      .sort((a, b) => {
-        const runsA = runsMap.get(a.id) ?? 0;
-        const runsB = runsMap.get(b.id) ?? 0;
-        if (runsB !== runsA) return runsB - runsA;
-        const isCustomA = a.id.startsWith("custom-") ? 1 : 0;
-        const isCustomB = b.id.startsWith("custom-") ? 1 : 0;
-        if (isCustomB !== isCustomA) return isCustomB - isCustomA;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, 5);
-  }, [allAgents, agents]);
+  const trendPoints = trendSeries?.perDay ?? [];
+  const trendTotalCompleted = trendPoints.reduce((acc, p) => acc + p.completed, 0);
+  const trendTotalFailed = trendPoints.reduce((acc, p) => acc + p.failed, 0);
+  const trendTotalRuns = trendTotalCompleted + trendTotalFailed;
+  const trendSuccessRate = trendTotalRuns > 0 ? trendTotalCompleted / trendTotalRuns : null;
+  const trendPeakDay = trendPoints.reduce((max, p) => Math.max(max, p.completed + p.failed), 0);
+  const trendValidDurations = trendPoints
+    .filter((p) => p.avgDurationMs != null)
+    .map((p) => p.avgDurationMs as number);
+  const trendAvgDuration =
+    trendValidDurations.length > 0
+      ? Math.round(trendValidDurations.reduce((a, b) => a + b, 0) / trendValidDurations.length)
+      : null;
 
   return (
     <div className="space-y-6">
@@ -353,115 +358,122 @@ export function DashboardPage() {
             </div>
           </SectionCard>
 
-          {/* Top 5 AI Agents & Skills */}
+          {/* Execution Trends & Daily Throughput */}
           <SectionCard
-            title="Top AI Agents & Skills"
+            title="Execution Trends & Throughput"
             action={
-              <div className="flex items-center gap-2.5">
-                <Link to="/agents/create-skill">
-                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/10">
-                    <Plus className="h-3.5 w-3.5" /> Create Agent
-                  </Button>
-                </Link>
-                <ViewAll to="/agents" label={`View all (${allAgents?.length ?? 0})`} />
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Time range selector */}
+                <div className="flex items-center rounded-lg border border-border/60 bg-secondary/30 p-0.5">
+                  {[7, 14, 30].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setTrendDays(d)}
+                      className={cn(
+                        "rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors",
+                        trendDays === d
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+
+                <ChartLegend
+                  items={[
+                    { label: "Completed", color: CHART.status.good },
+                    { label: "Failed", color: CHART.status.bad },
+                  ]}
+                />
+
+                <ViewAll to="/analytics" label="All analytics" />
               </div>
             }
           >
-            {isLoadingAgents ? (
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-32 rounded-xl" />
-                ))}
+            {/* KPI Summary Tiles */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+              <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
+                <span className="text-[11px] font-medium text-muted-foreground">Total Runs</span>
+                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  {trendTotalRuns}
+                </p>
+                <span className="text-[10px] text-muted-foreground">Past {trendDays} days</span>
               </div>
-            ) : topFiveAgents.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-                {topFiveAgents.map((agent) => {
-                  const runs = (agents || []).find((s) => s.agentId === agent.id)?.runs ?? 0;
-                  const isCustom = agent.id.startsWith("custom-");
 
-                  return (
-                    <div
-                      key={agent.id}
-                      className="group relative flex flex-col justify-between rounded-xl border border-border/60 bg-card/60 p-4 transition-all duration-200 hover:border-primary/40 hover:bg-card/90 hover:shadow-md hover:shadow-primary/5"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span
-                            className={cn(
-                              "inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm shrink-0",
-                              isCustom
-                                ? "bg-violet-500/15 text-violet-400 border border-violet-500/20"
-                                : "bg-primary/15 text-primary border border-primary/20",
-                            )}
-                          >
-                            <Bot className="h-4 w-4" />
-                          </span>
-                          <Badge
-                            variant={isCustom ? "default" : "outline"}
-                            className={cn(
-                              "text-[10px] px-1.5 py-0",
-                              isCustom && "bg-violet-500/20 text-violet-300 border-violet-500/30 hover:bg-violet-500/20",
-                            )}
-                          >
-                            {isCustom ? "Custom Skill" : "Built-in"}
-                          </Badge>
-                        </div>
+              <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
+                <span className="text-[11px] font-medium text-muted-foreground">Success Rate</span>
+                <p className="mt-1 text-lg font-bold tracking-tight text-emerald-400">
+                  {trendSuccessRate !== null ? formatPercent(trendSuccessRate) : "—"}
+                </p>
+                <span className="text-[10px] text-muted-foreground">
+                  {trendTotalFailed === 0 ? "100% reliability" : `${trendTotalFailed} failed`}
+                </span>
+              </div>
 
-                        <Link to={`/agents/${agent.id}`} className="block">
-                          <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                            {agent.name}
-                          </h4>
-                        </Link>
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                          {agent.description || "Specialized AI workflow agent."}
-                        </p>
-                      </div>
+              <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
+                <span className="text-[11px] font-medium text-muted-foreground">Daily Peak</span>
+                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  {trendPeakDay} <span className="text-xs font-normal text-muted-foreground">runs</span>
+                </p>
+                <span className="text-[10px] text-muted-foreground">Highest single day</span>
+              </div>
 
-                      <div className="mt-3 flex items-center justify-between pt-2.5 border-t border-border/40">
-                        <span className="text-[11px] text-muted-foreground">
-                          {runs > 0 ? `${runs} runs` : "Ready"}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Link to={`/agents/${agent.id}`}>
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground">
-                              Details
-                            </Button>
-                          </Link>
-                          <Link to={`/agents/${agent.id}/submit`}>
-                            <Button size="sm" className="h-7 px-2.5 text-xs gap-1">
-                              <Play className="h-3 w-3 fill-current" /> Run
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
+                <span className="text-[11px] font-medium text-muted-foreground">Avg Duration</span>
+                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  {trendAvgDuration !== null ? formatDuration(trendAvgDuration) : "—"}
+                </p>
+                <span className="text-[10px] text-muted-foreground">Per execution</span>
+              </div>
+            </div>
+
+            {isLoadingTrends ? (
+              <Skeleton className="h-48 w-full rounded-lg" />
+            ) : trendTotalRuns === 0 ? (
+              <div className="flex h-48 flex-col items-center justify-center rounded-lg border border-dashed border-border/60 text-center p-6">
+                <BarChart2 className="h-8 w-8 text-muted-foreground/50 mb-2" />
+                <p className="text-sm font-medium text-foreground">No executions recorded in this window</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Run agents or trigger workflows to populate performance trends.
+                </p>
               </div>
             ) : (
-              <Card
-                glass
-                className="flex flex-col items-start justify-between gap-4 overflow-hidden p-0 sm:flex-row sm:items-center"
-              >
-                <div className="flex flex-1 items-center gap-4 p-5">
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                    <WorkflowIcon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="font-semibold">Create your first custom agent</p>
-                    <p className="text-sm text-muted-foreground">
-                      Build powerful AI agents tailored to your needs.
-                    </p>
-                  </div>
-                </div>
-                <div className="px-5 pb-5 sm:pb-0 sm:pr-6">
-                  <Link to="/agents/create-skill">
-                    <Button className="gap-2">
-                      <Plus className="h-4 w-4" /> Create Agent
-                    </Button>
-                  </Link>
-                </div>
-              </Card>
+              <div className="h-48 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={trendPoints} barCategoryGap="25%">
+                    <CartesianGrid stroke={CHART.grid} vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={CHART.tick}
+                      axisLine={CHART.axisLine}
+                      tickLine={false}
+                      tickFormatter={(d: string) => d.slice(5)}
+                    />
+                    <YAxis
+                      tick={CHART.tick}
+                      axisLine={false}
+                      tickLine={false}
+                      width={28}
+                      allowDecimals={false}
+                    />
+                    <RechartsTooltip
+                      cursor={{ fill: "hsl(var(--secondary) / 0.5)" }}
+                      content={<ChartTooltip />}
+                    />
+                    <Bar dataKey="completed" name="Completed" stackId="jobs" fill={CHART.status.good} />
+                    <Bar
+                      dataKey="failed"
+                      name="Failed"
+                      stackId="jobs"
+                      fill={CHART.status.bad}
+                      radius={[3, 3, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </SectionCard>
         </div>
