@@ -116,11 +116,13 @@ function SectionCard({
   action,
   children,
   className,
+  contentClassName,
 }: {
   title: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }) {
   return (
     <Card glass className={cn("min-w-0 overflow-hidden", className)}>
@@ -128,7 +130,7 @@ function SectionCard({
         <CardTitle className="text-sm font-semibold truncate pr-2">{title}</CardTitle>
         {action}
       </CardHeader>
-      <CardContent className="min-w-0 overflow-x-auto">{children}</CardContent>
+      <CardContent className={cn("min-w-0", contentClassName)}>{children}</CardContent>
     </Card>
   );
 }
@@ -206,6 +208,7 @@ export function DashboardPage() {
               sub={`${overview.workflows.running} running`}
               series={series}
               color="hsl(var(--chart-1))"
+              to="/executions?status=running"
             />
             <StatCard
               icon={CheckCircle2}
@@ -224,6 +227,7 @@ export function DashboardPage() {
               series={series}
               color="hsl(var(--chart-2))"
               delay={0.05}
+              to="/executions?status=completed"
             />
             <StatCard
               icon={Layers}
@@ -233,6 +237,7 @@ export function DashboardPage() {
               series={series}
               color="hsl(var(--chart-3))"
               delay={0.1}
+              to="/executions?status=running"
             />
             <StatCard
               icon={DollarSign}
@@ -247,6 +252,7 @@ export function DashboardPage() {
               series={series}
               color="hsl(var(--chart-4))"
               delay={0.15}
+              to="/cost-monitor"
             />
           </>
         ) : (
@@ -260,17 +266,22 @@ export function DashboardPage() {
         <div className="space-y-6 xl:col-span-2">
 
           {/* Recent Executions + Usage Overview side by side */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5 items-stretch">
             <SectionCard
-              className="lg:col-span-3"
+              className="lg:col-span-3 flex flex-col h-full"
+              contentClassName="flex-1 flex flex-col justify-between overflow-x-auto"
               title="Recent Executions"
               action={<ViewAll to="/executions" />}
             >
               {recent ? <ExecutionsTable workflows={recent} /> : <Skeleton className="h-48" />}
             </SectionCard>
 
-            <SectionCard className="lg:col-span-2" title="Usage Overview">
-              <div className="flex flex-col items-center gap-6">
+            <SectionCard
+              className="lg:col-span-2 flex flex-col h-full"
+              contentClassName="flex-1 flex flex-col justify-between"
+              title="Usage Overview"
+            >
+              <div className="flex flex-col items-center justify-between h-full gap-4">
                 <Donut
                   segments={agents.map((a, i) => ({
                     value: a.runs,
@@ -280,21 +291,31 @@ export function DashboardPage() {
                   <p className="text-2xl font-bold">{totalJobs}</p>
                   <p className="text-[10px] text-muted-foreground">Total Jobs</p>
                 </Donut>
-                <div className="w-full space-y-2">
-                  {agents.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No jobs run yet.</p>
-                  )}
-                  {agents.map((a, i) => (
-                    <div key={a.agentId} className="flex items-center gap-2 text-sm">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-xs">{a.name}</span>
-                      <span className="text-xs text-muted-foreground">{Math.round(a.share * 100)}%</span>
-                      <span className="w-10 text-right text-xs text-muted-foreground">{a.runs}</span>
-                    </div>
-                  ))}
+
+                <div className="w-full flex-1 flex flex-col justify-between min-h-0">
+                  {/* Scrollable Agent List */}
+                  <div className="max-h-[135px] overflow-y-auto pr-1.5 scrollbar-thin space-y-1.5">
+                    {agents.length === 0 && (
+                      <p className="text-sm text-muted-foreground py-2 text-center">No jobs run yet.</p>
+                    )}
+                    {agents.map((a, i) => (
+                      <Link
+                        key={a.agentId}
+                        to={`/agents/${a.agentId}`}
+                        className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5 group"
+                      >
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-xs group-hover:underline">{a.name}</span>
+                        <span className="text-xs text-muted-foreground">{Math.round(a.share * 100)}%</span>
+                        <span className="w-10 text-right text-xs text-muted-foreground font-mono">{a.runs}</span>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {/* Summary Metrics */}
                   <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
                     <div>
                       <p className="text-[10px] text-muted-foreground">Success Rate</p>

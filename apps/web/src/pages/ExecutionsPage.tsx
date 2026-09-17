@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
@@ -14,7 +15,31 @@ import { Skeleton } from "../components/ui/skeleton";
 const STATUSES = ["all", "running", "completed", "failed", "cancelled", "awaiting_review"] as const;
 
 export function ExecutionsPage() {
-  const [status, setStatus] = useState<string>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get("status");
+  const initialStatus = urlStatus && STATUSES.includes(urlStatus as any) ? urlStatus : "all";
+  const [status, setStatus] = useState<string>(initialStatus);
+
+  useEffect(() => {
+    const s = searchParams.get("status");
+    if (s && STATUSES.includes(s as any)) {
+      setStatus(s);
+    } else if (!s) {
+      setStatus("all");
+    }
+  }, [searchParams]);
+
+  const handleStatusChange = (newStatus: string) => {
+    setStatus(newStatus);
+    const next = new URLSearchParams(searchParams);
+    if (newStatus === "all") {
+      next.delete("status");
+    } else {
+      next.set("status", newStatus);
+    }
+    setSearchParams(next, { replace: true });
+  };
+
   const queryClient = useQueryClient();
   const { data: workflows, isLoading } = useRecentWorkflows(
     50,
@@ -51,7 +76,7 @@ export function ExecutionsPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${reapMutation.isPending ? "animate-spin" : ""}`} />
               Reconcile Stale
             </Button>
-            <Select value={status} onChange={(e) => setStatus(e.target.value)} className="w-44">
+            <Select value={status} onChange={(e) => handleStatusChange(e.target.value)} className="w-44">
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {s === "all" ? "All statuses" : s.replace("_", " ")}
