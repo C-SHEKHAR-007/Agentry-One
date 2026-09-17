@@ -5,6 +5,7 @@ import { prisma } from "../db/client.js";
 import { getQueueEvents } from "./queues.js";
 import { publishJobEvent } from "./sse.js";
 import { handleWorkflowSettled } from "../modules/templates/service.js";
+import { advanceOrCompleteWorkflow } from "../modules/workflows/service.js";
 
 async function fileStats(path: string): Promise<{ sizeBytes: bigint; checksum: string } | null> {
   try {
@@ -91,34 +92,30 @@ export function wireQueueListeners(queueName: string): void {
     await prisma.job.update({ where: { id: jobId }, data: { status: "completed" } });
 
     const step = job.workflowStep;
-    const nextStepStatus = step.humanGate ? "awaiting_review" : "completed";
-    await prisma.workflowStep.update({ where: { id: step.id }, data: { status: nextStepStatus } });
-
-    // This build only has single-step (Sketch) and, in the future, gated
-    // multi-step agents that pause for /advance -- auto-chaining a
-    // non-gated step into a following step isn't implemented, since no
-    // agent in this build needs it (see plan's "explicitly out of scope").
-    const remainingSteps = await prisma.workflowStep.count({
-      where: { workflowId: step.workflowId, status: { in: ["pending"] } },
-    });
-    // A cancel requested while this job was mid-execution wins: the settled
-    // job's output is kept (artifacts above), but the workflow ends
-    // cancelled rather than resuming/completing.
     const wasCancelling = step.workflow.status === "cancelling" || step.workflow.status === "cancelled";
-    const workflowStatus = wasCancelling
-      ? "cancelled"
-      : step.humanGate
-        ? "awaiting_review"
-        : remainingSteps > 0
-          ? "failed"
-          : "completed";
-    await prisma.workflow.update({ where: { id: step.workflowId }, data: { status: workflowStatus } });
 
-    await prisma.event.create({ data: { jobId, workflowId: step.workflowId, type: "workflow." + workflowStatus, payload: result as object } });
-    publishJobEvent(jobId, { type: "completed" });
+    if (wasCancelling) {
+      await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "completed" } });
+      await prisma.workflow.update({ where: { id: step.workflowId }, data: { status: "cancelled" } });
+      await prisma.event.create({
+        data: { jobId, workflowId: step.workflowId, type: "workflow.cancelled", payload: result as object },
+      });
+      publishJobEvent(jobId, { type: "completed" });
+      return;
+    }
 
-    if (workflowStatus === "completed" || workflowStatus === "awaiting_review") {
-      await handleWorkflowSettled(step.workflowId, workflowStatus);
+    if (step.humanGate) {
+      await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "awaiting_review" } });
+      await prisma.workflow.update({ where: { id: step.workflowId }, data: { status: "awaiting_review" } });
+      await prisma.event.create({
+        data: { jobId, workflowId: step.workflowId, type: "workflow.awaiting_review", payload: result as object },
+      });
+      publishJobEvent(jobId, { type: "completed" });
+      await handleWorkflowSettled(step.workflowId, "awaiting_review");
+    } else {
+      await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "completed" } });
+      publishJobEvent(jobId, { type: "completed" });
+      await advanceOrCompleteWorkflow(step.workflowId, step.id);
     }
   });
 

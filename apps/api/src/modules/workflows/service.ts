@@ -161,6 +161,89 @@ export async function startWorkflow(
   return workflow;
 }
 
+export async function advanceOrCompleteWorkflow(
+  workflowId: string,
+  completedStepId: string,
+  nextStepParams?: unknown,
+): Promise<{ nextJob?: any; status: "running" | "completed" }> {
+  const workflow = await prisma.workflow.findUnique({
+    where: { id: workflowId },
+    include: { agent: true },
+  });
+  if (!workflow) throw new WorkflowError("workflow_not_found", 404);
+
+  const nextStep = await prisma.workflowStep.findFirst({
+    where: { workflowId, status: "pending" },
+    orderBy: { sequence: "asc" },
+  });
+
+  if (!nextStep) {
+    await prisma.workflow.update({ where: { id: workflowId }, data: { status: "completed" } });
+    await prisma.event.create({
+      data: {
+        workflowId,
+        type: "workflow.completed",
+        payload: {},
+      },
+    });
+    await handleWorkflowSettled(workflowId, "completed");
+    return { status: "completed" };
+  }
+
+  // Next step exists -- prepare and enqueue it
+  const manifest = workflow.agent.manifest as unknown as AgentManifest;
+  const stepManifest = manifest.steps.find((s) => s.key === nextStep.stepKey);
+  if (!stepManifest) {
+    throw new WorkflowError(`step ${nextStep.stepKey} not found in agent manifest`, 500);
+  }
+
+  // Gather upstream artifacts from all completed steps in this workflow
+  const priorArtifacts = await prisma.artifact.findMany({
+    where: { workflowStep: { workflowId } },
+  });
+
+  // Merge workflow inputParams, upstream artifact references, and nextStepParams
+  const mergedParams: Record<string, unknown> = {
+    ...((workflow.inputParams as Record<string, unknown>) ?? {}),
+    ...((nextStepParams as Record<string, unknown>) ?? {}),
+  };
+
+  // Auto-wire artifacts consumed by the next step if not already explicitly provided
+  for (const kind of stepManifest.consumesArtifactKinds ?? []) {
+    const matchingArtifact = priorArtifacts.find((a) => a.kind === kind);
+    if (matchingArtifact) {
+      if (kind === "image" && !mergedParams.imagePath) mergedParams.imagePath = matchingArtifact.storageKey;
+      if (kind === "audio" && !mergedParams.audioPath) mergedParams.audioPath = matchingArtifact.storageKey;
+      if (kind === "text" && !mergedParams.text && !mergedParams.caption) {
+        mergedParams.text = matchingArtifact.storageKey;
+        mergedParams.caption = matchingArtifact.storageKey;
+      }
+      if ((kind === "image" || kind === "video") && !mergedParams.mediaUrl) {
+        mergedParams.mediaUrl = matchingArtifact.storageKey;
+      }
+    }
+  }
+
+  const job = await enqueueStepJob({
+    workflowId,
+    workflowStepId: nextStep.id,
+    agentId: workflow.agentId,
+    agentVersion: workflow.agentVersion,
+    agentManifest: manifest,
+    step: stepManifest,
+    queueName: manifest.entrypoint.queueName,
+    params: mergedParams,
+    projectId: workflow.projectId,
+    attempts: manifest.attempts,
+    backoffMs: manifest.backoff?.delayMs,
+  });
+
+  await prisma.workflowStep.update({ where: { id: nextStep.id }, data: { status: "queued" } });
+  await prisma.workflow.update({ where: { id: workflowId }, data: { status: "running" } });
+
+  return { nextJob: job, status: "running" };
+}
+
 export async function advanceStep(workflowId: string, stepKey: string, input: unknown) {
   const workflow = await prisma.workflow.findUnique({ where: { id: workflowId } });
   if (!workflow) throw new WorkflowError("workflow_not_found", 404);
@@ -171,27 +254,10 @@ export async function advanceStep(workflowId: string, stepKey: string, input: un
     throw new WorkflowError(`step ${stepKey} is not awaiting_review (status: ${step.status})`, 422);
   }
 
-  const agent = await prisma.agent.findUniqueOrThrow({ where: { id: workflow.agentId } });
-  const manifest = agent.manifest as unknown as AgentManifest;
-  const stepManifest = manifest.steps.find((s) => s.key === stepKey);
-  if (!stepManifest) throw new WorkflowError(`step ${stepKey} not found in agent manifest`, 500);
+  // Mark the reviewed step as completed
+  await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "completed" } });
 
-  const job = await enqueueStepJob({
-    workflowId,
-    workflowStepId: step.id,
-    agentId: workflow.agentId,
-    agentVersion: workflow.agentVersion,
-    agentManifest: manifest,
-    step: stepManifest,
-    queueName: manifest.entrypoint.queueName,
-    params: input,
-    projectId: workflow.projectId,
-    attempts: manifest.attempts,
-    backoffMs: manifest.backoff?.delayMs,
-  });
-
-  await prisma.workflowStep.update({ where: { id: step.id }, data: { status: "queued" } });
-  await prisma.workflow.update({ where: { id: workflowId }, data: { status: "running" } });
-
-  return job;
+  // Advance to the next step or complete workflow
+  const result = await advanceOrCompleteWorkflow(workflowId, step.id, input);
+  return result.nextJob ?? null;
 }
