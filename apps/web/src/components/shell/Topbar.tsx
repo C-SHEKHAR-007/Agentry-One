@@ -4,6 +4,7 @@ import { Bell, LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-
 import { useAuth } from "../../auth/AuthContext";
 import { Button } from "../ui/button";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationDropdown } from "./NotificationDropdown";
 
 export function Topbar({
   onOpenMobileNav,
@@ -48,13 +49,7 @@ export function Topbar({
       <div className="ml-auto flex items-center gap-1.5">
         <ThemeToggle />
 
-        {/* Notification bell */}
-        <button className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground">
-          <Bell className="h-4.5 w-4.5 h-[18px] w-[18px]" />
-          <span className="absolute right-1.5 top-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-            5
-          </span>
-        </button>
+        <NotificationDropdown />
 
         <UserMenu />
       </div>

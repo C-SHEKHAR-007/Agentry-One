@@ -20,6 +20,7 @@ import { usersRoutes } from "./modules/users/routes.js";
 
 import { socialAccountsRoutes } from "./modules/socialAccounts/routes.js";
 import { contentBriefsRoutes } from "./modules/contentBriefs/routes.js";
+import { notificationsRoutes } from "./modules/notifications/routes.js";
 
 export function buildApp() {
   const app = Fastify({ logger: true });
@@ -67,6 +68,7 @@ export function buildApp() {
   app.register(usersRoutes);
   app.register(socialAccountsRoutes);
   app.register(contentBriefsRoutes);
+  app.register(notificationsRoutes);
 
   return app;
 }

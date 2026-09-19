@@ -183,7 +183,7 @@ export async function advanceOrCompleteWorkflow(
 ): Promise<{ nextJob?: any; status: "running" | "completed" }> {
   const workflow = await prisma.workflow.findUnique({
     where: { id: workflowId },
-    include: { agent: true },
+    include: { agent: true, project: true },
   });
   if (!workflow) throw new WorkflowError("workflow_not_found", 404);
 
@@ -201,6 +201,18 @@ export async function advanceOrCompleteWorkflow(
         payload: {},
       },
     });
+    if (workflow.project?.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: workflow.project.userId,
+          type: "success",
+          title: "Workflow Completed",
+          message: `Workflow ${workflowId.slice(0, 8)} finished successfully.`,
+          link: `/workflows/${workflowId}`
+        }
+      });
+    }
+
     try {
       const { handleWorkflowSettled } = await import("../templates/service.js");
       await handleWorkflowSettled(workflowId, "completed");
@@ -284,6 +296,7 @@ export async function reapStaleWorkflows(): Promise<number> {
   const runningWorkflows = await prisma.workflow.findMany({
     where: { status: { in: ["running", "cancelling"] } },
     include: {
+      project: true,
       steps: {
         include: { job: true },
       },
@@ -352,6 +365,18 @@ export async function reapStaleWorkflows(): Promise<number> {
           payload: { reason },
         },
       });
+      if (wf.project?.userId) {
+        await prisma.notification.create({
+          data: {
+            userId: wf.project.userId,
+            type: "error",
+            title: "Workflow Timed Out",
+            message: `Workflow ${wf.id.slice(0, 8)} timed out: ${reason}`,
+            link: `/workflows/${wf.id}`
+          }
+        });
+      }
+
       try {
         const { handleWorkflowSettled } = await import("../templates/service.js");
         await handleWorkflowSettled(wf.id, "failed");

@@ -11,6 +11,7 @@ import {
   validateScaffoldSpec,
   type ScaffoldSpec,
 } from "./scaffold.js";
+import { getDefaultUserId } from "../projects/defaultUser.js";
 
 // Concurrent rescans share one in-flight scan instead of stacking.
 let rescanInFlight: Promise<Awaited<ReturnType<typeof syncAgentRegistry>>> | null = null;
@@ -178,6 +179,17 @@ export async function agentsRoutes(app: FastifyInstance) {
         manifest: manifest as any,
         status: "active",
       },
+    });
+
+    const userId = (req as any).principal?.kind === "user" ? (req as any).principal.user.id : getDefaultUserId();
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "success",
+        title: "Agent Created",
+        message: `Agent "${name}" was created successfully.`,
+        link: `/agents/${id}`
+      }
     });
 
     wireQueueListeners(queueName);

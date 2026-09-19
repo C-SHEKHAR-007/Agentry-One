@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext.js";
 import { Layout } from "./components/Layout.js";
 import { Spinner } from "./components/ui/spinner.js";
+import { NotificationProvider } from "./contexts/NotificationContext.js";
+import { Toaster } from "sonner";
 import { LoginPage } from "./pages/LoginPage.js";
 import { SetupPage } from "./pages/SetupPage.js";
 import { AgentDetailPage } from "./pages/AgentDetailPage.js";
@@ -58,7 +60,10 @@ export default function App() {
       <Route
         element={
           <RequireAuth>
-            <Layout />
+            <NotificationProvider>
+              <Layout />
+              <Toaster position="bottom-right" richColors />
+            </NotificationProvider>
           </RequireAuth>
         }
       >

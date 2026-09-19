@@ -78,6 +78,35 @@ export async function ensureCapabilitiesAndDefaults(): Promise<void> {
     });
   }
 
+  const existingTextDefault = await prisma.providerConfig.findFirst({
+    where: { capabilityId: textGen.id, scope: "global", isDefault: true },
+  });
+  if (!existingTextDefault) {
+    const p = await prisma.providerConfig.create({
+      data: {
+        capabilityId: textGen.id,
+        providerType: "ollama_local",
+        name: "Local Ollama (default)",
+        authMode: "none",
+        isDefault: true,
+        scope: "global",
+        status: "active",
+      },
+    });
+    await prisma.model.upsert({
+      where: { providerConfigId_modelId: { providerConfigId: p.id, modelId: "qwen3:8b" } },
+      create: {
+        providerConfigId: p.id,
+        modelId: "qwen3:8b",
+        name: "Qwen 3 (8B) Local",
+        description: "Local text generation model",
+        inputTypes: ["text"],
+        outputTypes: ["text", "json"],
+      },
+      update: {},
+    });
+  }
+
   const existingAudioDefault = await prisma.providerConfig.findFirst({
     where: { capabilityId: audioGen.id, scope: "global", isDefault: true },
   });

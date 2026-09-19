@@ -66,7 +66,7 @@ export function wireQueueListeners(queueName: string): void {
   events.on("completed", async ({ jobId, returnvalue }) => {
     const result = (typeof returnvalue === "string" ? JSON.parse(returnvalue) : returnvalue) as ResultEnvelope;
 
-    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: true } } } });
+    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: { include: { project: true } } } } } });
     if (!job) return;
 
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
@@ -110,6 +110,19 @@ export function wireQueueListeners(queueName: string): void {
       await prisma.event.create({
         data: { jobId, workflowId: step.workflowId, type: "workflow.awaiting_review", payload: result as object },
       });
+      
+      if (job.workflowStep.workflow.project.userId) {
+        await prisma.notification.create({
+          data: {
+            userId: job.workflowStep.workflow.project.userId,
+            type: "info",
+            title: "Workflow Paused",
+            message: `Workflow ${step.workflowId.slice(0, 8)} is awaiting human review.`,
+            link: `/workflows/${step.workflowId}`
+          }
+        });
+      }
+
       publishJobEvent(jobId, { type: "completed" });
       await handleWorkflowSettled(step.workflowId, "awaiting_review");
     } else {
@@ -120,7 +133,7 @@ export function wireQueueListeners(queueName: string): void {
   });
 
   events.on("failed", async ({ jobId, failedReason }) => {
-    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: true } });
+    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: { include: { project: true } } } } } });
     if (!job) return;
 
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
@@ -140,6 +153,18 @@ export function wireQueueListeners(queueName: string): void {
 
     await prisma.event.create({ data: { jobId, type: "job.failed", payload: { failedReason } } });
     publishJobEvent(jobId, { type: "failed", error: failedReason });
+
+    if (job.workflowStep.workflow.project.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: job.workflowStep.workflow.project.userId,
+          type: "error",
+          title: "Execution Failed",
+          message: `Job ${jobId.slice(0,8)} failed: ${failedReason}`,
+          link: `/workflows/${job.workflowStep.workflowId}`
+        }
+      });
+    }
 
     await handleWorkflowSettled(job.workflowStep.workflowId, "failed");
   });

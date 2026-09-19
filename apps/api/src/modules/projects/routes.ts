@@ -76,6 +76,17 @@ export async function projectsRoutes(app: FastifyInstance) {
     const project = await prisma.project.create({
       data: { name: req.body.name, userId },
     });
+    
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "success",
+        title: "Project Created",
+        message: `Project "${req.body.name}" was created successfully.`,
+        link: `/projects/${project.id}`
+      }
+    });
+    
     return reply.code(201).send(project);
   });
 

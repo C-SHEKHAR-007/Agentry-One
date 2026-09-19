@@ -1,0 +1,35 @@
+{
+  "id": "dynamic-agent",
+  "name": "Dynamic Skill Agent",
+  "version": "1.0.0",
+  "description": "Executes dynamic templates and prompt-based skills without custom code, supporting text, image, audio, or web search capabilities.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.dynamic.worker",
+    "queueName": "agent.dynamic"
+  },
+  "steps": [
+    {
+      "key": "run",
+      "description": "Execute a dynamic skill",
+      "humanGate": false,
+      "requiresCapability": "text-generation",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": { "type": "string", "title": "Prompt / Instructions" },
+          "context": { "type": "string", "title": "Additional Context" }
+        }
+      },
+      "producesArtifactKinds": ["text", "image", "audio", "search_brief"],
+      "outputSchema": {
+        "type": "object"
+      }
+    }
+  ],
+  "resources": { "cpu": 1, "memoryMb": 512, "gpu": false },
+  "concurrency": 2,
+  "timeoutSec": 300,
+  "attempts": 2,
+  "backoff": { "type": "exponential", "delayMs": 2000 }
+}

@@ -21,6 +21,7 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   projects     Project[]
   sessions     Session[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -381,4 +382,20 @@ model TemplateRunStep {
   workflow     Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
 
   @@map("template_run_steps")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String   // "info" | "success" | "warning" | "error"
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }
