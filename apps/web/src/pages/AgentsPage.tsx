@@ -18,6 +18,7 @@ import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { SystemHealthPanel } from "../components/SystemHealthPanel";
+import { ResponsiveTabs } from "../components/ui/responsive-tabs";
 
 interface FieldDraft {
   name: string;
@@ -129,7 +130,7 @@ export function AgentsPage() {
         title="AI Agents"
         description="Discover, orchestrate, and create custom AI agents & skills. Configure prompts, modalities, models, and execution human review gates."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {activeTab === "workers" ? (
               <Button
                 variant="secondary"
@@ -168,65 +169,16 @@ export function AgentsPage() {
 
       {/* Tabs & Search Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg border border-border/40 text-xs">
-          <button
-            type="button"
-            onClick={() => setTab("all")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === "all"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            All Agents
-            <span className="ml-1 text-[10px] text-muted-foreground">({(agents?.length ?? 0) + comingSoonAgents.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("installed")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === "installed"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Bot className="h-3.5 w-3.5" />
-            Installed
-            <span className="ml-1 text-[10px] text-muted-foreground">({agents?.length ?? 0})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("custom")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === "custom"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-purple-400" />
-            Custom
-            <span className="ml-1 text-[10px] text-muted-foreground">
-              ({agents?.filter((a) => a.id.startsWith("custom-")).length ?? 0})
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTab("workers")}
-            className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
-              activeTab === "workers"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Activity className="h-3.5 w-3.5 text-emerald-400" />
-            Worker Diagnostics
-          </button>
-        </div>
+        <ResponsiveTabs
+          activeTab={activeTab}
+          onChange={setTab}
+          tabs={[
+            { id: "all", label: "All Agents", icon: Layers, count: (agents?.length ?? 0) + comingSoonAgents.length },
+            { id: "installed", label: "Installed", icon: Bot, count: agents?.length ?? 0 },
+            { id: "custom", label: "Custom", icon: Sparkles, iconColor: "text-purple-400", count: agents?.filter((a) => a.id.startsWith("custom-")).length ?? 0 },
+            { id: "workers", label: "Worker Diagnostics", icon: Activity, iconColor: "text-emerald-400" }
+          ]}
+        />
 
         {/* Search Filter (for grid tabs) */}
         {activeTab !== "workers" && (
@@ -348,7 +300,7 @@ export function AgentsPage() {
             }}
             className="space-y-4"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Agent Slug</Label>
                 <Input

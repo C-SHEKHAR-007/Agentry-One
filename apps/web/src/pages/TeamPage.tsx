@@ -35,6 +35,7 @@ export function TeamPage() {
     queryKey: ["users"],
     queryFn: () => api.get<TeamUser[]>("/users"),
     retry: false,
+    enabled: isOwner,
   });
 
   const [open, setOpen] = useState(false);
@@ -89,7 +90,7 @@ export function TeamPage() {
       />
 
       {isLoading && <Skeleton className="h-40" />}
-      {error != null && (
+      {(!isOwner || error != null) && (
         <Card className="p-6 text-sm text-muted-foreground">
           <Users className="mb-2 h-5 w-5" />
           Only owners can view the member list.
@@ -115,6 +116,7 @@ export function TeamPage() {
                     src={u.avatarUrl}
                     alt={displayName}
                     className="h-10 w-10 shrink-0 rounded-full object-cover border border-border/60 shadow-sm"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-sm font-semibold text-primary">

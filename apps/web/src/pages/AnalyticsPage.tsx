@@ -189,7 +189,7 @@ export function AnalyticsPage() {
         <CardHeader>
           <CardTitle className="text-base">Agent breakdown</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-8 sm:flex-row">
+        <CardContent className="flex flex-col items-center gap-8 sm:flex-row sm:items-start min-w-0">
           <Donut
             segments={agents.map((a, i) => ({
               value: a.runs,
@@ -199,7 +199,7 @@ export function AnalyticsPage() {
             <p className="text-2xl font-semibold">{totalRuns}</p>
             <p className="text-xs text-muted-foreground">runs</p>
           </Donut>
-          <div className="w-full flex-1 overflow-x-auto">
+          <div className="w-full flex-1 min-w-0 overflow-x-auto">
             {agents.length === 0 && <p className="text-sm text-muted-foreground">No runs yet.</p>}
             {agents.length > 0 && (
               <table className="w-full text-sm">

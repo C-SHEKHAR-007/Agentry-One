@@ -83,6 +83,7 @@ function UserMenu() {
             src={user.avatarUrl}
             alt={displayName}
             className="h-8 w-8 rounded-full object-cover shadow-md border border-border/60"
+            referrerPolicy="no-referrer"
           />
         ) : (
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/70 to-primary text-xs font-bold text-primary-foreground shadow-md">
@@ -111,13 +112,15 @@ function UserMenu() {
             >
               <UserCircle className="h-4 w-4" /> Profile
             </Link>
-            <Link
-              to="/team"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
-            >
-              <Users className="h-4 w-4" /> Team
-            </Link>
+            {user?.role === "owner" && (
+              <Link
+                to="/team"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+              >
+                <Users className="h-4 w-4" /> Team
+              </Link>
+            )}
             <Link
               to="/settings"
               onClick={() => setOpen(false)}

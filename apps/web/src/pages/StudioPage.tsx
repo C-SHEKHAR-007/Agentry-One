@@ -348,7 +348,7 @@ export function StudioPage() {
         <CardContent className="space-y-5 pt-6">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             {projects && projects.length > 1 && (
-              <div className="w-full sm:w-72">
+              <div className="w-full sm:max-w-xs">
                 <Label className="text-xs">Project</Label>
                 <Select value={activeProjectId} onChange={(e) => setProjectId(e.target.value)}>
                   {projects.map((p) => (
@@ -359,7 +359,7 @@ export function StudioPage() {
             )}
 
             {accounts && accounts.length > 0 && (
-              <div className="w-full sm:w-72">
+              <div className="w-full sm:max-w-xs">
                 <Label className="text-xs">Connected Social Account (For Auto-Publish)</Label>
                 <Select value={selectedSocialAccountId} onChange={(e) => setSelectedSocialAccountId(e.target.value)}>
                   <option value="">Manual publish review</option>
@@ -410,7 +410,7 @@ export function StudioPage() {
                     key={opt.id}
                     type="button"
                     onClick={() => toggleFormat(opt.id)}
-                    className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all ${
+                    className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-center transition-all h-full ${
                       checked
                         ? "border-primary bg-primary/10 text-primary shadow-sm font-semibold"
                         : "border-border text-muted-foreground hover:bg-secondary/40"

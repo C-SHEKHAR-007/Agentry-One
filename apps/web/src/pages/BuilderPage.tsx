@@ -79,7 +79,7 @@ export function BuilderPage() {
                 <p className="truncate text-xs text-muted-foreground">{project.name}</p>
               </div>
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
               <StatusBadge status={template.status} />
               <Link to={`/templates/${template.id}/edit`}>
                 <Button size="sm" variant="secondary">

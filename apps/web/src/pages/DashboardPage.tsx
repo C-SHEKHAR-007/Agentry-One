@@ -128,7 +128,7 @@ function SectionCard({
 }) {
   return (
     <Card glass className={cn("min-w-0 overflow-hidden", className)}>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3 min-w-0">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 pb-3 min-w-0">
         <CardTitle className="text-sm font-semibold truncate pr-2">{title}</CardTitle>
         {action}
       </CardHeader>
@@ -189,13 +189,15 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page heading */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center sm:text-left">
         <h1 className="text-2xl font-bold tracking-tight">
           {greeting()},{" "}
-          <span className="bg-gradient-to-r from-primary via-violet-400 to-chart-3 bg-clip-text text-transparent">
-            {displayName}
-          </span>{" "}
-          👋
+          <span className="inline-block whitespace-nowrap">
+            <span className="bg-gradient-to-r from-primary via-violet-400 to-chart-3 bg-clip-text text-transparent">
+              {displayName}
+            </span>{" "}
+            👋
+          </span>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Here's what's happening with your AI agents today.
@@ -321,7 +323,7 @@ export function DashboardPage() {
                   </div>
 
                   {/* Summary Metrics */}
-                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3">
+                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3 shrink-0">
                     <div>
                       <p className="text-[10px] text-muted-foreground">Success Rate</p>
                       <p className="text-sm font-semibold">{formatPercent(overview?.successRate)}</p>
@@ -394,10 +396,10 @@ export function DashboardPage() {
             }
           >
             {/* KPI Summary Tiles */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Total Runs</span>
-                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
                   {trendTotalRuns}
                 </p>
                 <span className="text-[10px] text-muted-foreground">Past {trendDays} days</span>
@@ -405,28 +407,28 @@ export function DashboardPage() {
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Success Rate</span>
-                <p className="mt-1 text-lg font-bold tracking-tight text-emerald-400">
+                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-emerald-400 truncate">
                   {trendSuccessRate !== null ? formatPercent(trendSuccessRate) : "—"}
                 </p>
-                <span className="text-[10px] text-muted-foreground">
-                  {trendTotalFailed === 0 ? "100% reliability" : `${trendTotalFailed} failed`}
+                <span className="text-[10px] text-muted-foreground truncate block">
+                  {trendTotalFailed === 0 ? "100% reliable" : `${trendTotalFailed} failed`}
                 </span>
               </div>
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Daily Peak</span>
-                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
                   {trendPeakDay} <span className="text-xs font-normal text-muted-foreground">runs</span>
                 </p>
-                <span className="text-[10px] text-muted-foreground">Highest single day</span>
+                <span className="text-[10px] text-muted-foreground truncate block">Highest day</span>
               </div>
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Avg Duration</span>
-                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
                   {trendAvgDuration !== null ? formatDuration(trendAvgDuration) : "—"}
                 </p>
-                <span className="text-[10px] text-muted-foreground">Per execution</span>
+                <span className="text-[10px] text-muted-foreground truncate block">Per execution</span>
               </div>
             </div>
 

@@ -39,6 +39,7 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
+import { ResponsiveTabs } from "../components/ui/responsive-tabs";
 
 interface Capability {
   id: string;
@@ -518,29 +519,18 @@ export function ProvidersPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto text-xs py-0.5">
-          {[
+        <ResponsiveTabs
+          activeTab={selectedModality}
+          onChange={setSelectedModality}
+          tabs={[
             { id: "all", label: "All Modalities", icon: Layers },
             { id: "text", label: "Text", icon: Bot },
             { id: "image", label: "Image", icon: ImageIcon },
             { id: "audio", label: "Audio", icon: Volume2 },
             { id: "video", label: "Video", icon: Radio },
             { id: "search", label: "Search & Web", icon: Compass },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setSelectedModality(id)}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-xs font-medium ${
-                selectedModality === id
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground hover:bg-secondary/70 border border-transparent"
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+          ]}
+        />
       </div>
 
       {isLoading && (

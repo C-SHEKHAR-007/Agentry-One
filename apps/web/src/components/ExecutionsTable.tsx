@@ -81,7 +81,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
                   <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/15 text-primary">
                     <Bot className="h-3 w-3" />
                   </span>
-                  <span className="truncate text-xs max-w-[100px]">
+                  <span className="truncate text-xs max-w-[120px] sm:max-w-none">
                     {w.agentName}
                     <span className="ml-1 opacity-50">v{w.agentVersion}</span>
                   </span>

@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import { Badge } from "../ui/badge";
 import { Tooltip } from "../ui/tooltip";
 import { NAV_SECTIONS, NAV_FOOTER, type NavItem } from "./nav";
+import { useAuth } from "../../auth/AuthContext";
 
 function NavEntry({
   item,
@@ -105,6 +106,14 @@ export function SidebarContent({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const { user } = useAuth();
+  const isOwner = user?.role === "owner";
+
+  const visibleSections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => isOwner || item.label !== "Team"),
+  }));
+
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
@@ -124,7 +133,7 @@ export function SidebarContent({
 
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden pb-2 scrollbar-thin", collapsed ? "px-0" : "px-3")}>
-        {NAV_SECTIONS.map((section, i) => (
+        {visibleSections.map((section, i) => (
           <div key={i} className="mt-2 first:mt-0">
             {section.label && !collapsed && (
               <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
