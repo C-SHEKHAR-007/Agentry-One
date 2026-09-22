@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { resolveSession, SESSION_COOKIE } from "./session.js";
 
@@ -9,7 +10,6 @@ const EXEMPT_PATHS = new Set([
   "/auth/login",
   "/auth/google",
   "/auth/google/callback",
-  "/social-accounts/oauth/authorize",
   "/social-accounts/oauth/callback",
 ]);
 
@@ -57,12 +57,19 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
   }
 
   const provided = req.headers["x-api-key"] ?? (req.query as Record<string, string> | undefined)?.key;
-  if (provided === expected) {
+  if (typeof provided === "string" && safeEqual(provided, expected)) {
     req.principal = { kind: "apiKey" };
     return;
   }
 
   reply.code(401).send({ error: "missing or invalid credentials" });
+}
+
+function safeEqual(a: string, b: string): boolean {
+  // Hash first so lengths match and timingSafeEqual can't leak the key length.
+  const ha = crypto.createHash("sha256").update(a).digest();
+  const hb = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
 
 /** Owner gate for user management. API-key callers count as owner (the key

@@ -83,12 +83,19 @@ def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: in
     return ImageGenResult(image_bytes=buf.getvalue(), width=image.width, height=image.height)
 
 
+def _api_key(ctx: dict) -> str:
+    """The decrypted provider key. The API sends it as `apiKey`
+    (apps/api/src/modules/providers/resolve.ts); `secret` is accepted for
+    older callers."""
+    return ctx.get("apiKey") or ctx.get("secret") or ""
+
+
 def _generate_openai_dalle(ctx: dict, prompt: str, negative_prompt: str | None, steps: int, seed: int | None) -> ImageGenResult:
     """OpenAI Images API (DALL-E 3 / DALL-E 2) adapter for image generation.
     Returns a URL in the response; image bytes are fetched directly from that URL."""
     import requests
 
-    api_key = ctx.get("secret") or ctx.get("apiKey") or ""
+    api_key = _api_key(ctx)
     base_url = ctx.get("baseUrl") or "https://api.openai.com/v1"
     model = (ctx.get("config") or {}).get("model", "dall-e-3")
 
@@ -134,7 +141,7 @@ def _generate_stability_ai(ctx: dict, prompt: str, negative_prompt: str | None, 
     model = (ctx.get("config") or {}).get("model", "stable-diffusion-xl-1024-v1-0")
     response = requests.post(
         f"{base_url}/v1/generation/{model}/text-to-image",
-        headers={"Authorization": f"Bearer {ctx['apiKey']}", "Accept": "application/json"},
+        headers={"Authorization": f"Bearer {_api_key(ctx)}", "Accept": "application/json"},
         json={
             "text_prompts": [{"text": prompt, "weight": 1.0}]
             + ([{"text": negative_prompt, "weight": -1.0}] if negative_prompt else []),
@@ -172,15 +179,17 @@ def _generate_gemini(ctx: dict, prompt: str, **kwargs) -> str:
     """Google Gemini REST API adapter for text generation."""
     import requests
 
-    api_key = ctx.get("secret") or ""
+    api_key = _api_key(ctx)
     model = (ctx.get("config") or {}).get("model", "gemini-1.5-pro")
     base_url = ctx.get("baseUrl") or "https://generativelanguage.googleapis.com/v1beta"
-    url = f"{base_url.rstrip('/')}/models/{model}:generateContent?key={api_key}"
+    # Key goes in a header, not the URL, so it can't leak via raise_for_status()
+    # messages into job errors, events, and notifications.
+    url = f"{base_url.rstrip('/')}/models/{model}:generateContent"
 
     response = requests.post(
         url,
         json={"contents": [{"parts": [{"text": prompt}]}]},
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
         timeout=120,
     )
     response.raise_for_status()
@@ -196,7 +205,7 @@ def _generate_openai_compatible(ctx: dict, prompt: str, **kwargs) -> str:
     """OpenAI or OpenAI-compatible REST endpoint for text generation."""
     import requests
 
-    api_key = ctx.get("secret") or ""
+    api_key = _api_key(ctx)
     base_url = ctx.get("baseUrl") or "https://api.openai.com/v1"
     model = (ctx.get("config") or {}).get("model", "gpt-4o")
 
@@ -225,7 +234,7 @@ def _generate_anthropic(ctx: dict, prompt: str, **kwargs) -> str:
     """Anthropic Claude REST API adapter for text generation."""
     import requests
 
-    api_key = ctx.get("secret") or ""
+    api_key = _api_key(ctx)
     base_url = ctx.get("baseUrl") or "https://api.anthropic.com/v1"
     model = (ctx.get("config") or {}).get("model", "claude-3-5-sonnet-20241022")
 

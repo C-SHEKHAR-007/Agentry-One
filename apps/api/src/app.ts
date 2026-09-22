@@ -22,8 +22,33 @@ import { socialAccountsRoutes } from "./modules/socialAccounts/routes.js";
 import { contentBriefsRoutes } from "./modules/contentBriefs/routes.js";
 import { notificationsRoutes } from "./modules/notifications/routes.js";
 
+const REDACTED_QUERY_PARAMS = ["key", "code", "state", "token", "access_token"];
+
+function redactUrl(url: string): string {
+  const q = url.indexOf("?");
+  if (q === -1) return url;
+  const params = new URLSearchParams(url.slice(q + 1));
+  for (const name of REDACTED_QUERY_PARAMS) if (params.has(name)) params.set(name, "[REDACTED]");
+  return `${url.slice(0, q)}?${params.toString()}`;
+}
+
+/** Comma-separated list of browser origins allowed to make credentialed
+ * cross-origin calls. The web UI is served same-origin via the /api proxy, so
+ * the default (no cross-origin access) is correct for normal deployments. */
+function allowedOrigins(): string[] {
+  return (process.env.CORS_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean);
+}
+
 export function buildApp() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: {
+      level: process.env.LOG_LEVEL ?? "info",
+      serializers: {
+        // Never write the API key (accepted as ?key=) or other secrets in request logs.
+        req: (req) => ({ method: req.method, url: redactUrl(req.url), remoteAddress: req.ip }),
+      },
+    },
+  });
 
   app.removeContentTypeParser("application/json");
   app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
@@ -38,7 +63,8 @@ export function buildApp() {
     }
   });
 
-  app.register(cors, { origin: true, credentials: true });
+  const origins = allowedOrigins();
+  app.register(cors, { origin: origins.length > 0 ? origins : false, credentials: true });
   app.register(cookie);
   app.addHook("preHandler", requireAuth);
 

@@ -310,14 +310,23 @@ export async function reapStaleWorkflows(): Promise<number> {
   for (const wf of runningWorkflows) {
     let shouldReap = false;
     let reason = "";
+    // Judge staleness by the most recent activity, not creation time: a
+    // healthy multi-step workflow can easily be older than the threshold.
+    const lastActivity = new Date(
+      Math.max(wf.updatedAt.getTime(), ...wf.steps.map((s) => s.updatedAt.getTime())),
+    );
+    const idle = lastActivity < tenMinutesAgo;
 
     if (wf.steps.length === 0) {
       shouldReap = true;
       reason = "Execution initialized without steps";
-    } else if (wf.steps.some((s) => !s.job) && wf.createdAt < tenMinutesAgo) {
+    } else if (idle && wf.steps.some((s) => ["queued", "running"].includes(s.status) && !s.job)) {
+      // Later steps are legitimately "pending" with no job until the prior
+      // step finishes -- only a step that should be executing yet has no job
+      // is orphaned.
       shouldReap = true;
       reason = "Step job failed to enqueue or was orphaned";
-    } else if (wf.createdAt < tenMinutesAgo) {
+    } else if (idle) {
       let activeInQueue = false;
       try {
         const agent = await prisma.agent.findUnique({ where: { id: wf.agentId } });
@@ -328,7 +337,7 @@ export async function reapStaleWorkflows(): Promise<number> {
             if (s.job?.id) {
               const bJob = await queue.getJob(s.job.id);
               const state = bJob ? await bJob.getState() : null;
-              if (state === "active" || state === "waiting" || state === "delayed") {
+              if (state && ["active", "waiting", "delayed", "prioritized", "waiting-children"].includes(state)) {
                 activeInQueue = true;
                 break;
               }

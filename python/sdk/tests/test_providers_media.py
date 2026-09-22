@@ -34,7 +34,7 @@ def test_generate_image_openai_dalle(mock_requests):
 
     client = CapabilityClient({
         "providerType": "dalle",
-        "secret": "sk-dalle",
+        "apiKey": "sk-dalle",
         "config": {"model": "dall-e-3"}
     })
 

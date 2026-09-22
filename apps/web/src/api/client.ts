@@ -31,9 +31,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-// Same-origin <img>/EventSource requests send the session cookie by
-// themselves; the ?key= param is only appended when an explicit API key is
-// configured (the server accepts either).
+// Same-origin <img>/EventSource requests send the session cookie by themselves.
 export function downloadUrl(artifactId: string): string {
   return `${BASE_URL}/artifacts/${artifactId}/download`;
 }

@@ -4,6 +4,7 @@ import { prisma } from "../../db/client.js";
 import { encryptSecret, decryptSecret } from "../providers/crypto.js";
 import { buildAuthorizeUrl, exchangeCode, generatePkce } from "./adapters.js";
 import { loadConnectors } from "./connectorRegistry.js";
+import { devMocksEnabled, signState, verifyState } from "../../auth/oauthState.js";
 
 // Platforms that don't use generic connector.json OAuth (direct credentials, bot tokens,
 // webhooks, or Meta Graph API flows).
@@ -361,14 +362,22 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: `unsupported platform: ${platform}` });
       }
 
+      if (!projectId || !(await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } }))) {
+        return reply.code(404).send({ error: "project_not_found" });
+      }
+
       const redirectUri = getRedirectUri(req);
       const { verifier, challenge } = generatePkce();
-      const state = Buffer.from(JSON.stringify({ platform, projectId, verifier, redirectUri })).toString("base64url");
-
+      // Signed + expiring: the unauthenticated callback trusts nothing it can't verify.
+      const state = signState({ platform, projectId, verifier, redirectUri });
       const authorizeUrl = await buildAuthorizeUrl(platform, redirectUri, state, challenge);
+
       if (!authorizeUrl) {
-        req.log.info(`no app credentials configured for ${platform}. Using local dev-mock connect flow.`);
-        return reply.redirect(`${redirectUri}?dev_mock=true&state=${state}`);
+        if (!devMocksEnabled()) {
+          return reply.code(400).send({ error: `no OAuth app credentials configured for ${platform}` });
+        }
+        req.log.info(`no app credentials configured for ${platform}. Using local dev-mock connect flow (AGENTRY_DEV_MOCKS).`);
+        return reply.redirect(`${redirectUri}?dev_mock=true&state=${encodeURIComponent(state)}`);
       }
 
       return reply.redirect(authorizeUrl);
@@ -381,10 +390,9 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
       const { code, state, error, dev_mock } = req.query;
       const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
-      let decodedState: { platform: string; projectId: string; verifier: string; redirectUri: string };
-      try {
-        decodedState = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
-      } catch {
+      const decodedState = verifyState<{ platform: string; projectId: string; verifier: string; redirectUri: string }>(state);
+      if (!decodedState) {
+        req.log.warn("social OAuth callback rejected: invalid or expired state");
         return reply.redirect(`${frontendUrl}/integrations?error=oauth_failed`);
       }
       const { platform, projectId, verifier, redirectUri } = decodedState;
@@ -400,7 +408,7 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
         let handle: string | null;
         let status: "active" | "mock";
 
-        if (dev_mock === "true") {
+        if (dev_mock === "true" && devMocksEnabled()) {
           // Local dev fallback when no platform app credentials are configured --
           // same intent as the /auth/google dev_mock path. Clearly tagged (status:
           // "mock") so the publisher knows to simulate rather than call a real API.

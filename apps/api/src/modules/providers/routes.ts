@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
-import { encryptSecret, decryptSecret } from "./crypto.js";
+import { encryptSecret } from "./crypto.js";
 import { discoverProviderModels } from "./discovery.js";
 
 function serialize(config: { encryptedSecret: string | null; [k: string]: unknown }) {
@@ -83,34 +83,7 @@ export async function providersRoutes(app: FastifyInstance) {
       include: { capability: true, models: true },
     });
     if (!config) return reply.code(404).send({ error: "provider_not_found" });
-    let secret: string | null = null;
-    if (config.encryptedSecret) {
-      try {
-        secret = decryptSecret(config.encryptedSecret);
-      } catch {
-        secret = null;
-      }
-    }
-    return {
-      ...serialize(config),
-      secret,
-    };
-  });
-
-  app.get<{ Params: { id: string } }>("/providers/:id/secret", async (req, reply) => {
-    const config = await prisma.providerConfig.findUnique({
-      where: { id: req.params.id },
-    });
-    if (!config) return reply.code(404).send({ error: "provider_not_found" });
-    let secret: string | null = null;
-    if (config.encryptedSecret) {
-      try {
-        secret = decryptSecret(config.encryptedSecret);
-      } catch {
-        secret = null;
-      }
-    }
-    return { secret };
+    return serialize(config);
   });
 
   app.put<{ Params: { id: string }; Body: { name?: string; baseUrl?: string; secret?: string; config?: Record<string, unknown>; status?: string } }>(

@@ -95,7 +95,11 @@ export function buildScaffoldFiles(spec: ScaffoldSpec): Record<string, string> {
     },
   };
 
-  const worker = `"""${spec.name} worker (scaffolded by Agent Studio).
+  // Only the validated slug (AGENT_ID_RE) is ever interpolated into Python
+  // source. The free-text display name lives in manifest.json only -- putting
+  // it here would let a name like 'x"""\nimport os...' inject code that the
+  // worker supervisor then executes.
+  const worker = `"""${spec.id} worker (scaffolded by Agent Studio).
 
 This stub echoes its input params into a text artifact so the end-to-end
 pipeline (queue -> worker -> artifact -> UI) works immediately. Replace the

@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
+import crypto from "node:crypto";
+import { devMocksEnabled, signState, verifyState } from "../../auth/oauthState.js";
 import {
   createSession,
   destroySession,
@@ -12,8 +14,17 @@ const COOKIE_OPTS = {
   path: "/",
   httpOnly: true,
   sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
   maxAge: 30 * 24 * 60 * 60,
 };
+
+/** Short-lived cookie binding a Google OAuth round-trip to the browser that
+ * started it (login-CSRF protection): its value must match the nonce in the
+ * signed `state`. */
+const OAUTH_NONCE_COOKIE = "agentry_oauth_nonce";
+const OAUTH_NONCE_OPTS = { ...COOKIE_OPTS, maxAge: 10 * 60 };
+
+type GoogleState = { nonce: string; redirectUri: string; mock?: boolean };
 
 async function needsSetup(): Promise<boolean> {
   const activeOwners = await prisma.user.count({
@@ -89,12 +100,19 @@ export async function authRoutes(app: FastifyInstance) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const redirectUri = getRedirectUri(req);
+    const nonce = crypto.randomBytes(16).toString("base64url");
 
     if (!clientId || !clientSecret) {
-      req.log.info("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured. Using simulated Google Auth fallback.");
-      return reply.redirect(`${redirectUri}?dev_mock=true`);
+      if (!devMocksEnabled()) {
+        return reply.redirect(`${new URL(redirectUri).origin}/login?error=${encodeURIComponent("Google login is not configured.")}`);
+      }
+      req.log.info("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured. Using simulated Google Auth fallback (AGENTRY_DEV_MOCKS).");
+      reply.setCookie(OAUTH_NONCE_COOKIE, nonce, OAUTH_NONCE_OPTS);
+      const state = signState({ nonce, redirectUri, mock: true } satisfies GoogleState);
+      return reply.redirect(`${redirectUri}?dev_mock=true&state=${encodeURIComponent(state)}`);
     }
 
+    reply.setCookie(OAUTH_NONCE_COOKIE, nonce, OAUTH_NONCE_OPTS);
     const googleAuthUrl =
       `https://accounts.google.com/o/oauth2/v2/auth?` +
       new URLSearchParams({
@@ -104,7 +122,7 @@ export async function authRoutes(app: FastifyInstance) {
         scope: "openid email profile",
         access_type: "offline",
         prompt: "select_account",
-        state: redirectUri,
+        state: signState({ nonce, redirectUri } satisfies GoogleState),
       }).toString();
 
     return reply.redirect(googleAuthUrl);
@@ -113,15 +131,19 @@ export async function authRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { code?: string; state?: string; error?: string; dev_mock?: string } }>(
     "/auth/google/callback",
     async (req, reply) => {
-      const { code, state, error, dev_mock } = req.query;
-      let targetOrigin = "";
-      try {
-        if (state) targetOrigin = new URL(state).origin;
-        else if (req.headers.referer && !req.headers.referer.includes("google.com")) {
-          targetOrigin = new URL(req.headers.referer).origin;
-        }
-      } catch {}
-      const redirectBase = targetOrigin || "";
+      const { code, error, dev_mock } = req.query;
+      const state = verifyState<GoogleState>(req.query.state);
+      const nonceCookie = req.cookies?.[OAUTH_NONCE_COOKIE];
+      reply.clearCookie(OAUTH_NONCE_COOKIE, { path: "/" });
+
+      // Only redirect back to an origin we computed ourselves (carried inside
+      // the signed state), never to one supplied in the request.
+      const redirectBase = new URL(state?.redirectUri ?? getRedirectUri(req)).origin;
+
+      if (!state || !nonceCookie || nonceCookie !== state.nonce) {
+        req.log.warn("Google Auth callback rejected: invalid or expired state");
+        return reply.redirect(`${redirectBase}/login?error=${encodeURIComponent("Login session expired. Please try again.")}`);
+      }
 
       if (error) {
         req.log.warn({ error }, "Google Auth callback error");
@@ -133,22 +155,21 @@ export async function authRoutes(app: FastifyInstance) {
       let lastName: string | null = null;
       let avatarUrl: string | null = null;
 
-      if (dev_mock === "true" || !process.env.GOOGLE_CLIENT_ID) {
+      if (dev_mock === "true" && state.mock && devMocksEnabled()) {
         email = "google.dev@agentry.dev";
         firstName = "Google";
         lastName = "Developer";
         avatarUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=256&auto=format&fit=crop&q=80";
-      } else if (code) {
+      } else if (code && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         try {
-          const redirectUri = state || getRedirectUri(req);
           const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
               code,
-              client_id: process.env.GOOGLE_CLIENT_ID!,
-              client_secret: process.env.GOOGLE_CLIENT_SECRET!,
-              redirect_uri: redirectUri,
+              client_id: process.env.GOOGLE_CLIENT_ID,
+              client_secret: process.env.GOOGLE_CLIENT_SECRET,
+              redirect_uri: state.redirectUri,
               grant_type: "authorization_code",
             }),
           });
@@ -163,6 +184,9 @@ export async function authRoutes(app: FastifyInstance) {
           const googleUser = await userInfoRes.json();
           if (!userInfoRes.ok || !googleUser.email) {
             throw new Error("Failed to retrieve user profile from Google");
+          }
+          if (googleUser.email_verified !== true) {
+            throw new Error("Your Google account email is not verified.");
           }
 
           email = googleUser.email;

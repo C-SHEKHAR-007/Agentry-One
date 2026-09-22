@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from python.sdk.agent_job import AgentJob
+from python.sdk.artifact_io import local_artifact_path
 from python.sdk.providers import CapabilityClient
 from python.sdk.runner import run_agent
 
@@ -25,22 +26,22 @@ async def run(job: AgentJob) -> dict:
     # Check if any parameter references an upstream artifact file and load its content
     enriched_params = dict(job.params)
     for key, value in job.params.items():
-        if isinstance(value, str) and (value.endswith(".txt") or value.endswith(".md") or "/" in value or "\\" in value):
-            try:
-                candidate_path = Path(value)
-                if not candidate_path.is_absolute():
-                    candidate_path = ARTIFACTS_DIR / value
-                if candidate_path.exists() and candidate_path.is_file():
-                    content = candidate_path.read_text(encoding="utf-8", errors="ignore")
-                    enriched_params[key] = content
-                    enriched_params[f"{key}_content"] = content
-            except Exception:
-                pass
+        if not isinstance(value, str):
+            continue
+        # Only real artifact files (inside ARTIFACTS_DIR) are dereferenced --
+        # never arbitrary host paths supplied in job params.
+        artifact_path = local_artifact_path(value)
+        if artifact_path is not None:
+            content = artifact_path.read_text(encoding="utf-8", errors="ignore")
+            enriched_params[key] = content
+            enriched_params[f"{key}_content"] = content
 
     # Render the system prompt template using {{key}} replacement
     system_prompt = system_prompt_template
     for key, value in enriched_params.items():
-        system_prompt = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', str(value), system_prompt)
+        # A callable replacement: values containing backslashes (e.g. "C:\\data")
+        # would otherwise be parsed as regex escapes and crash the job.
+        system_prompt = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', lambda _m, v=value: str(v), system_prompt)
 
     # For dynamic skills, we typically expect a text-generation capability.
     requires_capability = job.step_manifest.get("requiresCapability", "text-generation")

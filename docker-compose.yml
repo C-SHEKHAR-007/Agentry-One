@@ -42,6 +42,8 @@ services:
       - ./social-connectors:/app/social-connectors
     environment:
       - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      - AGENTRY_API_URL=${AGENTRY_API_URL:-http://localhost:4000}
+      - AGENTRY_API_KEY=${AGENTRY_API_KEY}
       - OLLAMA_HOST=${OLLAMA_HOST:-http://localhost:11434}
       - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
       - AZURE_STORAGE_CONTAINER_NAME_DEV=${AZURE_STORAGE_CONTAINER_NAME_DEV:-inspection-audit-files-dev}
