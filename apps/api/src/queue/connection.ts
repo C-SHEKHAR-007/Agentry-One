@@ -10,10 +10,25 @@ export const bullmqConnection = { url: REDIS_URL };
 
 let healthCheckClient: Redis | null = null;
 
-/** Our own ioredis client, used only for the /health ping -- not shared with BullMQ. */
+/** Our own ioredis client, used only for health/stat pings -- not shared with
+ * BullMQ. Fails fast (no offline queue, one retry) so /health reports 503
+ * during a Redis outage instead of hanging until the probe times out. */
 export function getRedisConnection(): Redis {
   if (!healthCheckClient) {
-    healthCheckClient = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+    healthCheckClient = new Redis(REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      connectTimeout: 3000,
+      lazyConnect: false,
+    });
+    healthCheckClient.on("error", () => {
+      /* reported via /health; avoid unhandled 'error' event crashes */
+    });
   }
   return healthCheckClient;
+}
+
+export async function closeRedisConnection(): Promise<void> {
+  await healthCheckClient?.quit().catch(() => healthCheckClient?.disconnect());
+  healthCheckClient = null;
 }

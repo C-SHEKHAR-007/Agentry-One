@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NotFoundPage } from "./NotFoundPage";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -175,15 +176,16 @@ export function TemplateRunViewPage() {
   const { runId } = useParams();
   const queryClient = useQueryClient();
 
-  const { data: run, refetch } = useQuery({
+  const { data: run, isError: runLoadFailed, refetch } = useQuery({
     queryKey: ["template-run", runId],
     queryFn: () => api.get<TemplateRun>(`/template-runs/${runId}`),
     refetchInterval: (query) => {
       const s = query.state.data?.status;
-      return s === "running" || s === "pending" || s === "awaiting_review" ? 2500 : false;
+      return s === "running" || s === "pending" || s === "awaiting_review" || s === "cancelling" ? 2500 : false;
     },
   });
 
+  if (runLoadFailed) return <NotFoundPage what="workflow run" />;
   if (!run) {
     return (
       <div className="space-y-4 max-w-3xl mx-auto">
@@ -227,6 +229,7 @@ export function TemplateRunViewPage() {
 
       <div className="space-y-3">
         {run.steps
+          .slice() // don't mutate react-query's cached array
           .sort((a, b) => a.templateStep.stepOrder - b.templateStep.stepOrder)
           .map((step) => (
             <StepRowCard

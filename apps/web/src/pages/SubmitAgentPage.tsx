@@ -1,4 +1,5 @@
 import Form from "@rjsf/core";
+import { NotFoundPage } from "./NotFoundPage";
 import validator from "@rjsf/validator-ajv8";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -50,7 +51,7 @@ export function SubmitAgentPage() {
   const [providerConfigId, setProviderConfigId] = useState("");
   const [formData, setFormData] = useState<Record<string, unknown>>({});
 
-  const { data: agent } = useQuery({ queryKey: ["agent", agentId], queryFn: () => api.get<AgentDetail>(`/agents/${agentId}`) });
+  const { data: agent, isError: agentLoadFailed } = useQuery({ queryKey: ["agent", agentId], queryFn: () => api.get<AgentDetail>(`/agents/${agentId}`) });
   const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => api.get<Project[]>("/projects") });
   const { data: prompts } = useQuery({
     queryKey: ["prompts", agentId],
@@ -120,6 +121,7 @@ export function SubmitAgentPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  if (agentLoadFailed) return <NotFoundPage what="agent" />;
   if (!agent) {
     return (
       <div className="space-y-4">

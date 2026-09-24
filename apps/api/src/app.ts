@@ -1,6 +1,10 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
-import Fastify from "fastify";
+import rateLimit from "@fastify/rate-limit";
+import { Prisma } from "@prisma/client";
+import Fastify, { type FastifyError } from "fastify";
+import sjson from "secure-json-parse";
+import { ValidationError } from "./http/validate.js";
 import { prisma } from "./db/client.js";
 import { getRedisConnection } from "./queue/connection.js";
 import { agentsRoutes } from "./modules/agents/routes.js";
@@ -57,16 +61,41 @@ export function buildApp() {
       return;
     }
     try {
-      done(null, JSON.parse(body as string));
+      // secure-json-parse keeps Fastify's default protection against
+      // __proto__ / constructor.prototype poisoning.
+      done(null, sjson.parse(body as string, undefined, { protoAction: "error", constructorAction: "error" }));
     } catch (err) {
-      done(err as Error, undefined);
+      const e = err as FastifyError;
+      e.statusCode = 400;
+      done(e, undefined);
     }
   });
 
   const origins = allowedOrigins();
   app.register(cors, { origin: origins.length > 0 ? origins : false, credentials: true });
   app.register(cookie);
+  // Opt-in per route (credential endpoints); in-memory, i.e. per API instance.
+  app.register(rateLimit, { global: false });
   app.addHook("preHandler", requireAuth);
+
+  app.setErrorHandler((err: FastifyError, req, reply) => {
+    if (err instanceof ValidationError) {
+      return reply.code(400).send({ error: "invalid_request", message: err.message, issues: err.issues });
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === "P2025") return reply.code(404).send({ error: "not_found" });
+      if (err.code === "P2002") return reply.code(409).send({ error: "conflict", message: "a record with these values already exists" });
+      if (err.code === "P2003") return reply.code(409).send({ error: "conflict", message: "this record is referenced by or references another record" });
+    }
+    if (err instanceof Prisma.PrismaClientValidationError) {
+      return reply.code(400).send({ error: "invalid_request" });
+    }
+    const status = err.statusCode ?? 500;
+    if (status < 500) return reply.code(status).send({ error: err.code ?? "request_error", message: err.message });
+    // Never leak internals (Prisma/SQL details, stack traces) to clients.
+    req.log.error({ err }, "unhandled error");
+    return reply.code(500).send({ error: "internal_error" });
+  });
 
   app.get("/health", async (_req, reply) => {
     const [dbOk, redisOk] = await Promise.all([

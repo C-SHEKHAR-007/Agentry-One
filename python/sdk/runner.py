@@ -23,7 +23,9 @@ def run_agent(step_handlers: dict[str, StepHandler], queue_name: str) -> None:
         job = AgentJob(raw_job)
         handler = step_handlers.get(job.step_key)
         if handler is None:
-            return {"status": "failed", "artifacts": [], "error": {"message": f"no handler for step '{job.step_key}'"}}
+            # Raise (not return a failed envelope) so BullMQ records a failure.
+            raise RuntimeError(f"no handler for step '{job.step_key}'")
+        await job.load_secrets()
         return await handler(job)
 
     async def main():

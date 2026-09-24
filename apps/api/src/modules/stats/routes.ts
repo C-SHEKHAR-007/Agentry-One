@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
+import { requireAdmin } from "../../auth/access.js";
 import { getRedisConnection } from "../../queue/connection.js";
 import {
   buildAgentStats,
@@ -162,7 +163,8 @@ export async function statsRoutes(app: FastifyInstance) {
     return { days, perDay: buildDailySeries(shaped, days) };
   });
 
-  app.get<{ Querystring: { days?: string } }>("/stats/costs", async (req) => {
+  app.get<{ Querystring: { days?: string } }>("/stats/costs", async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
     const days = Math.min(Math.max(Number(req.query.days ?? 30) || 30, 1), 365);
 
     const [rows, pricingSettings] = await Promise.all([
@@ -192,7 +194,8 @@ export async function statsRoutes(app: FastifyInstance) {
     return { ...computeCosts(costRows, pricing, referenceUsd), pricing, referenceUsd, days };
   });
 
-  app.get("/stats/system", async () => {
+  app.get("/stats/system", async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
     const [dbOk, redisOk, agents] = await Promise.all([
       prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
       getRedisConnection().ping().then(() => true).catch(() => false),

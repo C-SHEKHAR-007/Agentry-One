@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { NotFoundPage } from "./NotFoundPage";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -115,7 +116,7 @@ function RecentOutputItem({
 
 export function AgentDetailPage() {
   const { agentId } = useParams();
-  const { data: agent } = useQuery({
+  const { data: agent, isError: agentLoadFailed } = useQuery({
     queryKey: ["agent", agentId],
     queryFn: () => api.get<AgentDetail>(`/agents/${agentId}`),
   });
@@ -134,6 +135,7 @@ export function AgentDetailPage() {
     .filter((a) => a.agentId === agentId)
     .slice(0, 8);
 
+  if (agentLoadFailed) return <NotFoundPage what="agent" />;
   if (!agent) {
     return (
       <div className="space-y-6">

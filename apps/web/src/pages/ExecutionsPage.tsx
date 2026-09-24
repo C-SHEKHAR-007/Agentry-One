@@ -49,7 +49,7 @@ export function ExecutionsPage() {
   const reapMutation = useMutation({
     mutationFn: () => api.post<{ reaped: number }>("/workflows/reap-stale"),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["recent-workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows", "recent"] });
       if (res.reaped > 0) {
         toast.success(`Cleaned up ${res.reaped} stale executions`);
       } else {

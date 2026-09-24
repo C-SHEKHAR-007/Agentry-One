@@ -5,6 +5,7 @@ import { encryptSecret, decryptSecret } from "../providers/crypto.js";
 import { buildAuthorizeUrl, exchangeCode, generatePkce } from "./adapters.js";
 import { loadConnectors } from "./connectorRegistry.js";
 import { devMocksEnabled, signState, verifyState } from "../../auth/oauthState.js";
+import { authorize, canAccessProject, viaProject } from "../../auth/access.js";
 
 // Platforms that don't use generic connector.json OAuth (direct credentials, bot tokens,
 // webhooks, or Meta Graph API flows).
@@ -40,18 +41,19 @@ function getRedirectUri(req: any): string {
 /** Decrypts a SocialAccount's stored token for use inside the API process
  * only (e.g. resolving publish context at enqueue time) -- never returned
  * over HTTP. Mirrors provider-secret handling in providers/resolve.ts. */
-export async function decryptSocialAccountToken(accountId: string): Promise<{
+export async function decryptSocialAccountToken(accountId: string, projectId: string): Promise<{
   accessToken: string;
-  refreshToken: string | null;
   platform: string;
   handle: string | null;
   isMock: boolean;
 } | null> {
-  const account = await prisma.socialAccount.findUnique({ where: { id: accountId } });
+  // Scoped to the workflow's project: an account connected to another
+  // project can never be used to publish, even if its id is known.
+  const account = await prisma.socialAccount.findFirst({ where: { id: accountId, projectId } });
   if (!account) return null;
+  if (account.expiresAt && account.expiresAt.getTime() <= Date.now()) return null;
   return {
     accessToken: decryptSecret(account.accessToken),
-    refreshToken: account.refreshToken ? decryptSecret(account.refreshToken) : null,
     platform: account.platform,
     handle: account.handle,
     isMock: account.status === "mock",
@@ -59,10 +61,11 @@ export async function decryptSocialAccountToken(accountId: string): Promise<{
 }
 
 export async function socialAccountsRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: { projectId: string } }>("/social-accounts", async (req) => {
+  app.get<{ Querystring: { projectId?: string } }>("/social-accounts", async (req) => {
     const { projectId } = req.query;
     const accounts = await prisma.socialAccount.findMany({
-      where: { projectId },
+      // Without ?projectId this lists across projects -- but only the caller's.
+      where: { ...viaProject(req), ...(projectId ? { projectId } : {}) },
       orderBy: { createdAt: "desc" },
     });
     return accounts.map(serialize);
@@ -77,6 +80,7 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
       if (!projectId || !platform || !accessToken) {
         return reply.code(400).send({ error: "projectId, platform, and accessToken are required" });
       }
+      if (!(await authorize(req, reply, "project", projectId))) return;
 
       const account = await prisma.socialAccount.create({
         data: {
@@ -128,6 +132,7 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
     if (!projectId || !platform) {
       return reply.code(400).send({ error: "projectId and platform are required" });
     }
+    if (!(await authorize(req, reply, "project", projectId))) return;
 
     let handle = req.body.handle || username;
     let packedToken = "";
@@ -254,6 +259,7 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
   });
 
   app.delete<{ Params: { id: string } }>("/social-accounts/:id", async (req, reply) => {
+    if (!(await authorize(req, reply, "socialAccount", req.params.id))) return;
     await prisma.socialAccount.delete({
       where: { id: req.params.id },
     });
@@ -262,7 +268,9 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
 
   // Test account connection health / validity across all platforms
   app.post<{ Params: { id: string } }>("/social-accounts/:id/test", async (req, reply) => {
-    const accountInfo = await decryptSocialAccountToken(req.params.id);
+    if (!(await authorize(req, reply, "socialAccount", req.params.id))) return;
+    const { projectId } = await prisma.socialAccount.findUniqueOrThrow({ where: { id: req.params.id }, select: { projectId: true } });
+    const accountInfo = await decryptSocialAccountToken(req.params.id, projectId);
     if (!accountInfo) return reply.code(404).send({ error: "account_not_found" });
 
     if (accountInfo.isMock) {
@@ -362,7 +370,7 @@ export async function socialAccountsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: `unsupported platform: ${platform}` });
       }
 
-      if (!projectId || !(await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } }))) {
+      if (!(await canAccessProject(req, projectId))) {
         return reply.code(404).send({ error: "project_not_found" });
       }
 

@@ -1,7 +1,21 @@
 import type { FastifyInstance } from "fastify";
+import { adminForWrites } from "../../auth/access.js";
 import { prisma } from "../../db/client.js";
 import { encryptSecret } from "./crypto.js";
 import { discoverProviderModels } from "./discovery.js";
+import { assertSafeOutboundUrl, UnsafeUrlError } from "../../http/ssrf.js";
+
+/** Validates a user-supplied provider baseUrl; returns an error reply body or null. */
+async function checkBaseUrl(baseUrl: string | undefined | null): Promise<string | null> {
+  if (!baseUrl?.trim()) return null;
+  try {
+    await assertSafeOutboundUrl(baseUrl.trim());
+    return null;
+  } catch (err) {
+    if (err instanceof UnsafeUrlError) return err.message;
+    throw err;
+  }
+}
 
 function serialize(config: { encryptedSecret: string | null; [k: string]: unknown }) {
   // Secrets are write-only -- never redisplayed after save (see docs/17-frontend-architecture.md's providers page).
@@ -10,6 +24,9 @@ function serialize(config: { encryptedSecret: string | null; [k: string]: unknow
 }
 
 export async function providersRoutes(app: FastifyInstance) {
+  // Global configuration: readable by any signed-in user, writable by admins only.
+  app.addHook("preHandler", adminForWrites);
+
   app.get("/capabilities", async () => prisma.capability.findMany({ orderBy: { key: "asc" } }));
 
   app.get<{ Querystring: { capability?: string } }>("/providers", async (req) => {
@@ -38,6 +55,11 @@ export async function providersRoutes(app: FastifyInstance) {
   }>("/providers", async (req, reply) => {
     const capability = await prisma.capability.findUnique({ where: { key: req.body.capabilityKey } });
     if (!capability) return reply.code(400).send({ error: `unknown capability: ${req.body.capabilityKey}` });
+    if (!req.body.name?.trim() || !req.body.providerType?.trim()) {
+      return reply.code(400).send({ error: "name and providerType are required" });
+    }
+    const urlError = await checkBaseUrl(req.body.baseUrl);
+    if (urlError) return reply.code(400).send({ error: urlError });
 
     if (req.body.isDefault) {
       await prisma.providerConfig.updateMany({
@@ -93,6 +115,17 @@ export async function providersRoutes(app: FastifyInstance) {
         where: { id: req.params.id },
       });
       if (!existing) return reply.code(404).send({ error: "provider_not_found" });
+
+      if (req.body.baseUrl !== undefined) {
+        const urlError = await checkBaseUrl(req.body.baseUrl);
+        if (urlError) return reply.code(400).send({ error: urlError });
+        // Pointing a saved key at a new host would let anyone who can edit the
+        // provider exfiltrate it -- the key must be re-entered with the change.
+        const newBase = req.body.baseUrl.trim() || null;
+        if (newBase !== existing.baseUrl && existing.encryptedSecret && !req.body.secret?.trim()) {
+          return reply.code(400).send({ error: "re-enter the API key when changing the base URL" });
+        }
+      }
 
       const currentConfig = (existing.config as Record<string, unknown>) || {};
       const newConfig = req.body.config !== undefined

@@ -28,12 +28,12 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
                 local_file = media_url
                 if (media_url.startswith("http://") or media_url.startswith("https://")) and not os.path.exists(media_url):
                     import tempfile
-                    res = requests.get(media_url, timeout=60)
-                    if res.ok:
-                        temp_m = tempfile.NamedTemporaryFile(delete=False)
-                        temp_m.write(res.content)
-                        temp_m.close()
-                        local_file = temp_m.name
+                    from python.sdk.net_safety import fetch_public_url
+
+                    temp_m = tempfile.NamedTemporaryFile(delete=False)
+                    temp_m.write(fetch_public_url(media_url))
+                    temp_m.close()
+                    local_file = temp_m.name
                 if os.path.isfile(local_file):
                     try:
                         auth = tweepy.OAuth1UserHandler(api_key, api_secret, user_token, user_secret)

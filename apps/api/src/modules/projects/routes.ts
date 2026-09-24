@@ -1,18 +1,26 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { getDefaultUserId } from "./defaultUser.js";
-import { generateReadSasUrl } from "../artifacts/azureClient.js";
+import { artifactUrl } from "../artifacts/urls.js";
+import { Prisma } from "@prisma/client";
+import { authorize, projectWhere } from "../../auth/access.js";
+import { nonEmpty, parse, z } from "../../http/validate.js";
+
+const ProjectBody = z.object({ name: nonEmpty(120) });
 
 export async function projectsRoutes(app: FastifyInstance) {
-  app.get("/projects", async () => {
-    const [projects, activity, artifactRows] = await Promise.all([
-      prisma.project.findMany({
-        orderBy: { createdAt: "desc" },
-        include: { _count: { select: { workflows: true, templates: true } } },
-      }),
+  app.get("/projects", async (req) => {
+    const projects = await prisma.project.findMany({
+      where: projectWhere(req),
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { workflows: true, templates: true } } },
+    });
+    const ids = projects.map((p) => p.id);
+    if (ids.length === 0) return [];
+    const [activity, artifactRows] = await Promise.all([
       // Project has no updatedAt column; derive last activity from its
       // workflows instead of changing the schema.
-      prisma.workflow.groupBy({ by: ["projectId"], _max: { updatedAt: true } }),
+      prisma.workflow.groupBy({ by: ["projectId"], where: { projectId: { in: ids } }, _max: { updatedAt: true } }),
       // Artifact count + latest image artifact per project in one pass
       // (artifacts hang off workflow_steps, not projects directly).
       prisma.$queryRaw<
@@ -35,6 +43,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         FROM artifacts a
         JOIN workflow_steps ws ON ws.id = a.workflow_step_id
         JOIN workflows w ON w.id = ws.workflow_id
+        WHERE w.project_id IN (${Prisma.join(ids)})
         GROUP BY w.project_id`,
     ]);
 
@@ -44,16 +53,13 @@ export async function projectsRoutes(app: FastifyInstance) {
     return Promise.all(
       projects.map(async ({ _count, ...p }) => {
         const art = artifactsByProject.get(p.id);
-        let coverPreviewUrl: string | null = null;
-        if (art?.cover_storage_key) {
-          const blobName = art.cover_storage_key.replace(/^azure:\/\//, "");
-          const res = await generateReadSasUrl(blobName, {
-            mode: "preview",
-            mimeType: art.cover_mime_type || "image/png",
-            expiresInMinutes: 120,
-          });
-          coverPreviewUrl = res.url;
-        }
+        const coverPreviewUrl =
+          art?.cover_artifact_id && art.cover_storage_key
+            ? await artifactUrl(
+                { id: art.cover_artifact_id, kind: "image", storageKey: art.cover_storage_key, mimeType: art.cover_mime_type || "image/png" },
+                "preview",
+              )
+            : null;
         return {
           ...p,
           counts: {
@@ -69,12 +75,13 @@ export async function projectsRoutes(app: FastifyInstance) {
     );
   });
 
-  app.post<{ Body: { name: string } }>("/projects", async (req, reply) => {
+  app.post("/projects", async (req, reply) => {
+    const { name } = parse(ProjectBody, req.body);
     // Session users own their projects; API-key callers fall back to the
     // pre-auth stub user.
     const userId = req.principal?.kind === "user" ? req.principal.user.id : getDefaultUserId();
     const project = await prisma.project.create({
-      data: { name: req.body.name, userId },
+      data: { name, userId },
     });
     
     await prisma.notification.create({
@@ -82,7 +89,7 @@ export async function projectsRoutes(app: FastifyInstance) {
         userId,
         type: "success",
         title: "Project Created",
-        message: `Project "${req.body.name}" was created successfully.`,
+        message: `Project "${name}" was created successfully.`,
         link: `/projects/${project.id}`
       }
     });
@@ -91,16 +98,20 @@ export async function projectsRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { id: string } }>("/projects/:id", async (req, reply) => {
+    if (!(await authorize(req, reply, "project", req.params.id))) return;
     const project = await prisma.project.findUnique({ where: { id: req.params.id } });
     if (!project) return reply.code(404).send({ error: "project_not_found" });
     return project;
   });
 
-  app.patch<{ Params: { id: string }; Body: { name?: string } }>("/projects/:id", async (req) =>
-    prisma.project.update({ where: { id: req.params.id }, data: { name: req.body.name } }),
-  );
+  app.patch<{ Params: { id: string } }>("/projects/:id", async (req, reply) => {
+    const { name } = parse(ProjectBody, req.body);
+    if (!(await authorize(req, reply, "project", req.params.id))) return;
+    return prisma.project.update({ where: { id: req.params.id }, data: { name } });
+  });
 
   app.delete<{ Params: { id: string } }>("/projects/:id", async (req, reply) => {
+    if (!(await authorize(req, reply, "project", req.params.id))) return;
     await prisma.project.delete({ where: { id: req.params.id } });
     return reply.code(204).send();
   });

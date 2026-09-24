@@ -1,11 +1,14 @@
 import path from "node:path";
 
-/** Phase 1 uses local filesystem storage only (storage_backend: "local_fs").
- * Shared between the API (serves downloads) and Python workers (write
- * output) via a common absolute path, set the same in both environments. */
-export const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR ?? path.resolve(process.cwd(), "../../artifacts");
+/** Local filesystem artifact root. Shared between the API (serves downloads)
+ * and Python workers (write output) via a common absolute path, set the same
+ * in both environments. */
+export const ARTIFACTS_DIR = path.resolve(process.env.ARTIFACTS_DIR ?? path.resolve(process.cwd(), "../../artifacts"));
 
-export function resolveArtifactPath(storageKey: string): string {
-  // storageKey is already an absolute path written by the worker in this build.
-  return path.isAbsolute(storageKey) ? storageKey : path.join(ARTIFACTS_DIR, storageKey);
+/** Maps a local storage key to a file path, or null if it would resolve
+ * outside ARTIFACTS_DIR. Storage keys come from worker results, so they are
+ * never trusted to name arbitrary host files (e.g. "/etc/shadow" or "../"). */
+export function resolveArtifactPath(storageKey: string): string | null {
+  const resolved = path.resolve(ARTIFACTS_DIR, storageKey);
+  return resolved.startsWith(ARTIFACTS_DIR + path.sep) ? resolved : null;
 }

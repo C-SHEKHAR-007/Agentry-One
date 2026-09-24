@@ -26,8 +26,14 @@ export async function resolveProvider(
   let config = null;
 
   if (opts.explicitProviderConfigId) {
+    // An explicit choice must still be in scope: global, or this project's own.
     config = await prisma.providerConfig.findFirst({
-      where: { id: opts.explicitProviderConfigId, capabilityId: capability.id, status: "active" },
+      where: {
+        id: opts.explicitProviderConfigId,
+        capabilityId: capability.id,
+        status: "active",
+        OR: [{ scope: "global" }, ...(opts.projectId ? [{ scope: "project", projectId: opts.projectId }] : [])],
+      },
     });
   }
 
@@ -53,4 +59,11 @@ export async function resolveProvider(
     apiKey: config.encryptedSecret ? decryptSecret(config.encryptedSecret) : null,
     config: (config.config as Record<string, unknown>) ?? {},
   };
+}
+
+/** The decrypted secret for a provider config, for handing to a worker at
+ * run time (see jobs/internalRoutes.ts) -- never placed in queue payloads. */
+export async function providerSecret(providerConfigId: string): Promise<string | null> {
+  const config = await prisma.providerConfig.findUnique({ where: { id: providerConfigId }, select: { encryptedSecret: true } });
+  return config?.encryptedSecret ? decryptSecret(config.encryptedSecret) : null;
 }

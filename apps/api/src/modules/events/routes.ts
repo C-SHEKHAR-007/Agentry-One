@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
+import { authorize, viaProject } from "../../auth/access.js";
 
 export async function eventsRoutes(app: FastifyInstance) {
   // Recent activity feed. job.progress is written once per progress tick and
@@ -9,7 +10,9 @@ export async function eventsRoutes(app: FastifyInstance) {
     const events = await prisma.event.findMany({
       where: {
         type: { not: "job.progress" },
-        ...(req.query.projectId ? { workflow: { projectId: req.query.projectId } } : {}),
+        // Only workflow-attached events can be attributed to a project, so a
+        // scoped caller sees exactly the events of their own workflows.
+        workflow: { ...viaProject(req), ...(req.query.projectId ? { projectId: req.query.projectId } : {}) },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -38,7 +41,8 @@ export async function eventsRoutes(app: FastifyInstance) {
   // Chronological timeline for one workflow. job-level events (job.progress,
   // job.failed) carry only jobId with a null workflowId, so the filter has to
   // union both paths to the workflow.
-  app.get<{ Params: { id: string } }>("/workflows/:id/events", async (req) => {
+  app.get<{ Params: { id: string } }>("/workflows/:id/events", async (req, reply) => {
+    if (!(await authorize(req, reply, "workflow", req.params.id))) return;
     const events = await prisma.event.findMany({
       where: {
         OR: [

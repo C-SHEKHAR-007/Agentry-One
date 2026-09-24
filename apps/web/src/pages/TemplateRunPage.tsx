@@ -1,8 +1,9 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { NotFoundPage } from "./NotFoundPage";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Play, Plus, ExternalLink, MessageSquare } from "lucide-react";
+import { Play, Plus, ExternalLink, MessageSquare, Trash2 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
@@ -27,10 +28,17 @@ interface TemplateRun {
   id: string;
 }
 
+interface Schedule {
+  id: string;
+  cronExpr: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export function TemplateRunPage() {
   const { templateId } = useParams();
   const navigate = useNavigate();
-  const { data: template } = useQuery({
+  const { data: template, isError: templateLoadFailed } = useQuery({
     queryKey: ["template", templateId],
     queryFn: () => api.get<TemplateDetail>(`/templates/${templateId}`),
   });
@@ -66,15 +74,34 @@ export function TemplateRunPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const queryClient = useQueryClient();
+  const { data: schedules } = useQuery({
+    queryKey: ["schedules", templateId],
+    queryFn: () => api.get<Schedule[]>(`/templates/${templateId}/schedules`),
+    enabled: Boolean(templateId),
+  });
+
   const schedule = useMutation({
     mutationFn: () => api.post(`/templates/${templateId}/schedule`, { cronExpr, runInputs: values }),
     onSuccess: () => {
-      toast.success(`Workflow scheduled successfully (${cronExpr})`);
-      navigate(`/builder`); // Go back to workflow list
+      toast.success(`Workflow scheduled (${cronExpr})`);
+      queryClient.invalidateQueries({ queryKey: ["schedules", templateId] });
     },
     onError: (err) => toast.error(err.message),
   });
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const deleteSchedule = useMutation({
+    mutationFn: (id: string) => api.delete(`/schedules/${id}`),
+    onSuccess: () => {
+      toast.success("Schedule removed");
+      setConfirmDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["schedules", templateId] });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (templateLoadFailed) return <NotFoundPage what="template" />;
   if (!template) {
     return (
       <div className="space-y-4">
@@ -186,10 +213,36 @@ export function TemplateRunPage() {
             />
           </div>
 
-          <Button variant="secondary" onClick={() => schedule.mutate()} disabled={schedule.isPending}>
+          <Button variant="secondary" onClick={() => schedule.mutate()} disabled={schedule.isPending || !cronExpr.trim()}>
             {schedule.isPending && <Spinner className="mr-2" />}
             Set Schedule
           </Button>
+
+          {schedules && schedules.length > 0 && (
+            <div className="space-y-2 pt-2">
+              <Label>Active schedules</Label>
+              {schedules.map((sch) => (
+                <div key={sch.id} className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+                  <code className="text-sm">{sch.cronExpr}</code>
+                  {confirmDeleteId === sch.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Stop this schedule?</span>
+                      <Button size="sm" variant="destructive" disabled={deleteSchedule.isPending} onClick={() => deleteSchedule.mutate(sch.id)}>
+                        Remove
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+                        Keep
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" aria-label="Remove schedule" onClick={() => setConfirmDeleteId(sch.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

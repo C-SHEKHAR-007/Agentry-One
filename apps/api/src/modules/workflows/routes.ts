@@ -2,20 +2,33 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { getQueue } from "../../queue/queues.js";
 import { advanceStep, reapStaleWorkflows, startWorkflow, WorkflowError } from "./service.js";
-import { generateReadSasUrl } from "../artifacts/azureClient.js";
+import { artifactUrl, withArtifactUrls } from "../artifacts/urls.js";
+import { authorize, requireAdmin, viaProject } from "../../auth/access.js";
+import { nonEmpty, parse, z } from "../../http/validate.js";
+
+const StartWorkflowBody = z.object({
+  agentId: nonEmpty(100),
+  input: z.unknown().optional(),
+  providerConfigId: z.string().uuid().optional(),
+});
+
+const TERMINAL = ["completed", "failed", "cancelled"];
 
 export async function workflowsRoutes(app: FastifyInstance) {
-  app.post("/workflows/reap-stale", async () => {
+  app.post("/workflows/reap-stale", async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
     const reaped = await reapStaleWorkflows();
     return { reaped };
   });
 
-  app.post<{ Params: { id: string }; Body: { agentId: string; input: unknown; providerConfigId?: string } }>(
+  app.post<{ Params: { id: string } }>(
     "/projects/:id/workflows",
     async (req, reply) => {
+      const body = parse(StartWorkflowBody, req.body);
+      if (!(await authorize(req, reply, "project", req.params.id))) return;
       try {
-        const workflow = await startWorkflow(req.params.id, req.body.agentId, req.body.input, {
-          providerConfigId: req.body.providerConfigId,
+        const workflow = await startWorkflow(req.params.id, body.agentId, body.input ?? {}, {
+          providerConfigId: body.providerConfigId,
         });
         const steps = await prisma.workflowStep.findMany({ where: { workflowId: workflow.id }, orderBy: { sequence: "asc" } });
         return reply.code(201).send({ ...workflow, steps });
@@ -31,14 +44,9 @@ export async function workflowsRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { limit?: string; status?: string } }>(
     "/workflows/recent",
     async (req) => {
-      // Auto-reap stale or orphaned executions when viewing executions
-      if (!req.query.status || req.query.status === "running") {
-        await reapStaleWorkflows();
-      }
-
       const limit = Math.min(Number(req.query.limit ?? 10) || 10, 100);
       const workflows = await prisma.workflow.findMany({
-        where: req.query.status ? { status: req.query.status } : undefined,
+        where: { ...viaProject(req), ...(req.query.status ? { status: req.query.status } : {}) },
         orderBy: { createdAt: "desc" },
         take: limit,
         include: {
@@ -76,16 +84,7 @@ export async function workflowsRoutes(app: FastifyInstance) {
           }
           const thumb = w.steps.flatMap((s) => s.artifacts)[0];
           const thumbArtifactId = thumb?.id ?? null;
-          let thumbPreviewUrl: string | null = null;
-          if (thumb) {
-            const blobName = thumb.storageKey.replace(/^azure:\/\//, "");
-            const res = await generateReadSasUrl(blobName, {
-              mode: "preview",
-              mimeType: thumb.mimeType,
-              expiresInMinutes: 120,
-            });
-            thumbPreviewUrl = res.url;
-          }
+          const thumbPreviewUrl = thumb ? await artifactUrl({ ...thumb, kind: "image" }, "preview") : null;
           return {
             id: w.id,
             agentId: w.agentId,
@@ -105,6 +104,7 @@ export async function workflowsRoutes(app: FastifyInstance) {
   );
 
   app.get<{ Params: { id: string } }>("/workflows/:id", async (req, reply) => {
+    if (!(await authorize(req, reply, "workflow", req.params.id))) return;
     const workflow = await prisma.workflow.findUnique({
       where: { id: req.params.id },
       include: { steps: { orderBy: { sequence: "asc" }, include: { job: true, artifacts: true } } },
@@ -114,33 +114,21 @@ export async function workflowsRoutes(app: FastifyInstance) {
     const stepsWithUrls = await Promise.all(
       workflow.steps.map(async (step) => ({
         ...step,
-        artifacts: await Promise.all(
-          step.artifacts.map(async (a) => {
-            const blobName = a.storageKey.replace(/^azure:\/\//, "");
-            const [preview, download] = await Promise.all([
-              generateReadSasUrl(blobName, { mode: "preview", mimeType: a.mimeType, expiresInMinutes: 120 }),
-              generateReadSasUrl(blobName, {
-                mode: "download",
-                mimeType: a.mimeType,
-                fileName: `${a.kind}-${a.id.slice(0, 8)}`,
-                expiresInMinutes: 120,
-              }),
-            ]);
-            return { ...a, previewUrl: preview.url, downloadUrl: download.url };
-          }),
-        ),
+        artifacts: await Promise.all(step.artifacts.map(withArtifactUrls)),
       })),
     );
     return { ...workflow, steps: stepsWithUrls };
   });
 
-  app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req) =>
-    prisma.workflowStep.findMany({ where: { workflowId: req.params.id }, orderBy: { sequence: "asc" } }),
-  );
+  app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req, reply) => {
+    if (!(await authorize(req, reply, "workflow", req.params.id))) return;
+    return prisma.workflowStep.findMany({ where: { workflowId: req.params.id }, orderBy: { sequence: "asc" } });
+  });
 
   app.post<{ Params: { id: string; stepKey: string }; Body: unknown }>(
     "/workflows/:id/steps/:stepKey/advance",
     async (req, reply) => {
+      if (!(await authorize(req, reply, "workflow", req.params.id))) return;
       try {
         const job = await advanceStep(req.params.id, req.params.stepKey, req.body);
         return reply.code(202).send({ stepKey: req.params.stepKey, status: "queued", jobId: job.id });
@@ -152,11 +140,15 @@ export async function workflowsRoutes(app: FastifyInstance) {
   );
 
   app.post<{ Params: { id: string } }>("/workflows/:id/cancel", async (req, reply) => {
-    const workflow = await prisma.workflow.findUnique({
+    if (!(await authorize(req, reply, "workflow", req.params.id))) return;
+    const workflow = await prisma.workflow.findUniqueOrThrow({
       where: { id: req.params.id },
       include: { steps: { include: { job: true } }, agent: true },
     });
-    if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
+    // Finished workflows keep their history; cancelling them is a no-op.
+    if (TERMINAL.includes(workflow.status)) {
+      return reply.code(409).send({ error: `workflow is already ${workflow.status}` });
+    }
 
     let removedQueued = 0;
     let stillRunning = false;
@@ -186,10 +178,16 @@ export async function workflowsRoutes(app: FastifyInstance) {
     }
 
     const status = stillRunning ? "cancelling" : "cancelled";
-    await prisma.workflow.update({ where: { id: req.params.id }, data: { status } });
+    // Conditional: a worker may have finished the workflow while we were
+    // inspecting the queue -- don't overwrite that outcome.
+    const { count } = await prisma.workflow.updateMany({
+      where: { id: req.params.id, status: { notIn: TERMINAL } },
+      data: { status },
+    });
+    if (count === 0) return reply.code(409).send({ error: "workflow finished before it could be cancelled" });
     if (status === "cancelled") {
       for (const s of workflow.steps) {
-        if (["running", "queued", "pending"].includes(s.status)) {
+        if (["running", "queued", "pending", "awaiting_review"].includes(s.status)) {
           await prisma.workflowStep.update({ where: { id: s.id }, data: { status: "failed" } });
         }
       }

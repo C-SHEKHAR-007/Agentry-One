@@ -21,3 +21,8 @@ export function getQueueEvents(queueName: string): QueueEvents {
   }
   return qe;
 }
+
+/** Closes every Queue/QueueEvents this process opened (graceful shutdown). */
+export async function closeQueues(): Promise<void> {
+  await Promise.allSettled([...queues.values(), ...queueEvents.values()].map((q) => q.close()));
+}

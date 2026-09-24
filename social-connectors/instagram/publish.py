@@ -71,10 +71,11 @@ def _publish_via_instagrapi(username: str, password: str, text: str, media_url: 
     local_path = None
     if media_url.startswith("http://") or media_url.startswith("https://"):
         suffix = ".mp4" if any(ext in media_url.lower() for ext in [".mp4", ".mov", "video"]) else ".jpg"
+        from python.sdk.net_safety import fetch_public_url
+
+        data = fetch_public_url(media_url)
         temp_media = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        res = requests.get(media_url, timeout=60)
-        res.raise_for_status()
-        temp_media.write(res.content)
+        temp_media.write(data)
         temp_media.close()
         local_path = temp_media.name
     elif media_url.startswith("/"):

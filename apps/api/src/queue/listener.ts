@@ -4,10 +4,15 @@ import { stat } from "node:fs/promises";
 import { prisma } from "../db/client.js";
 import { getQueueEvents } from "./queues.js";
 import { publishJobEvent } from "./sse.js";
+import { resolveArtifactPath } from "../modules/artifacts/storage.js";
 import { handleWorkflowSettled } from "../modules/templates/service.js";
 import { advanceOrCompleteWorkflow } from "../modules/workflows/service.js";
 
-async function fileStats(path: string): Promise<{ sizeBytes: bigint; checksum: string } | null> {
+async function fileStats(storageKey: string): Promise<{ sizeBytes: bigint; checksum: string } | null> {
+  if (storageKey.startsWith("azure://")) return null;
+  // Worker-reported paths are only trusted inside ARTIFACTS_DIR.
+  const path = resolveArtifactPath(storageKey);
+  if (!path) return null;
   try {
     const info = await stat(path);
     const hash = createHash("sha256");

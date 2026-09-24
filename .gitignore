@@ -8,3 +8,4 @@ __pycache__/
 venv/
 /artifacts/
 output/
+dist-e2e/

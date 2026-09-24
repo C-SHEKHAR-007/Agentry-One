@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { Spinner } from "./ui/spinner";
+import { ErrorBoundary } from "./ErrorBoundary";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Sidebar, SidebarContent } from "./shell/Sidebar";
 import { Topbar } from "./shell/Topbar";
@@ -120,7 +122,17 @@ export function Layout() {
           onOpenPalette={() => setPaletteOpen(true)}
         />
         <main className="w-full flex-1 overflow-y-auto p-4 md:p-8">
-          <Outlet />
+          <ErrorBoundary key={location.pathname}>
+            <Suspense
+              fallback={
+                <div className="flex justify-center py-16">
+                  <Spinner className="h-6 w-6 text-primary" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 

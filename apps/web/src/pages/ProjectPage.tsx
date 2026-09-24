@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { NotFoundPage } from "./NotFoundPage";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -37,7 +38,7 @@ export function ProjectPage() {
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const { data: project } = useQuery({
+  const { data: project, isError: projectLoadFailed } = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api.get<Project>(`/projects/${projectId}`),
   });
@@ -57,6 +58,7 @@ export function ProjectPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  if (projectLoadFailed) return <NotFoundPage what="project" />;
   if (!project) {
     return (
       <div className="space-y-4">

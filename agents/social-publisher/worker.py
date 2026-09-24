@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from python.sdk.agent_job import AgentJob
 from python.sdk.artifact_io import local_artifact_path, read_text_artifact, resolve_to_local_path, resolve_to_public_url, write_artifact_file
+from python.sdk.net_safety import assert_public_http_url
 from python.sdk.runner import run_agent
 from python.sdk.social_connectors import load_publisher
 
@@ -55,7 +56,8 @@ async def run(job: AgentJob) -> dict:
     media_url = None
     if raw_media:
         if raw_media.startswith("http://") or raw_media.startswith("https://"):
-            media_url = raw_media
+            # Connectors download (or forward) this URL; refuse internal targets.
+            media_url = assert_public_http_url(raw_media)
         elif raw_media.startswith("azure://"):
             scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
             local_path = resolve_to_local_path(raw_media, scratch_dir)
