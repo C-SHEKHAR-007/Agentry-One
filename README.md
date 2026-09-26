@@ -59,7 +59,14 @@ docker compose up -d --build
 * `REDIS_URL` (default: `redis://host.docker.internal:6379`)
 * `OLLAMA_HOST` (default: `http://ollama-host:11434`)
 
-Tests: `cd apps/api && npx vitest run` (pure logic, no infra needed) and `python -m pytest agents/sketch/tests/`.
+Tests (all run in CI — `.github/workflows/ci.yml`):
+
+- API unit tests: `cd apps/api && npx vitest run` (no infra needed)
+- Web unit tests: `cd apps/web && npx vitest run`
+- Python SDK: `python -m pytest python/sdk/tests -c python/sdk/pytest.ini --rootdir python/sdk`
+- End to end, against a running stack on a **disposable** database (it performs first-run setup): `AGENTRY_API_URL=... AGENTRY_API_KEY=... python scripts/e2e_smoke.py`, then `cd apps/e2e && E2E_API_URL=... npx playwright test`
+
+Workers need `AGENTRY_API_KEY` and `AGENTRY_API_URL` in their environment: job credentials are fetched from the API at run time rather than carried in Redis (see [docs/12-security-and-auth.md](docs/12-security-and-auth.md)).
 
 ## Adding a new agent
 
