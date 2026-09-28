@@ -379,6 +379,7 @@ model TemplateRun {
   template Template          @relation(fields: [templateId], references: [id], onDelete: Cascade)
   steps    TemplateRunStep[]
 
+  @@index([templateId, createdAt])
   @@map("template_runs")
 }
 
