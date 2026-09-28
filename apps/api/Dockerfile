@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- build: full deps, Prisma client, compiled JS ---------------------------
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 # openssl is required by Prisma's query engine on slim images
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -19,7 +19,7 @@ USER node
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 # ---- runtime: production deps + compiled output only, non-root --------------
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends openssl tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production \
