@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../api/client";
@@ -62,6 +62,7 @@ export function emptyStep(order: number): StepDraft {
  * the canvas view bind to this hook's state and helpers. */
 export function useTemplateDraft(templateId: string | undefined, projectIdFromQuery: string) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isNew = templateId === undefined;
 
   const { data: agents } = useQuery({
@@ -150,6 +151,8 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
     onSuccess: (template) => {
       setServerErrors([]);
       setBaseline(JSON.stringify({ name, steps }));
+      // Workflow lists (library, project page) show names and steps.
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
       toast.success("Workflow saved");
       if (isNew) navigate(`/templates/${template.id}/edit`, { replace: true });
     },
