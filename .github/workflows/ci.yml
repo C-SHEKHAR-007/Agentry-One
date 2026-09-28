@@ -63,44 +63,29 @@ jobs:
       - run: npx vite build
 
   python:
-    name: Python SDK tests
+    name: Python (lint, SDK tests)
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install pytest pytest-asyncio requests bullmq pillow
-      - run: python -m pytest python/sdk/tests -q -c python/sdk/pytest.ini --rootdir python/sdk
-
-  e2e:
-    name: End-to-end (API + worker + browser)
-    runs-on: ubuntu-latest
-    needs: [api, web, python]
     services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: agentry
-          POSTGRES_PASSWORD: agentry
-          POSTGRES_DB: agentry
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U agentry" --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7
         ports: ["6379:6379"]
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://agentry:agentry@localhost:5432/agentry
-      REDIS_URL: redis://localhost:6379
-      PORT: "4000"
-      HOST: 127.0.0.1
-      AGENTRY_API_URL: http://127.0.0.1:4000
-      AGENTRY_API_KEY: ci-e2e-api-key-0123456789
-      PUBLIC_API_BASE: ""
-      NODE_ENV: development
+      TEST_REDIS_URL: redis://localhost:6379/6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r python/sdk/requirements.txt pytest pytest-asyncio pillow ruff==0.8.4
+      - run: ruff check .
+      - run: python -m pytest python/sdk/tests -q -c python/sdk/pytest.ini --rootdir python/sdk
+
+  e2e:
+    name: End-to-end (docker compose stack + browser)
+    runs-on: ubuntu-latest
+    needs: [api, web, python]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -109,43 +94,46 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install
+      - name: Write throwaway secrets
         run: |
-          npm ci --prefix apps/api
-          npm ci --prefix apps/web
-          npm ci --prefix apps/e2e
-          npx --prefix apps/e2e playwright install --with-deps chromium
-          pip install requests bullmq
-      - name: Start API and echo worker
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 16)"
+            echo "AGENTRY_API_KEY=ci-$(openssl rand -hex 16)"
+            echo "AGENTRY_CREDENTIALS_KEY=$(openssl rand -base64 32)"
+            echo "WEB_PORT=8080"
+            echo "COOKIE_SECURE=false"
+            echo "SKETCH_ALLOW_PLACEHOLDER=true"
+          } > .env
+      - name: Build and start the stack (the real deployment images)
+        run: docker compose up -d --build --wait
+      - name: API smoke test through nginx (flows + security boundaries)
         run: |
-          export AGENTRY_CREDENTIALS_KEY="$(openssl rand -base64 32)"
-          export ARTIFACTS_DIR="$RUNNER_TEMP/artifacts"
-          mkdir -p "$ARTIFACTS_DIR"
-          (cd apps/api && npx prisma generate && npx prisma migrate deploy)
-          (cd apps/api && nohup npx tsx src/server.ts > "$RUNNER_TEMP/api.log" 2>&1 &)
-          nohup python agents/echo-agent/worker.py > "$RUNNER_TEMP/worker.log" 2>&1 &
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:4000/health && break; sleep 1; done
-      - name: API smoke test (flows + security boundaries)
-        run: python scripts/e2e_smoke.py
-      - name: Browser tests
+          pip install requests
+          set -a; . ./.env; set +a
+          AGENTRY_API_URL=http://localhost:8080/api python scripts/e2e_smoke.py
+      - name: Browser tests against the nginx deployment (incl. CSP)
         working-directory: apps/e2e
         env:
-          E2E_API_URL: http://127.0.0.1:4000
+          E2E_BASE_URL: http://localhost:8080
           E2E_EMAIL: e2e-owner@example.com
           E2E_PASSWORD: e2e-owner-password
         run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          set -a; . ../../.env; set +a
           # The smoke test ends by tripping the per-IP login rate limit (10/min).
           sleep 65
-          curl -sf -X POST "$AGENTRY_API_URL/users" -H "X-API-Key: $AGENTRY_API_KEY" -H 'Content-Type: application/json' \
+          curl -sf -X POST "$E2E_BASE_URL/api/users" -H "X-API-Key: $AGENTRY_API_KEY" -H 'Content-Type: application/json' \
             -d "{\"email\":\"$E2E_EMAIL\",\"password\":\"$E2E_PASSWORD\",\"role\":\"owner\"}"
           npx playwright test
       - name: Service logs
         if: failure()
-        run: |
-          echo "::group::api.log"; cat "$RUNNER_TEMP/api.log" || true; echo "::endgroup::"
-          echo "::group::worker.log"; cat "$RUNNER_TEMP/worker.log" || true; echo "::endgroup::"
+        run: docker compose logs --no-color
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-report
           path: apps/e2e/playwright-report
+      - if: always()
+        run: docker compose down -v

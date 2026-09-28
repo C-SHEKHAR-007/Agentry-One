@@ -46,18 +46,14 @@ cd agents/sketch && python3 -m venv .venv && source .venv/bin/activate \
 cd apps/web && npm install && npx vite
 ```
 
-### Docker Compose
-
-You can run the API, Web UI, and Sketch Worker via Docker Compose:
+### Docker Compose (recommended)
 
 ```bash
-docker compose up -d --build
+cp .env.example .env   # set POSTGRES_PASSWORD, REDIS_PASSWORD, AGENTRY_API_KEY, AGENTRY_CREDENTIALS_KEY
+docker compose up -d --build --wait
 ```
 
-`docker-compose.yml` connects to your external Postgres and Redis instances. You can configure the connection URLs in your `.env` file or shell environment:
-* `DATABASE_URL` (default: `postgresql://agentry:agentry_dev@host.docker.internal:5432/agentry`)
-* `REDIS_URL` (default: `redis://host.docker.internal:6379`)
-* `OLLAMA_HOST` (default: `http://ollama-host:11434`)
+The Compose stack runs its own Postgres, Redis, a one-shot migration, the API, the worker runner and the web UI on a private network. Only the web UI is published, at `http://localhost:${WEB_PORT:-8080}`, and it proxies `/api`. Storage, TLS, local SD-Turbo, upgrades and backups are covered in [docs/10-deployment.md](docs/10-deployment.md).
 
 Tests (all run in CI — `.github/workflows/ci.yml`):
 

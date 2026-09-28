@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import sys
 import uuid
@@ -43,7 +42,6 @@ def search_web_live(query: str, max_results: int = 6) -> list[dict]:
     # 2. Try DuckDuckGo HTML Lite search if we need more results
     if len(results) < 3:
         try:
-            html_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query + ' trending latest')}"
             res = requests.post(
                 "https://html.duckduckgo.com/html/",
                 data={"q": f"{query} trending news"},
@@ -56,7 +54,6 @@ def search_web_live(query: str, max_results: int = 6) -> list[dict]:
             if res.ok and "result__snippet" in res.text:
                 import re
                 snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', res.text, re.DOTALL)
-                titles = re.findall(r'<a class="result__url[^>]*>(.*?)</a>', res.text, re.DOTALL)
                 
                 for idx, snip in enumerate(snippets[:max_results]):
                     cleaned_snip = re.sub(r'<[^>]+>', '', snip).strip()

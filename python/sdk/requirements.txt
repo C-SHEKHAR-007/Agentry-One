@@ -1,0 +1,6 @@
+# Shared runtime for every agent worker (python/sdk). Pinned for reproducible
+# builds; bump deliberately and re-run the e2e suite.
+bullmq==3.2.5
+requests==2.34.2
+azure-storage-blob==12.30.2
+redis==7.4.1

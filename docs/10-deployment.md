@@ -1,86 +1,77 @@
 # 10 — Deployment
 
-Phase 1 deployment target is **a single machine, via Docker Compose** — the same tool VSplitter already uses successfully. No Kubernetes, no multi-machine orchestration (see [14-roadmap.md](14-roadmap.md) for when that might become relevant).
+Target: **a single machine, via Docker Compose** (`docker-compose.yml`). Kubernetes and multi-machine setups are roadmap items ([14-roadmap.md](14-roadmap.md)).
 
-## Service list
+## Services
 
-```yaml
-services:
-  postgres:
-    image: postgres:16
-    volumes: [postgres_data:/var/lib/postgresql/data]
-    environment: [POSTGRES_DB=agentry, POSTGRES_USER=agentry, POSTGRES_PASSWORD=...]
+| Service | Image | Role | Published |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` | Database (volume `pgdata`) | no |
+| `redis` | `redis:7-alpine` | Queues; `requirepass` auth + AOF persistence (volume `redisdata`) | no |
+| `migrate` | `apps/api` target `migrate` | One-shot `prisma migrate deploy`; the API starts only after it succeeds | no |
+| `api` | `apps/api` target `runtime` | Compiled Fastify API, non-root, `tini` as PID 1, Docker `HEALTHCHECK` on `/health` | no (internal `api:4000`) |
+| `worker` | `agents/Dockerfile` | Worker supervisor running every agent under `agents/`, non-root, `tini` | no |
+| `web` | `apps/web` | Unprivileged nginx serving the SPA and proxying `/api/` to the API, with CSP and security headers | `${WEB_PORT:-8080}` |
 
-  redis:
-    image: redis:7
+All services share a private bridge network; only the web port is published. Startup is ordered by health: postgres → migrate → api → worker/web. Every long-running service has `restart: unless-stopped`.
 
-  api:
-    build: ./apps/api
-    depends_on: [postgres, redis]
-    ports: ["3000:3000"]
-    volumes: [artifact_storage:/artifacts]
-    environment:
-      - DATABASE_URL=postgres://agentry:...@postgres:5432/agentry
-      - REDIS_URL=redis://redis:6379
+## First run
 
-  web:
-    build: ./apps/web
-    depends_on: [api]
-    ports: ["5173:80"]   # built static assets served behind a lightweight web server
-
-  worker-video:
-    build: ./agents/video
-    depends_on: [redis, postgres]
-    volumes:
-      - artifact_storage:/artifacts
-      - huggingface_cache:/root/.cache/huggingface
-      - vsplitter_cache:/root/.cache/vsplitter   # MediaPipe face model, same cache pattern as VSplitter itself
-    environment:
-      - REDIS_URL=redis://redis:6379
-      - OLLAMA_HOST=http://ollama-host:11434   # see networking note below
-
-  worker-sketch:
-    build: ./agents/sketch
-    depends_on: [redis, postgres]
-    volumes:
-      - artifact_storage:/artifacts
-      - sketch_model_cache:/root/.cache/huggingface   # SD-Turbo weights, loaded once and reused across restarts
-    environment:
-      - REDIS_URL=redis://redis:6379
-
-volumes:
-  postgres_data:
-  artifact_storage:
-  huggingface_cache:
-  vsplitter_cache:
-  sketch_model_cache:
+```bash
+cp .env.example .env
+# required: POSTGRES_PASSWORD, REDIS_PASSWORD, AGENTRY_API_KEY (16+ chars),
+#           AGENTRY_CREDENTIALS_KEY (openssl rand -base64 32)
+docker compose up -d --build --wait
+open http://localhost:8080        # first visit runs the owner setup
 ```
 
-## Networking: a targeted correction to VSplitter's own shortcut
+Compose refuses to start if a required secret is missing, and the API refuses to boot with invalid configuration (`apps/api/src/config.ts`).
 
-VSplitter's existing `docker-compose.yml` uses `network_mode: host` for its one and only service, specifically so it can reach a host-installed Ollama at `localhost:11434` with zero extra configuration. That was a reasonable shortcut for a single-service app, but it's the wrong default for a multi-service stack — `network_mode: host` would put every Agentry service (Postgres, Redis, the API, both workers) directly on the host's network namespace, discarding the isolation and service-name DNS that normal Docker Compose bridge networking provides for no benefit to most of those services.
+## Storage
 
-**Only `worker-video` actually needs to reach Ollama.** The targeted fix: add `extra_hosts: ["ollama-host:host-gateway"]` to just that one service (Docker Compose's standard mechanism for letting one container reach the host without full host networking) and point `OLLAMA_HOST` at that hostname. Every other service uses normal bridge networking and reaches its peers by service name (`postgres`, `redis`, `api`) exactly as Compose intends.
+- `STORAGE_PROVIDER=local` (default): artifacts live in the shared `artifacts` volume, mounted at `/artifacts` in both `api` and `worker` (both run as uid 1000).
+- `STORAGE_PROVIDER=azure`: set `AZURE_STORAGE_CONNECTION_STRING` and a **dedicated** `AZURE_STORAGE_CONTAINER` (default `agentry-artifacts`). Don't share a container with other applications.
+- `./agents` is bind-mounted read-write into the API (Agent Studio scaffolds new agents there) and read-only into the worker (the supervisor starts new agents within ~5s).
 
-## Volumes
+## Local image generation
 
-- `postgres_data` — database files.
-- `artifact_storage` — shared between `api` (serves downloads) and both workers (write outputs). Local disk only in Phase 1; see below.
-- `huggingface_cache` / `vsplitter_cache` — reused verbatim from VSplitter's own proven pattern, avoiding re-downloading the Whisper model and MediaPipe face-detector model on every container rebuild.
-- `sketch_model_cache` — the equivalent pattern for Sketch Agent's SD-Turbo weights.
+The worker image ships without PyTorch. Either configure a hosted image provider (e.g. Stability AI), or build with the local SD-Turbo stack (~2 GB):
 
-## Storage backend
+```bash
+INSTALL_LOCAL_SD=true docker compose build worker
+```
 
-Phase 1 uses **local filesystem storage only** for artifacts (`storage_backend: "local_fs"` in the `artifacts` table, see [05-database-schema.md](05-database-schema.md)). The storage layer is accessed through one internal interface (conceptually, `packages/storage` in the eventual application code) specifically so that adding an S3/MinIO-backed driver later is a new implementation of that interface, not a rewrite of every place that reads or writes an artifact. Object storage itself is explicit roadmap work (see [14-roadmap.md](14-roadmap.md)) — not needed until either the artifact volume outgrows a single disk or the platform needs to run across more than one machine.
+Model weights download on first use into the `hf-cache` volume. Without either, the sketch agent fails with a clear error, unless `SKETCH_ALLOW_PLACEHOLDER=true` (development only), which produces placeholder images.
 
-## Artifact retention
+## Behind a TLS proxy
 
-Nothing in Phase 1 ever deletes an artifact automatically. Video clips and generated images accumulate in `artifact_storage` indefinitely — for a solo operator running both agents personally, this is a real, foreseeable disk-usage problem, not a hypothetical one, so it's worth a plain policy statement rather than silence:
+Terminate TLS in front of `web`. Keep `NODE_ENV=production`, so session cookies are `Secure`, and set `FRONTEND_URL` / `GOOGLE_REDIRECT_URI` to the public HTTPS origin. The API trusts `X-Forwarded-For` from loopback and private networks (`TRUST_PROXY`), so per-IP rate limits see real client addresses. `COOKIE_SECURE=false` exists only to test a production build over plain HTTP.
 
-- **Phase 1 policy: manual cleanup only.** The operator is responsible for periodically deleting old workflows/artifacts they no longer need (a `DELETE /workflows/:id` cascading to its artifacts, or a manual `docker exec` cleanup of the volume, is enough for one person).
-- **What's deliberately not built yet:** no TTL/expiry field on `artifacts`, no scheduled cleanup job, no storage-quota enforcement or warning. Automated retention is real future work (see [14-roadmap.md](14-roadmap.md)) — it's excluded from Phase 1 specifically because it's easy to get wrong in a way that's much worse than doing nothing (silently deleting an artifact the operator actually wanted), and there's no evidence yet of how much cleanup pressure real usage actually creates.
-- If disk usage becomes a problem before automated retention is built, the immediate manual mitigation is deleting old `output/<job>/` -equivalent directories directly, the same way VSplitter's own `output/` folder is managed today.
+## Shutdown and upgrades
 
-## What's not here
+`docker compose up -d --build` rebuilds and replaces containers.
+- **API:** SIGTERM drains HTTP, the scheduler and queue connections within 25s.
+- **Worker:** the supervisor gives in-flight jobs `SUPERVISOR_STOP_TIMEOUT_SEC` (120s) to finish. `stop_grace_period: 150s` covers that window, so jobs aren't killed and re-run as stalled.
+- **Migrations:** these run in the `migrate` service before the new API starts.
 
-No Kubernetes manifests, no autoscaling, no multi-machine service discovery, no managed-database migration path (RDS/Cloud SQL) — all explicit roadmap items, deferred until there's an actual scaling need past a single operator on a single machine.
+## Backups
+
+- Back up Postgres with `docker compose exec postgres pg_dump -U agentry agentry`.
+- Back up the `artifacts` volume, or your blob container.
+- Keep `AGENTRY_CREDENTIALS_KEY` separately. Without it, stored provider keys and social tokens can't be decrypted.
+- Redis holds queue state only; its AOF file lets queued jobs survive a restart.
+
+## Retention
+
+Artifacts are never deleted automatically. Delete projects to cascade their rows, and prune the volume or container by hand. Retention automation is a roadmap item.
+
+## Moving from the old host-networked compose
+
+The previous `docker-compose.yml` used host networking against an external Postgres and Redis. The new stack has its own database. To keep existing data, dump it and restore it into the new `postgres` service:
+
+```bash
+pg_dump "$OLD_DATABASE_URL" > agentry.sql
+docker compose up -d postgres
+docker compose exec -T postgres psql -U agentry agentry < agentry.sql
+docker compose up -d --build
+```

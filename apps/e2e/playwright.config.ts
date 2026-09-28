@@ -9,6 +9,9 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const PORT = Number(process.env.E2E_WEB_PORT ?? 5174);
 const API_URL = process.env.E2E_API_URL ?? "http://localhost:4000";
+/** Set to test an already-running deployment (e.g. the compose stack's
+ * nginx on :8080) instead of starting a local build. */
+const EXTERNAL_BASE_URL = process.env.E2E_BASE_URL;
 
 export default defineConfig({
   testDir: "./tests",
@@ -18,7 +21,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    baseURL: EXTERNAL_BASE_URL ?? `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -29,7 +32,7 @@ export default defineConfig({
       dependencies: ["setup"],
     },
   ],
-  webServer: {
+  webServer: EXTERNAL_BASE_URL ? undefined : {
     // A production build served by `vite preview` (same /api proxy): tests the
     // real bundle, and needs no file watchers.
     command: `cd ../web && npx vite build --outDir dist-e2e --emptyOutDir && npx vite preview --outDir dist-e2e --port ${PORT} --strictPort`,

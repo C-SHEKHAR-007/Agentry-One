@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from python.sdk.agent_job import AgentJob
 from python.sdk.artifact_io import local_artifact_path, read_text_artifact, resolve_to_local_path, resolve_to_public_url, write_artifact_file
+from python.sdk.idempotency import run_once
 from python.sdk.net_safety import assert_public_http_url
 from python.sdk.runner import run_agent
 from python.sdk.social_connectors import load_publisher
@@ -89,7 +90,16 @@ async def run(job: AgentJob) -> dict:
         receipt = f"[MOCK -- no app credentials configured] Would have posted to {platform}: {caption}{media_note}"
     else:
         await job.report_progress(60, f"Publishing to {platform}...")
-        post_url = load_publisher(platform)(access_token, caption, media_url)
+        publish = load_publisher(platform)
+
+        async def do_publish() -> str:
+            # Connectors are blocking (HTTP, sleeps, instagrapi logins); run them
+            # off the event loop so BullMQ can keep renewing the job lock --
+            # otherwise a slow upload lets the lock lapse and the job re-runs.
+            return await asyncio.get_running_loop().run_in_executor(None, publish, access_token, caption, media_url)
+
+        # At most one real post per job, even across stalled-job re-runs.
+        post_url = await run_once(f"publish:{job.job_id}", do_publish)
         receipt = f"Posted to {platform}: {caption}{media_note}"
 
     await job.report_progress(100, "Successfully published!")

@@ -1,2 +1,1 @@
-bullmq
-requests
+-r ../../python/sdk/requirements.txt

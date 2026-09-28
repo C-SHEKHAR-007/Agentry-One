@@ -1,9 +1,15 @@
 **/.venv
 **/node_modules
 **/dist
+**/dist-e2e
 **/__pycache__
 **/.pytest_cache
+**/*.tsbuildinfo
 .git
+.github
+.env
+.env.*
 artifacts
 docs
 apps
+scripts

@@ -24,6 +24,10 @@ FRAME_SIZE = 1080  # square -- a reasonable default across Reels/Shorts/TikTok/f
 CAPTION_FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 
+FFMPEG_TIMEOUT_SEC = 150
+MAX_DURATION_SEC = 120  # matches the manifest's inputSchema maximum
+
+
 def _escape_drawtext(text: str) -> str:
     # ffmpeg's drawtext filter treats : \ ' and % as syntax -- escape them.
     for ch in ("\\", ":", "'", "%"):
@@ -32,7 +36,10 @@ def _escape_drawtext(text: str) -> str:
 
 
 def _run_ffmpeg(args: list[str]) -> None:
-    result = subprocess.run(["ffmpeg", "-y", *args], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["ffmpeg", "-y", *args], capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_SEC)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"ffmpeg did not finish within {FFMPEG_TIMEOUT_SEC}s") from None
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {result.stderr[-2000:]}")
 
@@ -87,6 +94,8 @@ async def assemble(job: AgentJob) -> dict:
     # upstream text artifact's storage_key) -- resolve either to real text.
     caption = read_text_artifact(job.params.get("caption") or "") or None
     duration_sec = float(job.params.get("durationSec", 6))
+    if not 1 <= duration_sec <= MAX_DURATION_SEC:
+        raise ValueError(f"durationSec must be between 1 and {MAX_DURATION_SEC}")
 
     if not Path(image_path).exists():
         raise ValueError(f"could not resolve imagePath to a local file: {job.params['imagePath']}")

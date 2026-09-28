@@ -6,6 +6,7 @@ and the plan's provider/capability design."""
 from __future__ import annotations
 
 import io
+import os
 from dataclasses import dataclass
 
 
@@ -28,7 +29,15 @@ def _load_local_sd_turbo():
             _local_pipeline = AutoPipelineForText2Image.from_pretrained(
                 "stabilityai/sd-turbo", torch_dtype=torch.float32
             )
-        except ImportError:
+        except ImportError as exc:
+            # Never silently hand users a fake image as a "successful" result:
+            # the placeholder is an explicit development opt-in only.
+            if os.environ.get("SKETCH_ALLOW_PLACEHOLDER") != "true":
+                raise RuntimeError(
+                    "Local SD-Turbo needs torch + diffusers, which this worker doesn't have. "
+                    "Build the worker image with INSTALL_LOCAL_SD=true, configure a hosted image "
+                    "provider (e.g. Stability AI), or set SKETCH_ALLOW_PLACEHOLDER=true for development."
+                ) from exc
             _local_pipeline = "pil_fallback"
     return _local_pipeline
 
@@ -70,7 +79,7 @@ def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: in
             generator=generator,
         ).images[0]
     else:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
         image = Image.new("RGB", (512, 512), color=(245, 243, 238))
         draw = ImageDraw.Draw(image)
         draw.rectangle([16, 16, 496, 496], outline=(70, 70, 70), width=3)

@@ -10,17 +10,17 @@ datasource db {
 // --- Phase 0: 13 core tables ---
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
-  firstName    String?   @map("first_name")
-  lastName     String?   @map("last_name")
-  avatarUrl    String?   @map("avatar_url")
+  id            String         @id @default(uuid())
+  email         String         @unique
+  firstName     String?        @map("first_name")
+  lastName      String?        @map("last_name")
+  avatarUrl     String?        @map("avatar_url")
   // Null for the pre-auth stub row; a user can log in only with a hash set.
-  passwordHash String?   @map("password_hash")
-  role         String    @default("member") // "owner" | "member"
-  createdAt    DateTime  @default(now()) @map("created_at")
-  projects     Project[]
-  sessions     Session[]
+  passwordHash  String?        @map("password_hash")
+  role          String         @default("member") // "owner" | "member"
+  createdAt     DateTime       @default(now()) @map("created_at")
+  projects      Project[]
+  sessions      Session[]
   notifications Notification[]
 
   @@map("users")
@@ -52,13 +52,14 @@ model Project {
   settings       Setting[]
   socialAccounts SocialAccount[]
 
+  @@index([userId])
   @@map("projects")
 }
 
 model SocialAccount {
   id           String    @id @default(uuid())
   projectId    String    @map("project_id")
-  platform     String    // "twitter", "linkedin", "instagram", etc.
+  platform     String // "twitter", "linkedin", "instagram", etc.
   handle       String?
   accessToken  String    @map("access_token")
   refreshToken String?   @map("refresh_token")
@@ -106,6 +107,8 @@ model Workflow {
   events           Event[]
   templateRunSteps TemplateRunStep[]
 
+  @@index([projectId])
+  @@index([status, createdAt])
   @@map("workflows")
 }
 
@@ -123,6 +126,7 @@ model WorkflowStep {
   job       Job?
   artifacts Artifact[]
 
+  @@index([workflowId])
   @@map("workflow_steps")
 }
 
@@ -160,6 +164,8 @@ model JobRun {
   job  Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
   logs Log[]
 
+  @@index([jobId])
+  @@index([status, finishedAt])
   @@map("job_runs")
 }
 
@@ -179,6 +185,8 @@ model Artifact {
   workflowStep WorkflowStep      @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
   versions     ArtifactVersion[]
 
+  @@index([workflowStepId])
+  @@index([createdAt])
   @@map("artifacts")
 }
 
@@ -231,11 +239,14 @@ model Event {
   workflow Workflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
   job      Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
 
+  @@index([workflowId])
+  @@index([jobId])
+  @@index([createdAt])
   @@map("events")
 }
 
 model Setting {
-  id        String @id @default(uuid())
+  id        String  @id @default(uuid())
   scope     String
   projectId String? @map("project_id")
   agentId   String? @map("agent_id")
@@ -283,6 +294,7 @@ model ProviderConfig {
   capability Capability @relation(fields: [capabilityId], references: [id])
   models     Model[]
 
+  @@index([capabilityId, scope, isDefault])
   @@map("provider_configs")
 }
 
@@ -315,11 +327,12 @@ model Template {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  steps   TemplateStep[]
-  runs    TemplateRun[]
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps     TemplateStep[]
+  runs      TemplateRun[]
   schedules WorkflowSchedule[]
 
+  @@index([projectId])
   @@map("templates")
 }
 
@@ -351,6 +364,7 @@ model WorkflowSchedule {
 
   template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
+  @@index([templateId])
   @@map("workflow_schedules")
 }
 
@@ -381,13 +395,15 @@ model TemplateRunStep {
   templateStep TemplateStep @relation(fields: [templateStepId], references: [id], onDelete: Cascade)
   workflow     Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
 
+  @@index([templateRunId])
+  @@index([workflowId])
   @@map("template_run_steps")
 }
 
 model Notification {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
-  type      String   // "info" | "success" | "warning" | "error"
+  type      String // "info" | "success" | "warning" | "error"
   title     String
   message   String
   read      Boolean  @default(false)

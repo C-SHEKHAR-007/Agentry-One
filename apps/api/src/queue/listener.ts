@@ -5,6 +5,7 @@ import { prisma } from "../db/client.js";
 import { getQueueEvents } from "./queues.js";
 import { publishJobEvent } from "./sse.js";
 import { resolveArtifactPath } from "../modules/artifacts/storage.js";
+import { jobOutcomes, trackQueue } from "../http/metrics.js";
 import { handleWorkflowSettled } from "../modules/templates/service.js";
 import { advanceOrCompleteWorkflow } from "../modules/workflows/service.js";
 
@@ -77,10 +78,11 @@ async function claimTerminal(jobId: string, status: "completed" | "failed"): Pro
   return count === 1;
 }
 
-async function markJobFailed(jobId: string, failedReason: string): Promise<void> {
+async function markJobFailed(jobId: string, failedReason: string, queueName: string): Promise<void> {
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: { include: { project: true } } } } } });
   if (!job) return;
   if (!(await claimTerminal(jobId, "failed"))) return;
+  jobOutcomes.inc({ queue: queueName, outcome: "failed" });
 
   const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
   if (latestRun) {
@@ -122,6 +124,7 @@ async function markJobFailed(jobId: string, failedReason: string): Promise<void>
 export function wireQueueListeners(queueName: string): void {
   if (wiredQueues.has(queueName)) return;
   wiredQueues.add(queueName);
+  trackQueue(queueName);
 
   const events = getQueueEvents(queueName);
 
@@ -151,20 +154,21 @@ export function wireQueueListeners(queueName: string): void {
   events.on("completed", safe("completed", async ({ jobId, returnvalue }: { jobId: string; returnvalue: unknown }) => {
     const parsed = parseEnvelope(returnvalue);
     if ("invalid" in parsed) {
-      await markJobFailed(jobId, parsed.invalid);
+      await markJobFailed(jobId, parsed.invalid, queueName);
       return;
     }
     const result = parsed;
     // The SDK runner returns (rather than throws) a failed envelope for some
     // errors, which BullMQ records as a *completion* -- route it to failure.
     if (result.status === "failed") {
-      await markJobFailed(jobId, result.error?.message || "worker reported failure");
+      await markJobFailed(jobId, result.error?.message || "worker reported failure", queueName);
       return;
     }
 
     const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: { include: { project: true } } } } } });
     if (!job) return;
     if (!(await claimTerminal(jobId, "completed"))) return;
+    jobOutcomes.inc({ queue: queueName, outcome: "completed" });
 
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
     if (latestRun) {
@@ -228,6 +232,6 @@ export function wireQueueListeners(queueName: string): void {
   }));
 
   events.on("failed", safe("failed", async ({ jobId, failedReason }: { jobId: string; failedReason: string }) => {
-    await markJobFailed(jobId, failedReason);
+    await markJobFailed(jobId, failedReason, queueName);
   }));
 }

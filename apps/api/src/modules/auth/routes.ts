@@ -36,7 +36,9 @@ const COOKIE_OPTS = {
   path: "/",
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
+  // Secure by default in production; COOKIE_SECURE=false only for local
+  // plain-HTTP testing of a production build.
+  secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production",
   maxAge: 30 * 24 * 60 * 60,
 };
 

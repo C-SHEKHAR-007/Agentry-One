@@ -6,7 +6,9 @@ import requests
 
 def post(access_token: str, text: str, media_url: str | None = None) -> str:
     # 1. Dev mock simulation
-    if access_token.startswith("dev_mock_") or "mock" in access_token:
+    # Only tokens minted by the dev-mock connect flow; a real credential that
+    # merely contains "mock" (e.g. a password) must never be faked.
+    if access_token.startswith("dev_mock_"):
         fake_id = f"{abs(hash(text)) % 1000000000000000000}"
         return f"https://twitter.com/i/web/status/{fake_id}"
 

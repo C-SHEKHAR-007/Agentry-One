@@ -81,32 +81,33 @@ Agentry/
 
 ## 4. Configuration reference
 
-All configuration is via environment variables (see `.env.example`):
+All configuration is via environment variables; `.env.example` lists every one, with comments. The essentials:
 
 | Variable | Used by | Meaning |
 |---|---|---|
-| `DATABASE_URL` | api | Postgres connection string. Local dev uses port **5433** (5432 was occupied by an unrelated native Postgres on the original dev machine). |
-| `REDIS_URL` | api, worker | Redis connection. Local dev uses the machine's native Redis on 6379; the compose stack uses its own internal `redis` service. |
-| `AGENTRY_CREDENTIALS_KEY` | api | **32-byte base64 master key** (`openssl rand -base64 32`) encrypting provider API keys at rest. Losing it makes stored provider secrets unrecoverable (re-enter them); leaking it + a DB dump exposes them. Never commit it. |
-| `AGENTRY_API_KEY` | api, web build | The single static API key every request must present (`X-API-Key` header; `?key=` query param for SSE/downloads, which can't set headers). The web image bakes it in at build time via the `VITE_AGENTRY_API_KEY` build arg. |
-| `AGENTS_DIR` | api | Where the registry scans for `*/manifest.json` (default: repo `agents/`; `/agents` in the container). |
-| `ARTIFACTS_DIR` | api, worker | Artifact storage root (default: repo `artifacts/`; a shared volume in compose). |
-| `PORT` | api | API port, default **4000** (3000 was occupied on the original dev machine). |
+| `DATABASE_URL` | api | Postgres connection (local dev). Compose builds its own from `POSTGRES_PASSWORD`. |
+| `REDIS_URL` | api, worker | Redis connection (local dev). Compose builds its own from `REDIS_PASSWORD`. |
+| `AGENTRY_CREDENTIALS_KEY` | api | 32-byte base64 key (`openssl rand -base64 32`) encrypting provider keys and social tokens at rest, and signing OAuth state. Back it up separately; never commit it. |
+| `AGENTRY_API_KEY` | api, worker | Admin credential (`X-API-Key`, 16+ chars). Workers use it to fetch job credentials at run time. |
+| `AGENTRY_API_URL` | worker | Where workers reach the API (`http://api:4000` in compose). |
+| `STORAGE_PROVIDER` | api, worker | `local` (default) or `azure` (plus `AZURE_STORAGE_CONNECTION_STRING` and `AZURE_STORAGE_CONTAINER`). |
+| `AGENTRY_DEV_MOCKS` | api | `true` enables simulated Google/social logins, outside production only. |
+| `CORS_ORIGINS`, `TRUST_PROXY`, `COOKIE_SECURE`, `PROVIDER_PRIVATE_HOSTS` | api | See [12-security-and-auth.md](12-security-and-auth.md) and [10-deployment.md](10-deployment.md). |
 
-**Security model (Phase 1, honest statement):** single-operator. One static API key is the only auth — no users, sessions, or RBAC. Provider-key encryption protects against database/backup leakage, **not** against compromise of the API host itself. Real auth is the first roadmap item ([14-roadmap.md](14-roadmap.md)).
+**Security model:** see [12-security-and-auth.md](12-security-and-auth.md). In short: owner and member roles, per-project isolation, write-only secrets that never enter Redis, SSRF guards, and rate-limited authentication.
 
 ---
 
 ## 5. Runbook
 
-### Fully containerized (recommended for a fresh machine)
+### Fully containerized (recommended)
 
 ```bash
-cp .env.example .env         # fill AGENTRY_CREDENTIALS_KEY + AGENTRY_API_KEY
-docker compose up -d --build
+cp .env.example .env   # set POSTGRES_PASSWORD, REDIS_PASSWORD, AGENTRY_API_KEY, AGENTRY_CREDENTIALS_KEY
+docker compose up -d --build --wait
 ```
 
-Web UI: `http://localhost:5173` - API: `http://localhost:4000`. The API container runs `prisma migrate deploy` automatically on start. First Sketch generation downloads the SD-Turbo weights (~2.5GB) into the `sketch_model_cache` volume — subsequent runs are warm (~10-20s per 512×512 image on CPU).
+The web UI is at `http://localhost:8080`, and the API is internal behind the web UI's `/api/`. Migrations run in the one-shot `migrate` service. Details, storage, TLS, upgrades and backups: [10-deployment.md](10-deployment.md).
 
 ### Local development (hot reload)
 
@@ -127,15 +128,16 @@ Don't run the containerized `api`/`web`/`worker-sketch` at the same time as the 
 | Task | How |
 |---|---|
 | Add/change an agent | Edit files under `agents/<id>/`, **restart the API** (registry scans at boot only — no hot reload, by design, ADR-0006) and start its worker. |
-| Rotate the client API key | Change `AGENTRY_API_KEY`, restart api, rebuild web (key is baked into the SPA at build time). |
+| Rotate the API key | Change `AGENTRY_API_KEY` and restart the api and worker (browsers use session cookies, not the key). |
 | DB migrations | `cd apps/api && npx prisma migrate dev --name <name>` (dev) / `npx prisma migrate deploy` (apply). |
 | Backup | `pg_dump` the `agentry` database + copy the artifacts directory/volume. The credentials master key must be backed up separately (it is *not* in the DB). |
 | Clean up disk | Artifacts are **never auto-deleted** (deliberate — see `10-deployment.md`). Delete old projects via the API/UI (cascades clean up DB rows) and remove their folders under `artifacts/`. |
-| Logs | API logs to stdout (Fastify/pino). Worker logs to stdout. Job attempt history/errors: `GET /jobs/:id` (the `logs` DB table exists but workers don't write to it yet — see §8). |
+| Logs & metrics | JSON logs on stdout from the API and workers; Prometheus metrics at `GET /metrics` (admin). See [13-observability-and-ops.md](13-observability-and-ops.md). |
 
 ### Troubleshooting
 
-- **`401 missing or invalid API key`** — send `X-API-Key: <AGENTRY_API_KEY>` (or `?key=` for SSE/download URLs).
+- **`401 missing or invalid credentials`** — sign in, or send `X-API-Key: <AGENTRY_API_KEY>`.
+- **Job fails with "could not fetch job credentials"** — the worker is missing `AGENTRY_API_KEY`/`AGENTRY_API_URL`, or can't reach the API.
 - **`422 no provider configured for required capability`** — expected guard: add/activate a provider for that capability at `/providers` (the seed `sd_turbo_local` default is created automatically at API boot).
 - **`500 AGENTRY_CREDENTIALS_KEY must decode to exactly 32 bytes`** — regenerate with `openssl rand -base64 32`.
 - **Job stuck `queued`** — the agent's worker isn't running or can't reach Redis. Check the worker process/container logs.
@@ -188,14 +190,14 @@ Authoritative source: [../apps/api/prisma/schema.prisma](../apps/api/prisma/sche
 
 Honest list — none of these are hidden surprises, all are deliberate scope decisions with rationale in the docs:
 
-1. **Minimal multi-user auth (Phase 2), not full RBAC.** Email+password login with DB-backed sessions and owner/member roles exists (`users` gained name/passwordHash/role + unique email; new `sessions` table; first-run /setup flow). Role checks apply only to user management — everything else is all-or-nothing once authenticated, and the static API key remains an owner-equivalent root credential for programmatic use. Per-resource authorization is still roadmap; harden before exposing to untrusted users.
+1. **Two roles, not fine-grained RBAC.** Owners (and the API key) administer everything; members are isolated to their own projects and can't change global configuration. There are no shared or team projects and no audit log ([12-security-and-auth.md](12-security-and-auth.md) lists the known gaps).
 2. **Video Agent not implemented** — designed only. VSplitter stays standalone. Consequently the `text-generation` capability has no consuming agent and no adapter (`generate_text()` raises `NotImplementedError` by design).
 3. **Provider adapters implemented: `sd_turbo_local` and `stability_ai`.** `openai_compatible`, `anthropic`, `replicate` are modeled as valid `provider_type` values but have no adapter yet (Replicate needs an async/polling adapter — see `docs/15`). The Stability adapter is verified to dispatch/authenticate against the real API but has not been exercised with a paid key end-to-end.
 4. **Templates are strictly sequential** — no branching, conditionals, or parallel fan-out (ADR-0005; roadmap item). With one registered agent, cross-agent chaining is architecturally supported (`fromStep` artifact wiring, validated at save) but has no real consumer yet.
-5. **Workers don't write to the `logs` table** — `GET /jobs/:id/logs` returns empty; stdout + `job_runs.error` are the debugging surfaces today.
+5. **Workers don't write to the `logs` table** — `GET /jobs/:id/logs` returns empty. Worker JSON logs on stdout (tagged with `job_id`) and `job_runs.error` are the debugging surfaces.
 6. **No artifact retention automation** — disk grows until you clean up manually (documented policy).
 7. **Mid-execution jobs can't be interrupted** — cancel prevents queued/next work; an actively-running generation finishes first.
-8. **SSE relay is in-process** — correct for the single API replica this deploys as; scaling to multiple API replicas would need a shared pub/sub (roadmap).
+8. **Single API replica.** The SSE relay and the login rate limiter are in-process; running multiple API replicas needs Redis pub/sub and a shared rate-limit store (roadmap).
 9. **Registry reloads only at API restart** (no hot-reload, ADR-0006).
 10. **CPU-only inference** — SD-Turbo at ~10-20s/image after warm load; the first job after worker start pays model-load time. GPU support would be a worker/container concern, not a platform change.
 
@@ -205,8 +207,18 @@ The forward-looking priority order for all deferred work is [14-roadmap.md](14-r
 
 ## 9. Testing & verification status
 
-| Suite | Command | Status |
+Everything below runs in CI (`.github/workflows/ci.yml`) on every push and PR.
+
+| Suite | Command | Covers |
 |---|---|---|
+| API unit tests | `cd apps/api && npx vitest run` | Validation, crypto, OAuth state signing, SSRF guard, cron/env/input validation, artifact path confinement, scaffolding, stats |
+| Migrations | `prisma migrate deploy` + `prisma migrate diff --exit-code` | Migration history builds exactly `schema.prisma` |
+| Web | `cd apps/web && npx tsc -b && npx vitest run && npx vite build` | Types, components, production bundle |
+| Python | `ruff check .` + `pytest python/sdk/tests` | Lint for real bugs; SDK providers, artifact confinement, SSRF guard, secret fetch, publish idempotency (against Redis) |
+| End-to-end smoke | `python scripts/e2e_smoke.py` against the compose stack | 60 checks of real flows and security boundaries, as owner, member and worker |
+| Browser | `cd apps/e2e && E2E_BASE_URL=... npx playwright test` | Login, deep links, sign-out, projects, not-found states, and zero CSP violations across 15 routes |
+
+---|---|---|
 | API unit tests (template validation, secret crypto, manifest scanning, stats/cost aggregation, agent scaffolding, session hashing) | `cd apps/api && npx vitest run` | 33/33 passing, no infra needed |
 | Sketch integration (real SD-Turbo inference) | `source agents/sketch/.venv/bin/activate && python -m pytest agents/sketch/tests/` | 1/1 passing; auto-skips if model not cached |
 | TypeScript | `npx tsc --noEmit` in `apps/api` and `apps/web` | Clean |

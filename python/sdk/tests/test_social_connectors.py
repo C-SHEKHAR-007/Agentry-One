@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from sdk import social_connectors
 from sdk.social_connectors import load_publisher
 

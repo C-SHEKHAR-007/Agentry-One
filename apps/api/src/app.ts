@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import Fastify, { type FastifyError } from "fastify";
 import sjson from "secure-json-parse";
 import { ValidationError } from "./http/validate.js";
+import { registerMetrics } from "./http/metrics.js";
 import { prisma } from "./db/client.js";
 import { getRedisConnection } from "./queue/connection.js";
 import { agentsRoutes } from "./modules/agents/routes.js";
@@ -26,6 +27,13 @@ import { socialAccountsRoutes } from "./modules/socialAccounts/routes.js";
 import { contentBriefsRoutes } from "./modules/contentBriefs/routes.js";
 import { notificationsRoutes } from "./modules/notifications/routes.js";
 
+function parseTrustProxy(value: string | undefined): boolean | string {
+  if (value === undefined || value === "") return "loopback,uniquelocal";
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return value;
+}
+
 const REDACTED_QUERY_PARAMS = ["key", "code", "state", "token", "access_token"];
 
 function redactUrl(url: string): string {
@@ -45,6 +53,11 @@ function allowedOrigins(): string[] {
 
 export function buildApp() {
   const app = Fastify({
+    // Behind the web tier's nginx (or any reverse proxy) req.ip must be the
+    // real client, or per-IP rate limits would be shared by every user.
+    // Default trusts proxies on loopback/private networks (e.g. the compose
+    // network); set TRUST_PROXY to "true", "false", or a list of addresses.
+    trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       serializers: {
@@ -77,6 +90,7 @@ export function buildApp() {
   // Opt-in per route (credential endpoints); in-memory, i.e. per API instance.
   app.register(rateLimit, { global: false });
   app.addHook("preHandler", requireAuth);
+  registerMetrics(app);
 
   app.setErrorHandler((err: FastifyError, req, reply) => {
     if (err instanceof ValidationError) {

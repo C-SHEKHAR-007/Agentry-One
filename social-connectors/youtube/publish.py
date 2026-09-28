@@ -3,15 +3,17 @@ Format: direct::{apiKey_or_OAuthToken} or OAuth Access Token.
 """
 
 from __future__ import annotations
-import requests
 
 
 def post(access_token: str, text: str, media_url: str | None = None) -> str:
-    if access_token.startswith("dev_mock_") or "mock" in access_token:
+    # Only tokens minted by the dev-mock connect flow; a real credential that
+    # merely contains "mock" (e.g. a password) must never be faked.
+    if access_token.startswith("dev_mock_"):
         fake_id = f"yt_{abs(hash(text)) % 10000000}"
         return f"https://youtube.com/shorts/{fake_id}"
 
-    token = access_token.replace("direct::", "").strip()
-    # Mock / live direct video upload simulation
-    fake_id = f"v_{abs(hash(text + str(media_url))) % 100000000}"
-    return f"https://youtube.com/shorts/{fake_id}"
+    # No real upload is implemented yet. Fail loudly rather than returning a
+    # made-up post URL that would tell the user something was published.
+    raise NotImplementedError(
+        "YouTube publishing is not implemented yet; connect a dev-mock account to test pipelines"
+    )
