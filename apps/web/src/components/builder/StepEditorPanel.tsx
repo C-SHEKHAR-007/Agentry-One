@@ -43,36 +43,36 @@ export function StepEditorPanel({
   return (
     <aside
       aria-label={`Edit step ${index + 1}`}
-      className="absolute inset-y-0 right-0 z-20 flex w-full max-w-[460px] flex-col border-l border-border bg-popover shadow-2xl animate-slide-in-right"
+      className="absolute inset-y-0 right-0 z-20 flex w-full max-w-[380px] flex-col border-l border-border bg-popover shadow-2xl animate-slide-in-right"
     >
-      <header className="flex items-center gap-3 border-b border-border px-5 py-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
+      <header className="flex items-center gap-2.5 border-b border-border px-4 py-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Step {index + 1} of {total}
           </p>
-          <h3 className="truncate font-semibold">{agent?.name ?? (step.agentId || "New step")}</h3>
+          <h3 className="truncate text-sm font-semibold">{agent?.name ?? (step.agentId || "New step")}</h3>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button size="icon" variant="ghost" aria-label="Previous step" disabled={index === 0} onClick={() => onSelect(index - 1)}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Previous step" disabled={index === 0} onClick={() => onSelect(index - 1)}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" aria-label="Next step" disabled={index === total - 1} onClick={() => onSelect(index + 1)}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Next step" disabled={index === total - 1} onClick={() => onSelect(index + 1)}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" aria-label="Close step editor" onClick={onClose}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Close step editor" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5">
-        <StepFields draft={draft} index={index} />
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <StepFields draft={draft} index={index} compact />
       </div>
 
-      <footer className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+      <footer className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5">
         {confirmDelete ? (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Remove this step?</span>

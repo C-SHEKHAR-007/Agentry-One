@@ -26,7 +26,7 @@ const LONG_TEXT = /prompt|text|caption|brief|description|message|topic|content/i
 
 /** Everything that configures one step: its agent, how each input is
  * sourced, and what it outputs. Used by the canvas sidebar and the form view. */
-export function StepFields({ draft, index }: { draft: TemplateDraft; index: number }) {
+export function StepFields({ draft, index, compact = false }: { draft: TemplateDraft; index: number; compact?: boolean }) {
   const step = draft.steps[index];
   const agent = step ? draft.manifestsById.get(step.agentId) : undefined;
   const manifestStep = agent?.manifest.steps.find((s) => s.key === step?.agentStepKey) ?? agent?.manifest.steps[0];
@@ -55,11 +55,12 @@ export function StepFields({ draft, index }: { draft: TemplateDraft; index: numb
   const agentSummary = draft.agents.find((a) => a.id === step.agentId);
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-2">
-        <Label htmlFor={`agent-${index}`}>Agent</Label>
+    <div className={compact ? "space-y-4" : "space-y-6"}>
+      <section className={compact ? "space-y-1.5" : "space-y-2"}>
+        <Label htmlFor={`agent-${index}`} className={cn(compact && "text-xs")}>Agent</Label>
         <Select
           id={`agent-${index}`}
+          className={cn(compact && "h-8 py-1 text-[13px]")}
           value={step.agentId}
           onChange={(e) => draft.updateStep(index, { agentId: e.target.value, inputMapping: {} })}
         >
@@ -71,7 +72,12 @@ export function StepFields({ draft, index }: { draft: TemplateDraft; index: numb
           ))}
         </Select>
         {(agent?.description || agentSummary?.description) && (
-          <p className="text-xs leading-relaxed text-muted-foreground">{agent?.description || agentSummary?.description}</p>
+          <p
+            title={agent?.description || agentSummary?.description}
+            className={cn("text-muted-foreground", compact ? "line-clamp-2 text-[11px] leading-snug" : "text-xs leading-relaxed")}
+          >
+            {agent?.description || agentSummary?.description}
+          </p>
         )}
         {agent && agent.manifest.steps.length > 1 && (
           <div className="pt-1">
@@ -104,8 +110,8 @@ export function StepFields({ draft, index }: { draft: TemplateDraft; index: numb
         </div>
       ) : (
         <>
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <section className={compact ? "space-y-2" : "space-y-3"}>
+            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[10px]" : "text-xs")}>
               Inputs <span className="font-normal normal-case tracking-normal">· {fields.length}</span>
             </h4>
             {fields.length === 0 && <p className="text-sm text-muted-foreground">This agent takes no inputs.</p>}
@@ -118,12 +124,13 @@ export function StepFields({ draft, index }: { draft: TemplateDraft; index: numb
                 schema={properties[field] ?? {}}
                 required={required.includes(field)}
                 issue={issues[field]}
+                compact={compact}
               />
             ))}
           </section>
 
           <section className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Outputs</h4>
+            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[10px]" : "text-xs")}>Outputs</h4>
             <div className="flex flex-wrap gap-1.5">
               {produces.length ? produces.map((k) => <KindChip key={k} kind={k} />) : <span className="text-sm text-muted-foreground">None</span>}
             </div>
@@ -153,6 +160,7 @@ function FieldMapping({
   schema,
   required,
   issue,
+  compact = false,
 }: {
   draft: TemplateDraft;
   index: number;
@@ -160,6 +168,7 @@ function FieldMapping({
   schema: FieldSchema;
   required: boolean;
   issue?: string;
+  compact?: boolean;
 }) {
   const step = draft.steps[index];
   const current: InputMappingValue = step.inputMapping[field] ?? { kind: "literal", value: "" };
@@ -187,15 +196,15 @@ function FieldMapping({
   };
 
   return (
-    <div className={cn("rounded-lg border bg-card/40 p-3", issue ? "border-destructive/50" : "border-border/70")}>
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <label htmlFor={id} className="min-w-0 text-sm font-medium">
+    <div className={cn("rounded-lg border bg-card/40", compact ? "p-2.5" : "p-3", issue ? "border-destructive/50" : "border-border/70")}>
+      <div className={cn("flex items-baseline justify-between gap-2", compact ? "mb-1.5" : "mb-2")}>
+        <label htmlFor={id} className={cn("min-w-0 font-medium", compact ? "text-xs" : "text-sm")}>
           {label}
           {required && <span className="ml-0.5 text-destructive">*</span>}
         </label>
-        {schema.title && <code className="shrink-0 text-[11px] text-muted-foreground">{field}</code>}
+        {schema.title && <code className={cn("shrink-0 text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>{field}</code>}
       </div>
-      <div className="mb-2.5">
+      <div className={compact ? "mb-2" : "mb-2.5"}>
         <div role="radiogroup" aria-label={`Source for ${label}`} className="grid grid-cols-3 rounded-md border border-border/70 p-0.5">
           {SOURCES.map(({ kind, label: sourceLabel, short, icon: Icon }) => {
             const disabled = kind === "fromStep" && earlierSteps.length === 0;
@@ -210,39 +219,49 @@ function FieldMapping({
                 disabled={disabled}
                 onClick={() => setSource(kind)}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  "flex items-center justify-center gap-1 rounded font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  compact ? "px-1.5 py-1 text-[11px]" : "gap-1.5 px-2 py-1.5 text-xs",
                   current.kind === kind ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="hidden whitespace-nowrap min-[440px]:inline">{sourceLabel}</span>
-                <span className="whitespace-nowrap min-[440px]:hidden">{short}</span>
+                <Icon className={cn("shrink-0", compact ? "h-3 w-3" : "h-3.5 w-3.5")} />
+                {compact ? (
+                  <span className="whitespace-nowrap">{short}</span>
+                ) : (
+                  <>
+                    <span className="hidden whitespace-nowrap min-[440px]:inline">{sourceLabel}</span>
+                    <span className="whitespace-nowrap min-[440px]:hidden">{short}</span>
+                  </>
+                )}
               </button>
             );
           })}
         </div>
       </div>
 
-      {current.kind === "literal" && <LiteralInput id={id} draft={draft} index={index} field={field} schema={schema} value={current.value} />}
+      {current.kind === "literal" && (
+        <LiteralInput id={id} draft={draft} index={index} field={field} schema={schema} value={current.value} compact={compact} />
+      )}
 
       {current.kind === "fromRunInput" && (
         <div className="space-y-1">
-          <span className="text-xs text-muted-foreground">Asked for when the workflow runs, as:</span>
+          <span className={cn("text-muted-foreground", compact ? "text-[11px]" : "text-xs")}>Asked for when the workflow runs, as:</span>
           <Input
             id={id}
             value={current.field}
             onChange={(e) => draft.updateMapping(index, field, { kind: "fromRunInput", field: e.target.value })}
             placeholder="input name"
-            className="font-mono text-sm"
+            className={cn("font-mono", compact ? "h-8 text-xs" : "text-sm")}
           />
         </div>
       )}
 
       {current.kind === "fromStep" && (
-        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-2">
+        <div className={cn("grid gap-2", compact ? "grid-cols-[minmax(0,1fr)_5.5rem]" : "grid-cols-[minmax(0,1fr)_7rem]")}>
           <Select
             id={id}
             aria-label="Source step"
+            className={cn(compact && "h-8 py-1 text-xs")}
             value={current.stepOrder}
             onChange={(e) => {
               const order = Number(e.target.value);
@@ -264,6 +283,7 @@ function FieldMapping({
           </Select>
           <Select
             aria-label="Output to use"
+            className={cn(compact && "h-8 py-1 text-xs")}
             value={current.artifactKind}
             onChange={(e) => draft.updateMapping(index, field, { ...current, artifactKind: e.target.value })}
           >
@@ -281,9 +301,9 @@ function FieldMapping({
         </div>
       )}
 
-      {schema.description && <p className="mt-1.5 text-xs text-muted-foreground">{schema.description}</p>}
+      {schema.description && <p className={cn("mt-1.5 text-muted-foreground", compact ? "text-[11px]" : "text-xs")}>{schema.description}</p>}
       {issue && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs text-destructive">
+        <p className={cn("mt-2 flex items-start gap-1.5 text-destructive", compact ? "text-[11px]" : "text-xs")}>
           <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" /> {issue}
         </p>
       )}
@@ -298,6 +318,7 @@ function LiteralInput({
   field,
   schema,
   value,
+  compact = false,
 }: {
   id: string;
   draft: TemplateDraft;
@@ -305,8 +326,10 @@ function LiteralInput({
   field: string;
   schema: FieldSchema;
   value: unknown;
+  compact?: boolean;
 }) {
   const set = (v: unknown) => draft.updateMapping(index, field, { kind: "literal", value: v });
+  const size = compact ? "h-8 py-1 text-xs" : undefined;
   const placeholder = schema.default !== undefined ? `Default: ${String(schema.default)}` : "Enter a value";
 
   const { data: socialAccounts } = useQuery({
@@ -318,7 +341,7 @@ function LiteralInput({
   if (field === "socialAccountId") {
     return (
       <div className="space-y-1.5">
-        <Select id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)}>
+        <Select id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} className={size}>
           <option value="">Choose a connected account…</option>
           {(socialAccounts ?? []).map((acc) => (
             <option key={acc.id} value={acc.id}>
@@ -339,7 +362,7 @@ function LiteralInput({
   }
   if (schema.enum) {
     return (
-      <Select id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)}>
+      <Select id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} className={size}>
         <option value="">{schema.default !== undefined ? `Default (${String(schema.default)})` : "Choose…"}</option>
         {schema.enum.map((opt) => (
           <option key={String(opt)} value={String(opt)}>
@@ -351,7 +374,7 @@ function LiteralInput({
   }
   if (schema.type === "boolean") {
     return (
-      <Select id={id} value={value === true ? "true" : value === false ? "false" : ""} onChange={(e) => set(e.target.value === "" ? "" : e.target.value === "true")}>
+      <Select id={id} value={value === true ? "true" : value === false ? "false" : ""} onChange={(e) => set(e.target.value === "" ? "" : e.target.value === "true")} className={size}>
         <option value="">{schema.default !== undefined ? `Default (${String(schema.default)})` : "Not set"}</option>
         <option value="true">Yes</option>
         <option value="false">No</option>
@@ -374,7 +397,7 @@ function LiteralInput({
     );
   }
   if (LONG_TEXT.test(field)) {
-    return <Textarea id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} placeholder={placeholder} rows={3} className="text-sm" />;
+    return <Textarea id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} placeholder={placeholder} rows={compact ? 2 : 3} className={compact ? "min-h-[56px] text-xs" : "text-sm"} />;
   }
-  return <Input id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} placeholder={placeholder} />;
+  return <Input id={id} value={String(value ?? "")} onChange={(e) => set(e.target.value)} placeholder={placeholder} className={size} />;
 }

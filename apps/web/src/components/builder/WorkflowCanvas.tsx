@@ -23,7 +23,7 @@ import { stepIcon } from "./stepVisuals";
 
 const INPUTS_ID = "run-inputs";
 const INPUTS_WIDTH = 176;
-const PANEL_WIDTH = 460;
+const PANEL_WIDTH = 380;
 
 export function WorkflowCanvas(props: { draft: TemplateDraft }) {
   return (

@@ -49,10 +49,16 @@ export function TemplateEditPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
-          <Link to="/builder" className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-3.5 w-3.5" /> Workflows
+          <div className="flex items-center gap-1.5">
+          <Link
+            to="/builder"
+            aria-label="Back to workflows"
+            title="Back to workflows"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
           </Link>
           {draft.existingLoaded ? (
             <input
@@ -60,12 +66,13 @@ export function TemplateEditPage() {
               onChange={(e) => draft.setName(e.target.value)}
               placeholder="Untitled workflow"
               aria-label="Workflow name"
-              className="-ml-2 block w-full max-w-2xl truncate rounded-md border border-transparent bg-transparent px-2 py-1 text-2xl font-semibold tracking-tight outline-none transition-colors placeholder:text-muted-foreground/50 hover:border-border focus:border-ring"
+              className="block w-full min-w-0 max-w-xl truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-lg font-semibold tracking-tight outline-none transition-colors placeholder:text-muted-foreground/50 hover:border-border focus:border-ring"
             />
           ) : (
-            <Skeleton className="h-9 w-96 max-w-full" />
+            <Skeleton className="h-7 w-80 max-w-full" />
           )}
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-9 text-xs text-muted-foreground">
             <span>
               {draft.steps.length} {draft.steps.length === 1 ? "step" : "steps"}
             </span>
@@ -140,9 +147,9 @@ export function TemplateEditPage() {
       )}
 
       {!draft.existingLoaded ? (
-        <Skeleton className="h-[calc(100dvh-13rem)] min-h-[520px] rounded-xl" />
+        <Skeleton className="h-[calc(100dvh-11.5rem)] min-h-[520px] rounded-xl" />
       ) : view === "canvas" ? (
-        <div className="h-[calc(100dvh-13rem)] min-h-[520px]">
+        <div className="h-[calc(100dvh-11.5rem)] min-h-[520px]">
           <WorkflowCanvas draft={draft} />
         </div>
       ) : (
