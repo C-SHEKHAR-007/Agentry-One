@@ -2,8 +2,8 @@ import Form from "@rjsf/core";
 import { NotFoundPage } from "./NotFoundPage";
 import validator from "@rjsf/validator-ajv8";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { BookmarkPlus, Sparkles } from "lucide-react";
 import { api } from "../api/client.js";
@@ -81,6 +81,20 @@ export function SubmitAgentPage() {
       if (err.message !== "cancelled") toast.error(err.message);
     },
   });
+
+  // "Use in run" from the prompt library links here with ?prompt=<id>:
+  // pre-fill the prompt field with that saved prompt, once.
+  const [searchParams] = useSearchParams();
+  const requestedPromptId = searchParams.get("prompt");
+  const appliedPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!requestedPromptId || !promptField || !prompts || appliedPromptRef.current === requestedPromptId) return;
+    const p = prompts.find((x) => x.id === requestedPromptId);
+    if (!p) return;
+    appliedPromptRef.current = requestedPromptId;
+    setFormData((d) => ({ ...d, [promptField]: p.template }));
+    toast.success(`Inserted "${p.key}" v${p.version}`);
+  }, [requestedPromptId, promptField, prompts]);
 
   // Default to the most recent project so the form is immediately usable.
   useEffect(() => {

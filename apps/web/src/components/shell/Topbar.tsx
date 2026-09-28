@@ -77,6 +77,7 @@ function UserMenu() {
         className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2.5 transition-colors hover:bg-white/8"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`Account menu for ${displayName}`}
       >
         {user?.avatarUrl ? (
           <img

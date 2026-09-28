@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { E2E_EMAIL } from "./env";
 
 test("dashboard loads for a signed-in user", async ({ page }) => {
   const errors: string[] = [];
@@ -7,8 +6,8 @@ test("dashboard loads for a signed-in user", async ({ page }) => {
 
   await page.goto("/");
   await expect(page).toHaveTitle(/Agentry/i);
-  // The user menu shows who is signed in.
-  await expect(page.getByRole("button", { name: new RegExp(E2E_EMAIL.split("@")[0], "i") })).toBeVisible();
+  // The account menu is present once signed in.
+  await expect(page.getByRole("button", { name: /^Account menu/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

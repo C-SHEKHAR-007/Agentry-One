@@ -20,7 +20,7 @@ test("signing out ends the session", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
 
-  await page.getByRole("button", { name: new RegExp(E2E_EMAIL.split("@")[0], "i") }).click();
+  await page.getByRole("button", { name: /^Account menu/ }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login$/);
 
