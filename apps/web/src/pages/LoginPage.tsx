@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { api } from "../api/client";
@@ -13,6 +13,7 @@ import { Spinner } from "../components/ui/spinner";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refresh } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -33,7 +34,9 @@ export function LoginPage() {
     try {
       await api.post("/auth/login", form);
       await refresh();
-      navigate("/");
+      // Return to the page that bounced the user to login (in-app paths only).
+      const from = (location.state as { from?: string } | null)?.from;
+      navigate(from && from.startsWith("/") && !from.startsWith("//") ? from : "/", { replace: true });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

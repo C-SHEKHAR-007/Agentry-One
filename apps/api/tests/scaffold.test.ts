@@ -86,4 +86,12 @@ describe("buildScaffoldFiles", () => {
     expect(files["worker.py"]).toContain('run_agent({"run": run}, queue_name="agent.echo-agent")');
     expect(files["worker.py"]).toContain("python.sdk.runner");
   });
+
+  it("never interpolates the free-text name into Python source", () => {
+    const evil = 'x"""\nimport os; os.system("id")\n"""';
+    const out = buildScaffoldFiles({ ...validSpec, name: evil });
+    expect(out["worker.py"]).not.toContain(evil);
+    expect(out["worker.py"]).not.toContain("os.system");
+    expect(JSON.parse(out["manifest.json"]).name).toBe(evil);
+  });
 });

@@ -21,7 +21,7 @@ def test_generate_text_openai_compatible(mock_requests_post):
     # Initialize client with OpenAI context
     client = CapabilityClient({
         "providerType": "openai",
-        "secret": "sk-test",
+        "apiKey": "sk-test",
         "config": {"model": "gpt-4"}
     })
 
@@ -49,7 +49,7 @@ def test_generate_text_anthropic(mock_requests_post):
     # Initialize client with Anthropic context
     client = CapabilityClient({
         "providerType": "anthropic",
-        "secret": "sk-ant-test",
+        "apiKey": "sk-ant-test",
         "config": {"model": "claude-3-5-sonnet"}
     })
 
@@ -77,7 +77,7 @@ def test_generate_text_gemini(mock_requests_post):
     # Initialize client with Gemini context
     client = CapabilityClient({
         "providerType": "gemini",
-        "secret": "gemini-key",
+        "apiKey": "gemini-key",
         "config": {"model": "gemini-1.5-pro"}
     })
 
@@ -89,7 +89,8 @@ def test_generate_text_gemini(mock_requests_post):
     mock_requests_post.assert_called_once()
     args, kwargs = mock_requests_post.call_args
     assert "generativelanguage.googleapis.com" in args[0]
-    assert "key=gemini-key" in args[0]
+    assert "key=" not in args[0]
+    assert kwargs["headers"]["x-goog-api-key"] == "gemini-key"
 
 def test_generate_text_ollama_local(mock_requests_post):
     # Setup mock response
@@ -124,7 +125,7 @@ def test_generate_text_http_error(mock_requests_post):
 
     client = CapabilityClient({
         "providerType": "openai",
-        "secret": "invalid-key"
+        "apiKey": "invalid-key"
     })
 
     with pytest.raises(HTTPError, match="401 Unauthorized"):

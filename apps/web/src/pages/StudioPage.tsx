@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Sparkles,
@@ -100,10 +100,15 @@ function useArtifactText(artifactId: string | undefined) {
   });
 }
 
-function RoleCard({ role, step }: { role: Role; step: TemplateRunStep | undefined }) {
+const LIVE_RUN_STATUSES = ["pending", "running", "awaiting_review", "cancelling"];
+
+function RoleCard({ role, step, runFinished }: { role: Role; step: TemplateRunStep | undefined; runFinished: boolean }) {
   const meta = FORMAT_OPTIONS.find((f) => f.id === role)!;
   const Icon = meta.icon;
+  // Once the run has settled, a step that never started won't start: show it
+  // as skipped rather than spinning forever.
   const status = step?.status ?? "pending";
+  const skipped = runFinished && status !== "completed" && status !== "failed";
   const { data: artifacts } = useWorkflowArtifacts(step?.workflowId, status === "completed");
   const primary = artifacts?.[0];
 
@@ -123,10 +128,17 @@ function RoleCard({ role, step }: { role: Role; step: TemplateRunStep | undefine
       </CardHeader>
 
       <CardContent className="pt-4">
-        {status !== "completed" && status !== "failed" && (
+        {skipped && (
+          <p className="py-6 text-sm text-muted-foreground">Not run — the workflow ended before this step started.</p>
+        )}
+        {!skipped && status !== "completed" && status !== "failed" && (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            {step ? "Agent executing in worker pipeline…" : `Waiting on prior step in workflow…`}
+            {status === "awaiting_review"
+              ? "Paused for human review…"
+              : step?.workflowId
+                ? "Agent executing in worker pipeline…"
+                : "Waiting on prior step in workflow…"}
           </div>
         )}
 
@@ -305,7 +317,9 @@ export function StudioPage() {
   const [tone, setTone] = useState("viral, energetic, value-driven with emojis");
   const [selectedSocialAccountId, setSelectedSocialAccountId] = useState("");
   const [formats, setFormats] = useState<Role[]>(["search", "text", "image"]);
-  const [runId, setRunId] = useState<string | null>(null);
+  // Kept in the URL so a refresh or navigating away and back doesn't lose the run.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runId = searchParams.get("run");
   const [templateId, setTemplateId] = useState<string | null>(null);
 
   const toggleFormat = (id: Role) =>
@@ -320,7 +334,11 @@ export function StudioPage() {
         socialAccountId: selectedSocialAccountId || undefined,
       }),
     onSuccess: (result) => {
-      setRunId(result.runId);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("run", result.runId);
+        return next;
+      });
       setTemplateId(result.templateId);
       toast.success("Multi-agent workflow launched!");
     },
@@ -331,10 +349,13 @@ export function StudioPage() {
     queryKey: ["template-run", runId],
     queryFn: () => api.get<TemplateRun>(`/template-runs/${runId}`),
     enabled: Boolean(runId),
-    refetchInterval: (query) => (query.state.data?.status === "running" ? 2000 : false),
+    refetchInterval: (query) => (LIVE_RUN_STATUSES.includes(query.state.data?.status ?? "running") ? 2000 : false),
   });
 
   const stepByRole = (role: Role) => run?.steps.find((s) => AGENT_TO_ROLE[s.templateStep.agentId] === role);
+  // Cards come from the run's own steps, not the (editable) format checkboxes.
+  const runRoles = FORMAT_OPTIONS.map((f) => f.id).filter((role) => role !== "publish" && Boolean(stepByRole(role)));
+  const runFinished = Boolean(run && !LIVE_RUN_STATUSES.includes(run.status));
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 pb-12">
@@ -447,12 +468,19 @@ export function StudioPage() {
             <StatusBadge status={run.status} />
           </div>
 
+          {run.status === "awaiting_review" && (
+            <p className="rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
+              A step is waiting for your approval.{" "}
+              <Link to={`/template-runs/${run.id}`} className="font-medium text-primary hover:underline">
+                Review and continue
+              </Link>
+            </p>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {formats
-              .filter((role) => role !== "publish")
-              .map((role) => (
-                <RoleCard key={role} role={role} step={stepByRole(role)} />
-              ))}
+            {runRoles.map((role) => (
+              <RoleCard key={role} role={role} step={stepByRole(role)} runFinished={runFinished} />
+            ))}
           </div>
 
           <PublishPanel

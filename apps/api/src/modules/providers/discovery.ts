@@ -1,4 +1,5 @@
 import { prisma } from "../../db/client.js";
+import { safeFetch } from "../../http/ssrf.js";
 import { decryptSecret } from "./crypto.js";
 
 export interface DiscoveredModelInfo {
@@ -113,10 +114,9 @@ async function discoverOpenAICompatibleModels(
     headers.Authorization = `Bearer ${secret}`;
   }
 
-  const res = await fetch(url, { headers });
+  const res = await safeFetch(url, { headers });
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Failed to fetch models from ${url} (${res.status}): ${errText}`);
+    throw new Error(`Failed to fetch models from ${new URL(url).origin} (HTTP ${res.status})`);
   }
 
   const data = (await res.json()) as { data?: Array<Record<string, any>> };
@@ -203,11 +203,11 @@ async function discoverOpenAICompatibleModels(
 }
 
 async function discoverGeminiModels(baseUrl: string, apiKey: string): Promise<DiscoveredModelInfo[]> {
-  const url = `${baseUrl.replace(/\/+$/, "")}/models?key=${encodeURIComponent(apiKey)}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const url = `${baseUrl.replace(/\/+$/, "")}/models`;
+  // Key in a header, not the URL, so it can't surface in logs or errors.
+  const res = await safeFetch(url, { headers: { Accept: "application/json", "x-goog-api-key": apiKey } });
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Failed to fetch models from Gemini API (${res.status}): ${errText}`);
+    throw new Error(`Failed to fetch models from Gemini API (HTTP ${res.status})`);
   }
 
   const data = (await res.json()) as {
@@ -261,10 +261,9 @@ async function discoverGeminiModels(baseUrl: string, apiKey: string): Promise<Di
 
 async function discoverOllamaModels(baseUrl: string): Promise<DiscoveredModelInfo[]> {
   const url = `${baseUrl.replace(/\/+$/, "")}/api/tags`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await safeFetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Failed to fetch models from Ollama (${res.status}): ${errText}`);
+    throw new Error(`Failed to fetch models from Ollama (HTTP ${res.status})`);
   }
 
   const data = (await res.json()) as {

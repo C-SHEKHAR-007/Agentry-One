@@ -1,6 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import { prisma, notificationEmitter } from "../../db/client.js";
 import { getDefaultUserId } from "../projects/defaultUser.js";
+import { openSse } from "../../http/sse.js";
+import { nonEmpty, parse, z } from "../../http/validate.js";
+
+const NotificationBody = z.object({
+  type: z.enum(["info", "success", "warning", "error"]),
+  title: nonEmpty(200),
+  message: nonEmpty(2000),
+  // In-app paths only -- never an external or javascript: URL.
+  link: z.string().max(500).regex(/^\/(?!\/)/, "must be an in-app path").optional(),
+});
 
 export async function notificationsRoutes(app: FastifyInstance) {
   // Helper to get the user ID
@@ -12,6 +22,7 @@ export async function notificationsRoutes(app: FastifyInstance) {
     const notifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
     return notifications;
   });
@@ -20,28 +31,17 @@ export async function notificationsRoutes(app: FastifyInstance) {
     const userId = getUserId(req);
     if (!userId) return reply.code(401).send({ error: "Unauthorized" });
 
-    reply.raw.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    });
-
-    const onNotification = (notification: any) => {
-      reply.raw.write(`data: ${JSON.stringify(notification)}\n\n`);
-    };
-
+    const stream = openSse(req, reply);
+    const onNotification = (notification: unknown) => stream.send(notification);
     notificationEmitter.on(userId, onNotification);
-
-    req.raw.on("close", () => {
-      notificationEmitter.off(userId, onNotification);
-    });
+    stream.onClose(() => notificationEmitter.off(userId, onNotification));
   });
 
-  app.post<{ Body: { type: string; title: string; message: string; link?: string } }>(
+  app.post(
     "/notifications",
     async (req, reply) => {
       const userId = getUserId(req);
-      const { type, title, message, link } = req.body;
+      const { type, title, message, link } = parse(NotificationBody, req.body);
 
       const notification = await prisma.notification.create({
         data: {

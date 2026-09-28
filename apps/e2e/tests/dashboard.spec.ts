@@ -1,20 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from "@playwright/test";
+import { E2E_EMAIL } from "./env";
 
-test.describe('Dashboard and Core Navigation', () => {
-  test('should load the application and show projects', async ({ page }) => {
-    // Navigate to the root URL (configured as http://localhost:5173 in playwright.config.ts)
-    await page.goto('/');
+test("dashboard loads for a signed-in user", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
 
-    // Check if the main title or the Agentry logo is visible
-    // We expect the app to load and show the dashboard for the default user
-    await page.waitForLoadState('networkidle');
+  await page.goto("/");
+  await expect(page).toHaveTitle(/Agentry/i);
+  // The user menu shows who is signed in.
+  await expect(page.getByRole("button", { name: new RegExp(E2E_EMAIL.split("@")[0], "i") })).toBeVisible();
+  expect(errors).toEqual([]);
+});
 
-    // The app will redirect to /login, /setup, or show the dashboard based on auth state
-    // Just verify the title is present, which indicates the React app successfully booted
-    await expect(page).toHaveTitle(/Agentry/i);
-    
-    // Check that we don't have a blank page by ensuring some text is visible
-    const bodyText = page.locator('body');
-    await expect(bodyText).toBeVisible();
-  });
+test("unknown routes show a not-found page instead of an empty layout", async ({ page }) => {
+  await page.goto("/definitely-not-a-page");
+  await expect(page.getByText("This page doesn't exist")).toBeVisible();
+});
+
+test("a missing workflow shows not-found instead of loading forever", async ({ page }) => {
+  await page.goto("/workflows/00000000-0000-0000-0000-000000000000");
+  await expect(page.getByText("This workflow doesn't exist")).toBeVisible({ timeout: 10_000 });
 });

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { NotFoundPage } from "./NotFoundPage";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -78,7 +79,7 @@ export function WorkflowPage() {
   const [progress, setProgress] = useState<{ percent?: number; message?: string }>({});
   const [reviewNotes, setReviewNotes] = useState("");
 
-  const { data: workflow } = useQuery({
+  const { data: workflow, isError: workflowLoadFailed } = useQuery({
     queryKey: ["workflow", workflowId],
     queryFn: () => api.get<Workflow>(`/workflows/${workflowId}`),
     refetchInterval: (query) =>
@@ -137,6 +138,7 @@ export function WorkflowPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  if (workflowLoadFailed) return <NotFoundPage what="workflow" />;
   if (!workflow) {
     return (
       <div className="space-y-4">

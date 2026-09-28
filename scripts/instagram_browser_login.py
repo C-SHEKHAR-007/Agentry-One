@@ -81,7 +81,9 @@ def launch_chrome_and_extract_session(project_id: str | None = None, timeout_sec
     chrome_cmd = [
         "google-chrome",
         f"--remote-debugging-port={CDP_PORT}",
-        "--remote-allow-origins=*",
+        # Only this helper's own DevTools client may connect -- not any web page.
+        f"--remote-allow-origins=http://127.0.0.1:{CDP_PORT},http://localhost:{CDP_PORT}",
+        "--remote-debugging-address=127.0.0.1",
         f"--user-data-dir={user_data_dir}",
         "--no-first-run",
         "--no-default-browser-check",
@@ -213,7 +215,7 @@ def launch_chrome_and_extract_session(project_id: str | None = None, timeout_sec
 
         try:
             with urllib.request.urlopen(post_req, timeout=10) as link_resp:
-                result = json.loads(link_resp.read().decode())
+                link_resp.read()
                 print(f"[agentry-ig] Account successfully linked to Agentry! Handle: @{username}")
             return {"success": True, "handle": f"@{username}", "sessionIdLength": len(session_id)}
         except urllib.error.HTTPError as e:
@@ -264,14 +266,37 @@ def async_login_worker(project_id: str | None):
         cleanup_active_process()
 
 
+# Browser origins allowed to drive the helper (the Agentry web UI). Any other
+# site must not be able to start a login and link the captured Instagram
+# session into a project of its choosing.
+ALLOWED_ORIGINS = {
+    o.strip()
+    for o in os.environ.get(
+        "IG_HELPER_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080"
+    ).split(",")
+    if o.strip()
+}
+
+
 class DaemonHandler(BaseHTTPRequestHandler):
+    def _origin_allowed(self) -> bool:
+        origin = self.headers.get("Origin")
+        # Non-browser clients (curl) send no Origin; browsers always do on
+        # cross-origin requests, so a foreign page is always identifiable.
+        return origin is None or origin in ALLOWED_ORIGINS
+
     def _send_cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, x-api-key")
+        origin = self.headers.get("Origin")
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, x-api-key")
+            # Chrome Private Network Access preflight
+            self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def do_OPTIONS(self):
-        self.send_response(204)
+        self.send_response(204 if self._origin_allowed() else 403)
         self._send_cors()
         self.end_headers()
 
@@ -307,6 +332,10 @@ class DaemonHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if not self._origin_allowed():
+            self.send_response(403)
+            self.end_headers()
+            return
         content_len = int(self.headers.get("Content-Length", 0))
         body = {}
         if content_len > 0:
@@ -367,7 +396,9 @@ class DaemonHandler(BaseHTTPRequestHandler):
 
 
 def run_daemon():
-    server = ThreadingHTTPServer(("0.0.0.0", DAEMON_PORT), DaemonHandler)
+    # Loopback only: the helper drives a logged-in browser and must never be
+    # reachable from the network.
+    server = ThreadingHTTPServer((os.environ.get("IG_HELPER_HOST", "127.0.0.1"), DAEMON_PORT), DaemonHandler)
     print(f"[agentry-ig] Local Instagram Browser Login Daemon running at http://localhost:{DAEMON_PORT}")
     try:
         server.serve_forever()

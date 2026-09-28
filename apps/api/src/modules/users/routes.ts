@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
 import { requireOwner } from "../../auth/apiKey.js";
-import { hashPassword } from "../../auth/session.js";
+import { destroyUserSessions, hashPassword } from "../../auth/session.js";
 
 const PUBLIC_FIELDS = {
   id: true,
@@ -76,7 +76,7 @@ export async function usersRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "password must be at least 8 characters" });
       }
 
-      return prisma.user.update({
+      const updated = await prisma.user.update({
         where: { id: target.id },
         data: {
           ...(firstName !== undefined ? { firstName } : {}),
@@ -87,6 +87,10 @@ export async function usersRoutes(app: FastifyInstance) {
         },
         select: PUBLIC_FIELDS,
       });
+      // A reset password or a changed role must take effect immediately, not
+      // whenever the target's existing sessions happen to expire.
+      if (password || (role && role !== target.role)) await destroyUserSessions(target.id);
+      return updated;
     },
   );
 
@@ -94,6 +98,11 @@ export async function usersRoutes(app: FastifyInstance) {
     if (!requireOwner(req, reply)) return;
     const target = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!target) return reply.code(404).send({ error: "user_not_found" });
+    const { getDefaultUserId } = await import("../projects/defaultUser.js");
+    if (target.id === getDefaultUserId()) {
+      // Owns every API-key-created project; deleting it would cascade them away.
+      return reply.code(409).send({ error: "the built-in service user cannot be deleted" });
+    }
 
     const p = req.principal;
     if (p?.kind === "user" && p.user.id === target.id) {
@@ -105,7 +114,6 @@ export async function usersRoutes(app: FastifyInstance) {
 
     // Projects reference users; reassign to the stub default user rather than
     // cascading a teammate's projects away.
-    const { getDefaultUserId } = await import("../projects/defaultUser.js");
     await prisma.project.updateMany({
       where: { userId: target.id },
       data: { userId: getDefaultUserId() },

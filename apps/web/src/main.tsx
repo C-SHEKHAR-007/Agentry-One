@@ -9,7 +9,18 @@ import { ThemeProvider } from "./lib/theme.js";
 import "@fontsource-variable/inter";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // A 4xx (not found / no access / bad request) won't fix itself on retry;
+      // only retry transient failures so error states appear promptly.
+      retry: (failureCount, error) => {
+        const status = (error as Error & { status?: number }).status;
+        return (status === undefined || status >= 500) && failureCount < 2;
+      },
+    },
+  },
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,4 +1,2 @@
-bullmq
-pillow
-requests
-azure-storage-blob
+-r ../../python/sdk/requirements.txt
+pillow==12.3.0

@@ -19,6 +19,24 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
+// A real bcrypt hash of a random value, so a login for an unknown email costs
+// the same as one for a known email (no timing oracle for account existence).
+const DUMMY_HASH = bcrypt.hashSync(randomBytes(16).toString("hex"), 10);
+
+/** Constant-work password check: always runs bcrypt, even with no user. */
+export async function verifyPasswordOrDummy(password: string, hash: string | null | undefined): Promise<boolean> {
+  const ok = await bcrypt.compare(password, hash ?? DUMMY_HASH);
+  return ok && Boolean(hash);
+}
+
+/** Ends a user's sessions (e.g. after a password or role change), optionally
+ * keeping the caller's current one. */
+export async function destroyUserSessions(userId: string, keepToken?: string): Promise<void> {
+  await prisma.session.deleteMany({
+    where: { userId, ...(keepToken ? { tokenHash: { not: hashToken(keepToken) } } : {}) },
+  });
+}
+
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);

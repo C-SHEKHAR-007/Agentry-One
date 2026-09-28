@@ -1,4 +1,7 @@
 import asyncio
+import mimetypes
+import os
+import re
 import sys
 import tempfile
 import uuid
@@ -7,9 +10,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 
 from python.sdk.agent_job import AgentJob
-from python.sdk.artifact_io import read_text_artifact, resolve_to_local_path, resolve_to_public_url, write_artifact_file
+from python.sdk.artifact_io import local_artifact_path, read_text_artifact, resolve_to_local_path, resolve_to_public_url, write_artifact_file
+from python.sdk.idempotency import run_once
+from python.sdk.net_safety import assert_public_http_url
 from python.sdk.runner import run_agent
 from python.sdk.social_connectors import load_publisher
+
+API_DOWNLOAD_PATH = re.compile(r"^(?:/api)?/artifacts/([0-9a-fA-F-]{36})/download$")
+
+
+def _download_api_artifact(artifact_id: str, job_id: str) -> str:
+    """Fetches an artifact through the API into scratch space and returns the
+    local path. Uses the X-API-Key header so the key never lands in URLs/logs."""
+    import requests
+
+    api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000").rstrip("/")
+    api_key = os.environ.get("AGENTRY_API_KEY")
+    if not api_key:
+        raise RuntimeError("AGENTRY_API_KEY must be set for the worker to download artifacts from the API")
+    r = requests.get(f"{api_url}/artifacts/{artifact_id}/download", headers={"X-API-Key": api_key}, timeout=30)
+    r.raise_for_status()
+    ext = mimetypes.guess_extension((r.headers.get("Content-Type") or "").split(";")[0].strip()) or ".bin"
+    scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job_id}"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    local_f = scratch_dir / f"{uuid.uuid4()}{ext}"
+    local_f.write_bytes(r.content)
+    return str(local_f)
 
 
 async def run(job: AgentJob) -> dict:
@@ -31,7 +57,8 @@ async def run(job: AgentJob) -> dict:
     media_url = None
     if raw_media:
         if raw_media.startswith("http://") or raw_media.startswith("https://"):
-            media_url = raw_media
+            # Connectors download (or forward) this URL; refuse internal targets.
+            media_url = assert_public_http_url(raw_media)
         elif raw_media.startswith("azure://"):
             scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
             local_path = resolve_to_local_path(raw_media, scratch_dir)
@@ -42,31 +69,14 @@ async def run(job: AgentJob) -> dict:
                 media_url = sas_url
             else:
                 media_url = local_path
-        elif raw_media.startswith("/"):
-            if Path(raw_media).exists() and not Path(raw_media).is_dir():
-                media_url = raw_media
-            else:
-                api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000")
-                api_key = os.environ.get("AGENTRY_API_KEY", "dev-local-api-key")
-                sep = "&" if "?" in raw_media else "?"
-                download_url = f"{api_url}{raw_media}{sep}key={api_key}"
-                scratch_dir = Path(tempfile.gettempdir()) / f"social-publisher-{job.job_id}"
-                scratch_dir.mkdir(parents=True, exist_ok=True)
-                local_f = str(scratch_dir / f"{uuid.uuid4()}.jpg")
-                try:
-                    import requests
-                    r = requests.get(download_url, timeout=30)
-                    if r.ok:
-                        Path(local_f).write_bytes(r.content)
-                        media_url = local_f
-                    else:
-                        media_url = raw_media
-                except Exception:
-                    media_url = raw_media
-        elif Path(raw_media).exists():
-            media_url = raw_media
+        elif (artifact_path := local_artifact_path(raw_media)) is not None:
+            media_url = str(artifact_path)
+        elif (match := API_DOWNLOAD_PATH.match(raw_media)) is not None:
+            # An API artifact-download path (as the web UI's downloadUrl builds
+            # it, with or without the browser-proxy "/api" prefix).
+            media_url = _download_api_artifact(match.group(1), job.job_id)
         else:
-            media_url = raw_media
+            raise ValueError(f"mediaUrl must be an http(s) URL or an artifact reference, got {raw_media!r}")
 
     media_note = "" if media_url else " (no media attached)"
 
@@ -80,7 +90,16 @@ async def run(job: AgentJob) -> dict:
         receipt = f"[MOCK -- no app credentials configured] Would have posted to {platform}: {caption}{media_note}"
     else:
         await job.report_progress(60, f"Publishing to {platform}...")
-        post_url = load_publisher(platform)(access_token, caption, media_url)
+        publish = load_publisher(platform)
+
+        async def do_publish() -> str:
+            # Connectors are blocking (HTTP, sleeps, instagrapi logins); run them
+            # off the event loop so BullMQ can keep renewing the job lock --
+            # otherwise a slow upload lets the lock lapse and the job re-runs.
+            return await asyncio.get_running_loop().run_in_executor(None, publish, access_token, caption, media_url)
+
+        # At most one real post per job, even across stalled-job re-runs.
+        post_url = await run_once(f"publish:{job.job_id}", do_publish)
         receipt = f"Posted to {platform}: {caption}{media_note}"
 
     await job.report_progress(100, "Successfully published!")

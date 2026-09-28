@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { prisma } from "../src/db/client.js";
-import { ensureCapabilitiesAndDefaults } from "../src/modules/providers/bootstrap.js";
-import { buildBriefSteps } from "../src/modules/contentBriefs/quickStart.js";
+import { prisma } from "../../src/db/client.js";
+import { ensureCapabilitiesAndDefaults } from "../../src/modules/providers/bootstrap.js";
+import { buildBriefSteps } from "../../src/modules/contentBriefs/quickStart.js";
 
+// Integration test: needs a migrated Postgres at DATABASE_URL and writes seed
+// rows to it -- run with `npm run test:integration` against a disposable DB.
 describe("Dynamic Providers, Models & Multi-Modal Workflows", () => {
   beforeEach(async () => {
     await ensureCapabilitiesAndDefaults();

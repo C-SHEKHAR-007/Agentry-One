@@ -23,6 +23,7 @@ export function ProfilePage() {
   });
 
   const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -40,7 +41,7 @@ export function ProfilePage() {
   }, [user]);
 
   const updateProfile = useMutation({
-    mutationFn: async (data: { firstName?: string; lastName?: string; avatarUrl?: string; password?: string }) => {
+    mutationFn: async (data: { firstName?: string; lastName?: string; avatarUrl?: string; password?: string; currentPassword?: string }) => {
       const res = await api.patch<{ user: AuthUser }>("/auth/profile", data);
       return res.user;
     },
@@ -116,10 +117,11 @@ export function ProfilePage() {
       return;
     }
     updateProfile.mutate(
-      { password: passwordForm.newPassword },
+      { password: passwordForm.newPassword, currentPassword: passwordForm.currentPassword || undefined },
       {
         onSuccess: () => {
-          setPasswordForm({ newPassword: "", confirmPassword: "" });
+          setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+          toast.info("Other devices have been signed out.");
         },
       },
     );
@@ -307,6 +309,17 @@ export function ProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Leave blank if you signed up with Google and have no password yet"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="newPassword">New Password</Label>

@@ -4,6 +4,7 @@ import { wireQueueListeners } from "../../queue/listener.js";
 import { resolveProvider } from "../providers/resolve.js";
 import { decryptSocialAccountToken } from "../socialAccounts/routes.js";
 import type { AgentManifest, AgentStepManifest } from "../agents/manifestScanner.js";
+import { validateStepInput } from "./inputValidation.js";
 
 export class WorkflowError extends Error {
   constructor(
@@ -23,7 +24,7 @@ async function enqueueStepJob(params: {
   step: AgentStepManifest;
   queueName: string;
   params: unknown;
-  projectId?: string;
+  projectId: string;
   providerConfigId?: string;
   attempts?: number;
   backoffMs?: number;
@@ -44,18 +45,17 @@ async function enqueueStepJob(params: {
     }
   }
 
-  // Same rationale as provider secrets above: decrypt once in Node, hand the
-  // worker a ready-to-use token in the (short-lived, removeOnComplete) job
-  // payload, so the Python worker never queries Postgres.
+  // Validated (and scoped to this project) at enqueue time so a bad account
+  // is a 422 now, not a failure inside the worker later.
   let socialAuth = null;
   if (params.step.requiresSocialAccount) {
     const socialAccountId = (params.params as { socialAccountId?: string } | null)?.socialAccountId;
     if (!socialAccountId) {
       throw new WorkflowError("socialAccountId is required for this step", 422);
     }
-    socialAuth = await decryptSocialAccountToken(socialAccountId);
+    socialAuth = await decryptSocialAccountToken(socialAccountId, params.projectId);
     if (!socialAuth) {
-      throw new WorkflowError(`no connected social account found for id '${socialAccountId}'`, 422);
+      throw new WorkflowError(`no active social account '${socialAccountId}' is connected to this project`, 422);
     }
   }
 
@@ -84,20 +84,20 @@ async function enqueueStepJob(params: {
       agentManifest: params.agentManifest,
       params: params.params,
       inputArtifactRefs: [],
-      providerContext,
-      socialAuth,
+      // No secrets in the queue payload: Redis is unauthenticated in most
+      // deployments and persists to disk, and a job stuck in "waiting" would
+      // hold plaintext keys indefinitely. Workers fetch the decrypted values
+      // at run time from GET /internal/jobs/:id/secrets (API-key only, and
+      // only while the job is live) -- see python/sdk/agent_job.py.
+      providerContext: providerContext ? { ...providerContext, apiKey: null, hasApiKey: Boolean(providerContext.apiKey) } : null,
+      socialAuth: socialAuth ? { platform: socialAuth.platform, handle: socialAuth.handle, isMock: socialAuth.isMock, hasAccessToken: true } : null,
       stepManifest: params.step,
     },
     {
       jobId: job.id,
       attempts: params.attempts ?? 1,
       backoff: params.backoffMs ? { type: "exponential", delay: params.backoffMs } : undefined,
-      // Decrypted provider secrets transit through this payload in Redis for
-      // the job's lifetime (the alternative would mean workers querying
-      // Postgres, reopening the boundary ADR-0001 closed). Mitigation:
-      // remove the job -- payload included -- as soon as it settles, so the
-      // plaintext exposure window is exactly the job's active lifetime.
-      // Postgres (jobs/job_runs/events tables) remains the durable history.
+      // Postgres (jobs/job_runs/events tables) is the durable history.
       removeOnComplete: true,
       removeOnFail: true,
     },
@@ -117,6 +117,11 @@ export async function startWorkflow(
 
   const manifest = agent.manifest as unknown as AgentManifest;
   if (manifest.steps.length === 0) throw new WorkflowError(`agent ${agentId} has no steps`, 500);
+
+  // Reject bad input now (422) rather than minutes later inside a worker.
+  // Applies schema defaults, so `input` may gain default-valued fields.
+  const inputErrors = validateStepInput(agentId, manifest.steps[0], input);
+  if (inputErrors) throw new WorkflowError(`invalid input: ${inputErrors}`, 422);
 
   const workflow = await prisma.workflow.create({
     data: {
@@ -310,14 +315,23 @@ export async function reapStaleWorkflows(): Promise<number> {
   for (const wf of runningWorkflows) {
     let shouldReap = false;
     let reason = "";
+    // Judge staleness by the most recent activity, not creation time: a
+    // healthy multi-step workflow can easily be older than the threshold.
+    const lastActivity = new Date(
+      Math.max(wf.updatedAt.getTime(), ...wf.steps.map((s) => s.updatedAt.getTime())),
+    );
+    const idle = lastActivity < tenMinutesAgo;
 
     if (wf.steps.length === 0) {
       shouldReap = true;
       reason = "Execution initialized without steps";
-    } else if (wf.steps.some((s) => !s.job) && wf.createdAt < tenMinutesAgo) {
+    } else if (idle && wf.steps.some((s) => ["queued", "running"].includes(s.status) && !s.job)) {
+      // Later steps are legitimately "pending" with no job until the prior
+      // step finishes -- only a step that should be executing yet has no job
+      // is orphaned.
       shouldReap = true;
       reason = "Step job failed to enqueue or was orphaned";
-    } else if (wf.createdAt < tenMinutesAgo) {
+    } else if (idle) {
       let activeInQueue = false;
       try {
         const agent = await prisma.agent.findUnique({ where: { id: wf.agentId } });
@@ -328,7 +342,7 @@ export async function reapStaleWorkflows(): Promise<number> {
             if (s.job?.id) {
               const bJob = await queue.getJob(s.job.id);
               const state = bJob ? await bJob.getState() : null;
-              if (state === "active" || state === "waiting" || state === "delayed") {
+              if (state && ["active", "waiting", "delayed", "prioritized", "waiting-children"].includes(state)) {
                 activeInQueue = true;
                 break;
               }

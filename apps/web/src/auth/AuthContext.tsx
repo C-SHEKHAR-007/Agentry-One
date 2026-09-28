@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 
 export interface AuthUser {
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthState>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const queryClient = useQueryClient();
 
   const refresh = useCallback(async () => {
     try {
@@ -49,9 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => null);
+    // Drop every cached query so the next person on this browser never sees
+    // the previous user's projects, providers, or team list.
+    queryClient.clear();
     setUser(null);
     setStatus("unauthed");
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     void refresh();

@@ -1,3 +1,1 @@
-bullmq
-duckduckgo_search
-requests
+-r ../../python/sdk/requirements.txt

@@ -1,12 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
+import { authorize, requireAdmin } from "../../auth/access.js";
 
 /** Settings precedence (docs/05-database-schema.md): for a given (agentId, key),
  * a project-scoped row overrides a global row; if neither exists the agent's
  * own code default applies (not represented as a row here). */
 export async function settingsRoutes(app: FastifyInstance) {
-  app.get<{ Querystring: { projectId?: string; agentId?: string } }>("/settings", async (req) => {
+  app.get<{ Querystring: { projectId?: string; agentId?: string } }>("/settings", async (req, reply) => {
     const { projectId, agentId } = req.query;
+    if (projectId && !(await authorize(req, reply, "project", projectId))) return;
 
     const globals = await prisma.setting.findMany({ where: { scope: "global", ...(agentId ? { agentId } : {}) } });
     const projectRows = projectId
@@ -28,6 +30,14 @@ export async function settingsRoutes(app: FastifyInstance) {
     if (scope === "project" && !projectId) {
       return reply.code(400).send({ error: "projectId is required when scope is 'project'" });
     }
+    if (scope === "project") {
+      if (!(await authorize(req, reply, "project", projectId))) return;
+    } else if (scope === "global") {
+      if (!requireAdmin(req, reply)) return;
+    } else {
+      return reply.code(400).send({ error: "scope must be 'global' or 'project'" });
+    }
+    if (typeof key !== "string" || !key.trim()) return reply.code(400).send({ error: "key is required" });
 
     // Not prisma.upsert: compound uniques containing nullable columns can't
     // be used as an upsert where-input, so emulate it. (Postgres also treats

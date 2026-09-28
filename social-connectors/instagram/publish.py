@@ -71,10 +71,11 @@ def _publish_via_instagrapi(username: str, password: str, text: str, media_url: 
     local_path = None
     if media_url.startswith("http://") or media_url.startswith("https://"):
         suffix = ".mp4" if any(ext in media_url.lower() for ext in [".mp4", ".mov", "video"]) else ".jpg"
+        from python.sdk.net_safety import fetch_public_url
+
+        data = fetch_public_url(media_url)
         temp_media = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        res = requests.get(media_url, timeout=60)
-        res.raise_for_status()
-        temp_media.write(res.content)
+        temp_media.write(data)
         temp_media.close()
         local_path = temp_media.name
     elif media_url.startswith("/"):
@@ -82,12 +83,13 @@ def _publish_via_instagrapi(username: str, password: str, text: str, media_url: 
             local_path = media_url
         else:
             api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000")
-            api_key = os.environ.get("AGENTRY_API_KEY", "dev-local-api-key")
-            sep = "&" if "?" in media_url else "?"
-            download_url = f"{api_url}{media_url}{sep}key={api_key}"
+            api_key = os.environ.get("AGENTRY_API_KEY")
+            if not api_key:
+                raise RuntimeError("AGENTRY_API_KEY must be set to download media from the API")
+            download_url = f"{api_url}{media_url}"
             suffix = ".mp4" if any(ext in media_url.lower() for ext in [".mp4", ".mov", "video"]) else ".jpg"
             temp_media = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-            res = requests.get(download_url, timeout=60)
+            res = requests.get(download_url, headers={"X-API-Key": api_key}, timeout=60)
             res.raise_for_status()
             temp_media.write(res.content)
             temp_media.close()
@@ -160,7 +162,9 @@ def post(access_token: str, text: str, media_url: str | None = None) -> str:
         )
 
     # 1. Dev mock simulation
-    if access_token.startswith("dev_mock_") or "mock" in access_token:
+    # Only tokens minted by the dev-mock connect flow; a real credential that
+    # merely contains "mock" (e.g. a password) must never be faked.
+    if access_token.startswith("dev_mock_"):
         fake_id = f"C{abs(hash(text)) % 10000000000}"
         return f"https://www.instagram.com/p/{fake_id}/"
 

@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { adminForWrites } from "../../auth/access.js";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
@@ -28,6 +29,9 @@ async function rescanRegistry() {
 }
 
 export async function agentsRoutes(app: FastifyInstance) {
+  // Global configuration: readable by any signed-in user, writable by admins only.
+  app.addHook("preHandler", adminForWrites);
+
   app.get("/agents", async () => {
     const agents = await prisma.agent.findMany({ orderBy: { id: "asc" } });
     return agents.map((a) => ({

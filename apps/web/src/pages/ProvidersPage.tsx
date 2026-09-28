@@ -156,7 +156,7 @@ export function ProvidersPage() {
     model: string;
     status: string;
     availableModels?: DiscoveredModel[];
-    isLoadingSecret?: boolean;
+    hasSecret?: boolean;
   } | null>(null);
 
   const handleOpenEdit = async (p: ProviderConfig) => {
@@ -173,31 +173,8 @@ export function ProvidersPage() {
       model: currentModel,
       status: p.status || "active",
       availableModels: p.models || [],
-      isLoadingSecret: p.hasSecret,
+      hasSecret: p.hasSecret,
     });
-
-    if (p.hasSecret) {
-      try {
-        const res = await api.get<{ secret: string | null }>(`/providers/${p.id}/secret`);
-        setEditingProvider((prev) => {
-          if (!prev || prev.id !== p.id) return prev;
-          return {
-            ...prev,
-            secret: res.secret || "",
-            isLoadingSecret: false,
-          };
-        });
-      } catch (err: any) {
-        setEditingProvider((prev) => {
-          if (!prev || prev.id !== p.id) return prev;
-          return {
-            ...prev,
-            isLoadingSecret: false,
-          };
-        });
-        toast.error(`Failed to load saved API key: ${err.message}`);
-      }
-    }
   };
 
   const toggleProviderExpand = (providerId: string) => {
@@ -238,7 +215,8 @@ export function ProvidersPage() {
       return api.put(`/providers/${editingProvider.id}`, {
         name: editingProvider.name,
         baseUrl: editingProvider.baseUrl,
-        secret: editingProvider.secret,
+        // Saved keys are write-only: only send a key when the user typed a new one.
+        secret: editingProvider.secret ? editingProvider.secret : undefined,
         config: editingProvider.model ? { model: editingProvider.model } : {},
         status: editingProvider.status,
       });
@@ -1261,10 +1239,8 @@ export function ProvidersPage() {
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-1">
                     <Label className="text-xs">API Key / Secret</Label>
-                    {editingProvider.isLoadingSecret && (
-                      <span className="text-[10px] text-primary flex items-center gap-1 animate-pulse">
-                        <Spinner className="h-3 w-3" /> Decrypting key...
-                      </span>
+                    {editingProvider.hasSecret && (
+                      <span className="text-[10px] text-muted-foreground">A key is saved</span>
                     )}
                   </div>
                   <div className="relative">
@@ -1274,16 +1250,14 @@ export function ProvidersPage() {
                       data-lpignore="true"
                       data-1p-ignore="true"
                       type={showEditSecret ? "text" : "password"}
-                      placeholder={editingProvider.isLoadingSecret ? "Decrypting saved API key..." : "Enter API key or leave blank"}
+                      placeholder={editingProvider.hasSecret ? "Leave blank to keep the saved key" : "Enter API key or leave blank"}
                       value={editingProvider.secret}
-                      disabled={editingProvider.isLoadingSecret}
                       onChange={(e) => setEditingProvider({ ...editingProvider, secret: e.target.value })}
                       className="h-9 text-xs pr-10 font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowEditSecret(!showEditSecret)}
-                      disabled={editingProvider.isLoadingSecret}
                       className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
                       title={showEditSecret ? "Hide key" : "Show key"}
                     >
@@ -1310,7 +1284,7 @@ export function ProvidersPage() {
                   <Button type="button" variant="ghost" size="sm" onClick={() => setEditingProvider(null)}>
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={updateProvider.isPending || Boolean(editingProvider.isLoadingSecret)}>
+                  <Button type="submit" size="sm" disabled={updateProvider.isPending}>
                     {updateProvider.isPending ? <Spinner className="mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-1.5" />}
                     Save Changes
                   </Button>

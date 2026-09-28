@@ -24,7 +24,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
   const cancelMutation = useMutation({
     mutationFn: (workflowId: string) => api.post(`/workflows/${workflowId}/cancel`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["recent-workflows"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows", "recent"] });
       toast.success("Execution cancelled");
     },
     onError: (err: Error) => toast.error(err.message),

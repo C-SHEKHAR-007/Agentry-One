@@ -17,7 +17,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error ?? `Request failed: ${res.status}`);
+    // Validation/central errors carry a human-readable `message`; older
+    // route errors put the message in `error`.
+    const err = new Error(body.message ?? body.error ?? `Request failed: ${res.status}`) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -31,9 +35,7 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
-// Same-origin <img>/EventSource requests send the session cookie by
-// themselves; the ?key= param is only appended when an explicit API key is
-// configured (the server accepts either).
+// Same-origin <img>/EventSource requests send the session cookie by themselves.
 export function downloadUrl(artifactId: string): string {
   return `${BASE_URL}/artifacts/${artifactId}/download`;
 }
