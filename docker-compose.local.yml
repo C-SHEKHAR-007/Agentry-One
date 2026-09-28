@@ -1,0 +1,58 @@
+# Local override: run the current images against Postgres and Redis that
+# already run on this machine (DATABASE_URL / REDIS_URL from .env), with host
+# networking and the familiar ports (web :5173, API :4000). The bundled
+# postgres/redis services are not started.
+#
+#   scripts/local-up.sh            # build + (re)start
+#   scripts/local-up.sh logs -f    # any other compose command
+#
+# For a clean, self-contained stack use plain `docker compose up` instead.
+
+x-host-env: &host-env
+  REDIS_URL: ${REDIS_URL:?set REDIS_URL in .env}
+  STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+  AZURE_STORAGE_CONTAINER_NAME_DEV: ${AZURE_STORAGE_CONTAINER_NAME_DEV:-}
+
+services:
+  postgres:
+    profiles: ["bundled"]
+  redis:
+    profiles: ["bundled"]
+
+  migrate:
+    network_mode: host
+    networks: !reset []
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+    depends_on: !reset {}
+
+  api:
+    network_mode: host
+    networks: !reset []
+    environment:
+      <<: *host-env
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # Plain http://localhost -- secure cookies need HTTPS.
+      COOKIE_SECURE: "false"
+    depends_on: !override
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    network_mode: host
+    networks: !reset []
+    environment:
+      <<: *host-env
+      AGENTRY_API_URL: http://localhost:4000
+    depends_on: !override
+      api:
+        condition: service_healthy
+
+  web:
+    network_mode: host
+    networks: !reset []
+    ports: !reset []
+    environment:
+      API_UPSTREAM: http://127.0.0.1:4000
+      WEB_LISTEN_PORT: "5173"
