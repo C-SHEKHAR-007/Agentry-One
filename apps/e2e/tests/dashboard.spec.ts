@@ -18,5 +18,5 @@ test("unknown routes show a not-found page instead of an empty layout", async ({
 
 test("a missing workflow shows not-found instead of loading forever", async ({ page }) => {
   await page.goto("/workflows/00000000-0000-0000-0000-000000000000");
-  await expect(page.getByText("This workflow doesn't exist")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("This run doesn't exist")).toBeVisible({ timeout: 10_000 });
 });

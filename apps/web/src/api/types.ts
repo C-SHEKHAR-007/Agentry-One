@@ -52,6 +52,7 @@ export interface Job {
   id: string;
   status: string;
   createdAt: string;
+  providerType?: string | null;
   runs?: JobRun[];
 }
 
@@ -95,6 +96,10 @@ export interface Workflow {
   createdAt: string;
   updatedAt: string;
   steps?: WorkflowStep[];
+  project?: { id: string; name: string };
+  agent?: { id: string; name: string; description?: string | null };
+  /** Set when this run is one step of a multi-step workflow run. */
+  templateRun?: { id: string; templateId: string; templateName: string } | null;
 }
 
 export interface RecentWorkflow {
