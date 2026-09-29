@@ -5,12 +5,12 @@ import { E2E_EMAIL, E2E_PASSWORD } from "./env";
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test("deep links survive the login redirect", async ({ page }) => {
-  await page.goto("/executions");
+  await page.goto("/runs?type=agents");
   await expect(page).toHaveURL(/\/login$/);
   await page.locator('input[type="email"]').fill(E2E_EMAIL);
   await page.locator('input[type="password"]').fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/executions$/);
+  await expect(page).toHaveURL(/\/runs\?type=agents$/);
 });
 
 test("signing out ends the session", async ({ page }) => {
