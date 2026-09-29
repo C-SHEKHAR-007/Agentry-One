@@ -164,6 +164,8 @@ export async function startWorkflow(
       attempts: manifest.attempts,
       backoffMs: manifest.backoff?.delayMs,
     });
+    // Tells live pages a run exists before any worker picks it up.
+    await prisma.event.create({ data: { workflowId: workflow.id, type: "workflow.started", payload: {} } });
 
     return workflow;
   } catch (err) {
