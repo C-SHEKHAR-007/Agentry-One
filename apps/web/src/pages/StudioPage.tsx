@@ -8,7 +8,7 @@ import { useProjects } from "../api/queries";
 import { planBrief } from "../lib/studioPlan";
 import { PageHeader } from "../components/PageHeader";
 import { Composer, type ComposerState, type SocialAccount } from "../components/studio/Composer";
-import { RecentCreations, type LibraryWorkflow } from "../components/studio/RecentCreations";
+import { RecentCreationsButton, type LibraryWorkflow } from "../components/studio/RecentCreations";
 import { RunView, type TemplateRun } from "../components/studio/RunView";
 import { PipelineStrip } from "../components/studio/PipelineStrip";
 import { LIVE_RUN_STATUSES } from "../components/studio/roles";
@@ -36,7 +36,7 @@ function loadDraft(): ComposerState {
  * core. */
 function EmptyCanvas({ plan, topic }: { plan: ReturnType<typeof planBrief>; topic: string }) {
   return (
-    <Card glass className="glow-border relative flex min-h-[440px] flex-col items-center justify-center overflow-hidden border-transparent p-8 text-center">
+    <Card glass className="glow-border relative flex min-h-[440px] flex-col items-center justify-center overflow-hidden border-transparent p-8 text-center lg:min-h-[calc(100dvh-11.5rem)]">
       {/* The core sits low and dim so the text above it stays readable. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-[-18%] top-[30%] opacity-40">
         <OrchestrationScene activity={plan.steps.length} nodes={Math.max(plan.steps.length, 4)} className="h-full w-full" />
@@ -101,7 +101,7 @@ export function StudioPage() {
       library
         .filter((w) => w.name.startsWith("Brief:") && w.runs.length > 0)
         .sort((a, b) => new Date(b.runs[0].createdAt).getTime() - new Date(a.runs[0].createdAt).getTime())
-        .slice(0, 8),
+        .slice(0, 50),
     [library],
   );
 
@@ -173,7 +173,11 @@ export function StudioPage() {
 
   return (
     <div>
-      <PageHeader title="Content Studio" description="Turn one idea into a caption, visual, voiceover and video — then publish it." />
+      <PageHeader
+        title="Content Studio"
+        description="Turn one idea into a caption, visual, voiceover and video — then publish it."
+        actions={<RecentCreationsButton items={recent} activeRunId={runId} onOpen={setRun} />}
+      />
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
         <div className="min-w-0 lg:sticky lg:top-0">
@@ -215,15 +219,9 @@ export function StudioPage() {
               </div>
             </div>
           ) : run ? (
-            <>
-              <RunView run={run} projectId={activeProjectId} accounts={accounts} onNew={() => setRun(null)} onOpen={setRun} />
-              <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} />
-            </>
+            <RunView run={run} projectId={activeProjectId} accounts={accounts} onNew={() => setRun(null)} onOpen={setRun} />
           ) : (
-            <>
-              <EmptyCanvas plan={planBrief(draft.roles, Boolean(draft.socialAccountId))} topic={draft.topic} />
-              <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} layout="grid" />
-            </>
+            <EmptyCanvas plan={planBrief(draft.roles, Boolean(draft.socialAccountId))} topic={draft.topic} />
           )}
         </div>
       </div>

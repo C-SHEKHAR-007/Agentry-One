@@ -54,8 +54,14 @@ test("content studio: plan preview, generate, live run, reopen from recent", asy
   await page.reload();
   await expect(page.getByLabel("What's it about?")).toHaveValue(topic);
 
-  // Recent creations reopens the run.
-  await page.getByRole("button", { name: new RegExp(topic) }).click();
+  // Recent (header) opens the creations dialog; searching and picking one
+  // reopens the run on the page and closes the dialog.
+  await page.getByRole("button", { name: /^Recent/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Recent creations" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Search recent creations").fill(topic);
+  await dialog.getByRole("button", { name: new RegExp(topic) }).click();
+  await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(runUrl);
   await expect(page.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", /\/templates\/.+\/edit/);
 });
