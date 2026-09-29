@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { AlertTriangle, Keyboard, Link2, PenLine } from "lucide-react";
-import type { InputMappingValue } from "../../api/types";
+import type { InputMappingValue } from "../../models";
 import { cn } from "../../lib/utils";
 import { NODE_WIDTH } from "../../lib/workflowGraph";
 import { KindChip } from "./stepVisuals";

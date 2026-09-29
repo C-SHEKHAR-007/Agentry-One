@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatDuration, formatTokens, formatUsd, runCode } from "../format";
 import { statusStyle } from "../status";
 import { chainColumns } from "../../components/dashboard/StepChain";
-import type { RunSummaryStep } from "../../api/types";
+import type { RunSummaryStep } from "../../models";
 
 describe("format helpers", () => {
   it("formats durations up to days", () => {

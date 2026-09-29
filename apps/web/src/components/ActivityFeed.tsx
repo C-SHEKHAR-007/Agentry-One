@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Activity, AlertTriangle, Ban, CheckCircle2, CircleDot, Eye, Play, type LucideIcon } from "lucide-react";
-import type { EventItem } from "../api/types";
+import type { EventItem } from "../models";
 import { formatClock, formatDuration, formatTokens, timeAgo } from "../lib/format";
 import { cn } from "../lib/utils";
 import { TONE, type StatusStyle } from "../lib/status";

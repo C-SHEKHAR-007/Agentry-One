@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Sparkles, Plus, Trash2, Wand2, Layers, Sliders, Bot, ArrowRight } from "lucide-react";
-import { api } from "../api/client.js";
+import { useCreateCustomAgentMutation } from "../features/agents/agents.api";
+import { useAllModelsQuery } from "../features/providers/providers.api";
+import { errorMessage } from "../services/http/errors";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -16,15 +17,6 @@ import { Badge } from "../components/ui/badge";
 interface SkillField {
   key: string;
   title: string;
-}
-
-interface DiscoveredModel {
-  id: string;
-  modelId: string;
-  name: string;
-  inputTypes: string[];
-  outputTypes: string[];
-  providerConfig?: { name: string };
 }
 
 const TEMPLATE_PRESETS = [
@@ -91,14 +83,13 @@ export function CreateSkillPage() {
   const [fields, setFields] = useState<SkillField[]>([{ key: "topic", title: "Topic" }]);
   const [humanGate, setHumanGate] = useState(false);
 
-  const { data: models } = useQuery({
-    queryKey: ["all-models"],
-    queryFn: () => api.get<DiscoveredModel[]>("/models"),
-  });
+  const { data: models } = useAllModelsQuery();
 
-  const createSkill = useMutation({
-    mutationFn: async () => {
-      const properties: Record<string, any> = {};
+  const [createCustomAgent, createState] = useCreateCustomAgentMutation();
+  const createSkill = {
+    isPending: createState.isLoading,
+    mutate: () => {
+      const properties: Record<string, unknown> = {};
       const required: string[] = [];
 
       fields.forEach((f) => {
@@ -113,7 +104,7 @@ export function CreateSkillPage() {
         required,
       };
 
-      return api.post("/agents/custom", {
+      createCustomAgent({
         name,
         description,
         capabilityKey,
@@ -123,16 +114,15 @@ export function CreateSkillPage() {
         systemPrompt,
         inputSchema,
         humanGate,
-      });
+      })
+        .unwrap()
+        .then(() => {
+          toast.success(`Agent "${name}" created and registered!`);
+          navigate("/agents");
+        })
+        .catch((err) => toast.error(errorMessage(err)));
     },
-    onSuccess: () => {
-      toast.success(`Agent "${name}" created and registered!`);
-      navigate("/agents");
-    },
-    onError: (err: Error) => {
-      toast.error(err.message);
-    },
-  });
+  };
 
   const addField = () => setFields([...fields, { key: "", title: "" }]);
   const removeField = (index: number) => setFields(fields.filter((_, i) => i !== index));

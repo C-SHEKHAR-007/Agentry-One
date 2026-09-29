@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Check,
@@ -11,24 +10,16 @@ import {
   Headphones,
   Maximize2,
 } from "lucide-react";
-import { downloadUrl } from "../api/client.js";
+import { useArtifactTextQuery } from "../features/artifacts/artifacts.api";
+import type { ArtifactItem } from "../models";
+import { routes } from "../services/api/routes";
 import { formatBytes } from "../lib/format";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { Skeleton } from "./ui/skeleton";
 
-export interface ArtifactItem {
-  id: string;
-  workflowId?: string;
-  kind: string;
-  mimeType: string;
-  sizeBytes?: number | null;
-  previewUrl?: string | null;
-  downloadUrl?: string | null;
-  createdAt?: string;
-  metadata?: Record<string, any> | null;
-}
+export type { ArtifactItem };
 
 interface ArtifactPreviewProps {
   artifact: ArtifactItem;
@@ -49,19 +40,10 @@ export function ArtifactPreview({ artifact, className = "", compact = false }: A
     artifact.kind === "text" ||
     artifact.kind === "search_brief";
 
-  const fileUrl = artifact.previewUrl || artifact.downloadUrl || downloadUrl(artifact.id);
+  const fileUrl = artifact.previewUrl || artifact.downloadUrl || routes.files.download(artifact.id);
 
   // Lazy-load text content if it's a text-based artifact
-  const { data: textContent, isLoading: textLoading } = useQuery({
-    queryKey: ["artifact-content", artifact.id],
-    queryFn: async () => {
-      const res = await fetch(fileUrl);
-      if (!res.ok) throw new Error("Failed to load artifact content");
-      return res.text();
-    },
-    enabled: isText,
-    staleTime: 5 * 60 * 1000,
-  });
+  const { currentData: textContent, isLoading: textLoading } = useArtifactTextQuery(artifact.id, { skip: !isText });
 
   const handleCopy = async (text: string) => {
     try {

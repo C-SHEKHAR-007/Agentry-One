@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
-import { api } from "../api/client";
+import { useSetupMutation } from "../features/auth/auth.api";
+import { errorMessage } from "../services/http/errors";
 import { useAuth } from "../features/auth/useAuth";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/ui/button";
@@ -16,6 +17,7 @@ export function SetupPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refresh } = useAuth();
+  const [setup] = useSetupMutation();
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
   const [pending, setPending] = useState(false);
 
@@ -32,12 +34,12 @@ export function SetupPage() {
     e.preventDefault();
     setPending(true);
     try {
-      await api.post("/auth/setup", form);
+      await setup(form).unwrap();
       await refresh();
       toast.success("Workspace ready — welcome!");
       navigate("/");
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(errorMessage(err));
     } finally {
       setPending(false);
     }

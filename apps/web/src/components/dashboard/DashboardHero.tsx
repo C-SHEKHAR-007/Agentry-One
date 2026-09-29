@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Plus, Sparkles } from "lucide-react";
-import type { SystemHealth } from "../../api/types";
+import type { SystemHealth } from "../../models";
 import { useNow } from "../../hooks/useNow";
 import { greeting } from "../../lib/format";
 import { cn } from "../../lib/utils";

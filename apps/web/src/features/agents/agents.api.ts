@@ -4,7 +4,8 @@ import { listTags } from "../../services/api/tags";
 import { useEffect, useMemo } from "react";
 import { shallowEqual } from "react-redux";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
-import type { Agent, AgentManifestDetail } from "../../models";
+import type { Agent, AgentManifestDetail, Capability, CustomAgentBody, ScaffoldBody, ScaffoldResult } from "../../models";
+import { LIST } from "../../services/api/tags";
 
 export const agentsApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -16,10 +17,40 @@ export const agentsApi = baseApi.injectEndpoints({
       query: (id) => routes.agents.detail(id),
       providesTags: (_res, _err, id) => [{ type: "Agent", id }],
     }),
+    capabilities: build.query<Capability[], void>({
+      query: () => routes.agents.capabilities,
+      providesTags: [{ type: "Capability", id: LIST }],
+      keepUnusedDataFor: 600,
+    }),
+    /** Re-reads every agent manifest on the server. */
+    rescanAgents: build.mutation<{ agents: { id: string }[] }, void>({
+      query: () => ({ url: routes.agents.rescan, method: "POST" }),
+      invalidatesTags: ["Agent", { type: "Stats", id: "system" }],
+    }),
+    scaffoldAgent: build.mutation<ScaffoldResult, ScaffoldBody>({
+      query: (body) => ({ url: routes.agents.scaffold, method: "POST", body }),
+      invalidatesTags: [{ type: "Agent", id: LIST }],
+    }),
+    createCustomAgent: build.mutation<Agent, CustomAgentBody>({
+      query: (body) => ({ url: routes.agents.custom, method: "POST", body }),
+      invalidatesTags: [{ type: "Agent", id: LIST }],
+    }),
+    deleteAgent: build.mutation<void, string>({
+      query: (id) => ({ url: routes.agents.detail(id), method: "DELETE" }),
+      invalidatesTags: (_res, _err, id) => [{ type: "Agent", id }, { type: "Agent", id: LIST }],
+    }),
   }),
 });
 
-export const { useAgentsQuery, useAgentQuery } = agentsApi;
+export const {
+  useAgentsQuery,
+  useAgentQuery,
+  useCapabilitiesQuery,
+  useRescanAgentsMutation,
+  useScaffoldAgentMutation,
+  useCreateCustomAgentMutation,
+  useDeleteAgentMutation,
+} = agentsApi;
 
 /** Manifests for several agents at once (one cache entry each), e.g. every
  * agent a workflow's steps use. */

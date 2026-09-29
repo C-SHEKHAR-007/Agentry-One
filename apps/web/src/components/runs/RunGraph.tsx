@@ -12,7 +12,7 @@ import ReactFlow, {
   type NodeProps,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import type { RunDetail } from "../../api/types";
+import type { RunDetail } from "../../models";
 import { formatDuration, formatTokens } from "../../lib/format";
 import { statusStyle, TONE } from "../../lib/status";
 import { cn } from "../../lib/utils";

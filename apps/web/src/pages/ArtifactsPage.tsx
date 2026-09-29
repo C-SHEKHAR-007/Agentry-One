@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Download,
@@ -17,8 +16,14 @@ import {
   Copy,
   Video as VideoIcon,
 } from "lucide-react";
-import { useArtifacts, useProjects, useSasPreviewUrl, useSasDownloadUrl } from "../api/queries";
-import type { ArtifactListItem } from "../api/types";
+import {
+  useArtifactDownloadUrlQuery,
+  useArtifactPreviewUrlQuery,
+  useArtifactsQuery,
+  useArtifactTextQuery,
+} from "../features/artifacts/artifacts.api";
+import { useProjectsQuery } from "../features/projects/projects.api";
+import type { ArtifactListItem } from "../models";
 import { formatBytes, timeAgo } from "../lib/format";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
@@ -47,7 +52,8 @@ function ArtifactCard({
     artifact.kind === "text" ||
     artifact.kind === "search_brief";
 
-  const { data: sas } = useSasPreviewUrl(!artifact.previewUrl && isImage ? artifact.id : undefined);
+  const needsSas = !artifact.previewUrl && isImage;
+  const { currentData: sas } = useArtifactPreviewUrlQuery(artifact.id, { skip: !needsSas });
   const url = artifact.previewUrl || sas?.url;
 
   return (
@@ -144,25 +150,15 @@ function PreviewDialog({
       artifact.kind === "text" ||
       artifact.kind === "search_brief");
 
-  const { data: previewSas } = useSasPreviewUrl(!artifact?.previewUrl ? artifact?.id : undefined);
-  const { data: downloadSas } = useSasDownloadUrl(!artifact?.downloadUrl ? artifact?.id : undefined);
+  const artifactId = artifact?.id ?? "";
+  const { currentData: previewSas } = useArtifactPreviewUrlQuery(artifactId, { skip: !artifact || Boolean(artifact.previewUrl) });
+  const { currentData: downloadSas } = useArtifactDownloadUrlQuery(artifactId, { skip: !artifact || Boolean(artifact.downloadUrl) });
   const previewUrl = artifact?.previewUrl || previewSas?.url;
   const downloadUrl = artifact?.downloadUrl || downloadSas?.url;
   const expiresAt = previewSas?.expiresAt;
 
-  // Text content loader
-  const { data: textContent, isLoading: textLoading } = useQuery({
-    queryKey: ["preview-artifact-text", artifact?.id],
-    queryFn: async () => {
-      const targetUrl = downloadUrl || previewUrl;
-      if (!targetUrl) return "";
-      const res = await fetch(targetUrl);
-      if (!res.ok) throw new Error("Could not fetch artifact content");
-      return res.text();
-    },
-    enabled: Boolean(isText && (downloadUrl || previewUrl)),
-    staleTime: 5 * 60 * 1000,
-  });
+  // Text content, read through the API (which also streams Azure blobs).
+  const { currentData: textContent, isLoading: textLoading } = useArtifactTextQuery(artifactId, { skip: !isText });
 
   const handleCopy = async () => {
     if (!textContent) return;
@@ -304,8 +300,8 @@ export function ArtifactsPage() {
   const [kind, setKind] = useState("");
   const [preview, setPreview] = useState<ArtifactListItem | null>(null);
 
-  const { data: projects } = useProjects();
-  const { data: artifacts, isLoading } = useArtifacts({
+  const { data: projects } = useProjectsQuery();
+  const { data: artifacts, isLoading } = useArtifactsQuery({
     limit: 60,
     projectId: projectId || undefined,
     kind: kind || undefined,

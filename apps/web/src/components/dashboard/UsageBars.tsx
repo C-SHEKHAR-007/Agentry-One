@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { AgentStats } from "../../api/types";
+import type { AgentStats } from "../../models";
 import { formatDuration, formatTokens, formatUsd } from "../../lib/format";
 import { cn } from "../../lib/utils";
 

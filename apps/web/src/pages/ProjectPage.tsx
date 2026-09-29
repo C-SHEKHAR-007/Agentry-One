@@ -1,12 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotFoundPage } from "./NotFoundPage";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { FileStack, FileText, Headphones, Play, Plus, Trash2 } from "lucide-react";
-import { api } from "../api/client.js";
-import { useArtifacts } from "../api/queries";
-import { downloadUrl } from "../api/client.js";
+import { useArtifactsQuery } from "../features/artifacts/artifacts.api";
+import {
+  useDeleteProjectMutation,
+  useProjectQuery,
+  useProjectTemplatesQuery,
+} from "../features/projects/projects.api";
+import { routes } from "../services/api/routes";
+import { errorMessage } from "../services/http/errors";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { Button } from "../components/ui/button";
@@ -21,42 +25,31 @@ import {
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 
-interface Project {
-  id: string;
-  name: string;
-}
-
-interface Template {
-  id: string;
-  name: string;
-  status: string;
-}
-
 export function ProjectPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [removeProject, deleteState] = useDeleteProjectMutation();
 
-  const { data: project, isError: projectLoadFailed } = useQuery({
-    queryKey: ["project", projectId],
-    queryFn: () => api.get<Project>(`/projects/${projectId}`),
-  });
-  const { data: templates } = useQuery({
-    queryKey: ["templates", projectId],
-    queryFn: () => api.get<Template[]>(`/projects/${projectId}/templates`),
-  });
-  const { data: artifacts } = useArtifacts({ projectId, limit: 12 });
+  // Once a delete starts, drop this page's subscriptions so the cache
+  // invalidation it triggers doesn't refetch the project being removed.
+  const id = projectId ?? "";
+  const skip = !projectId || deleteState.isLoading || deleteState.isSuccess;
+  const { data: project, isError: projectLoadFailed } = useProjectQuery(id, { skip });
+  const { data: templates } = useProjectTemplatesQuery(id, { skip });
+  const { data: artifacts } = useArtifactsQuery({ projectId, limit: 12 }, { skip });
 
-  const deleteProject = useMutation({
-    mutationFn: () => api.delete(`/projects/${projectId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Project deleted");
-      navigate("/projects");
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const deleteProject = {
+    isPending: deleteState.isLoading,
+    mutate: () =>
+      removeProject(id)
+        .unwrap()
+        .then(() => {
+          toast.success("Project deleted");
+          navigate("/projects");
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   if (projectLoadFailed) return <NotFoundPage what="project" />;
   if (!project) {
@@ -153,7 +146,7 @@ export function ProjectPage() {
                   >
                     {isImage ? (
                       <img
-                        src={downloadUrl(a.id)}
+                        src={routes.files.download(a.id)}
                         alt={a.kind}
                         loading="lazy"
                         className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-105"

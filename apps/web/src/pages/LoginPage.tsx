@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
-import { api } from "../api/client";
+import { useLoginMutation } from "../features/auth/auth.api";
+import { errorMessage } from "../services/http/errors";
 import { useAuth } from "../features/auth/useAuth";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/ui/button";
@@ -17,6 +18,7 @@ export function LoginPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { refresh } = useAuth();
+  const [login] = useLoginMutation();
   const [form, setForm] = useState({ email: "", password: "" });
   const [pending, setPending] = useState(false);
 
@@ -33,13 +35,13 @@ export function LoginPage() {
     e.preventDefault();
     setPending(true);
     try {
-      await api.post("/auth/login", form);
+      await login(form).unwrap();
       await refresh();
       // Return to the page that bounced the user to login (in-app paths only).
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from && from.startsWith("/") && !from.startsWith("//") ? from : "/", { replace: true });
     } catch (err) {
-      toast.error((err as Error).message);
+      toast.error(errorMessage(err));
     } finally {
       setPending(false);
     }

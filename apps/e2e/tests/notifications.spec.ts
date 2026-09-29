@@ -16,9 +16,10 @@ test("notifications: pushed live, mark read, delete", async ({ page }) => {
   await expect(item).toBeVisible();
   await page.getByRole("button", { name: /Mark all/i }).click();
 
-  const list: Array<{ id: string; title: string; read?: boolean; isRead?: boolean }> = await (await page.request.get("/api/notifications")).json();
-  const mine = list.find((n) => n.title === title);
-  expect(mine).toBeTruthy();
-  expect(mine!.read ?? mine!.isRead).toBe(true);
+  // The UI marks them read optimistically; poll until the server agrees.
+  type Row = { id: string; title: string; read?: boolean; isRead?: boolean };
+  const mineNow = async () => ((await (await page.request.get("/api/notifications")).json()) as Row[]).find((n) => n.title === title);
+  await expect.poll(async () => { const n = await mineNow(); return n?.read ?? n?.isRead; }).toBe(true);
+  const mine = await mineNow();
   await page.request.delete(`/api/notifications/${mine!.id}`);
 });

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, Check, Info, AlertTriangle, XCircle, CheckCircle2 } from "lucide-react";
 import { useNotifications } from "../useNotifications";
-import { NotificationType } from "../../../api/types";
+import type { NotificationType } from "../../../models";
 
 export function NotificationDropdown() {
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();

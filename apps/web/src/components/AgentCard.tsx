@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import type { Agent } from "../api/types";
+import type { Agent } from "../models";
 import type { ComingSoonAgent } from "../data/comingSoonAgents";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";

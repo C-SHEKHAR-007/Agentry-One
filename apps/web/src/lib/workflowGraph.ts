@@ -2,7 +2,7 @@
  * downstream consumers and friendly per-field validation. Kept free of React
  * so they can be unit-tested and shared by the canvas and the form view. */
 
-import type { InputMappingValue } from "../api/types";
+import type { InputMappingValue } from "../models";
 
 export interface GraphStep {
   stepOrder: number;

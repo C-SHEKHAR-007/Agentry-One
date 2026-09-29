@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { NotFoundPage } from "./NotFoundPage";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -13,9 +12,10 @@ import {
   Sparkles,
   Video as VideoIcon,
 } from "lucide-react";
-import { api } from "../api/client.js";
-import type { ProviderConfig } from "../api/types";
-import { useAgentStats, useArtifacts, useSasPreviewUrl } from "../api/queries";
+import { useAgentQuery } from "../features/agents/agents.api";
+import { useArtifactPreviewUrlQuery, useArtifactsQuery } from "../features/artifacts/artifacts.api";
+import { useProvidersQuery } from "../features/providers/providers.api";
+import { useAgentStats } from "../features/stats/stats.api";
 import { formatDuration, formatPercent, timeAgo } from "../lib/format";
 import { StatCard } from "../components/StatCard";
 import { Badge } from "../components/ui/badge";
@@ -23,21 +23,6 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
 
-interface AgentStep {
-  key: string;
-  requiresCapability?: string;
-  humanGate: boolean;
-  producesArtifactKinds: string[];
-  inputSchema: { properties?: Record<string, { title?: string; type?: string }>; required?: string[] };
-}
-
-interface AgentDetail {
-  id: string;
-  name: string;
-  version: string;
-  description: string;
-  manifest: { steps: AgentStep[] };
-}
 
 /** Per-output component supporting images, text, audio, and videos */
 function RecentOutputItem({
@@ -60,7 +45,8 @@ function RecentOutputItem({
   const isVideo = mimeType.startsWith("video/");
   const isText = mimeType.startsWith("text/") || mimeType.includes("json") || kind === "text" || kind === "search_brief";
 
-  const { data: sas } = useSasPreviewUrl(!previewUrl && isImage ? artifactId : undefined);
+  const sasId = !previewUrl && isImage ? artifactId : undefined;
+  const { data: sas } = useArtifactPreviewUrlQuery(sasId ?? "", { skip: !sasId });
   const url = previewUrl || sas?.url;
 
   return (
@@ -115,21 +101,14 @@ function RecentOutputItem({
 
 export function AgentDetailPage() {
   const { agentId } = useParams();
-  const { data: agent, isError: agentLoadFailed } = useQuery({
-    queryKey: ["agent", agentId],
-    queryFn: () => api.get<AgentDetail>(`/agents/${agentId}`),
-  });
+  const { data: agent, isError: agentLoadFailed } = useAgentQuery(agentId ?? "", { skip: !agentId });
   const { data: agentStats } = useAgentStats();
   const stats = agentStats?.agents.find((a) => a.agentId === agentId);
 
   const capability = agent?.manifest.steps.find((s) => s.requiresCapability)?.requiresCapability;
-  const { data: providers } = useQuery({
-    queryKey: ["providers", capability],
-    queryFn: () => api.get<ProviderConfig[]>(`/providers?capability=${capability}`),
-    enabled: !!capability,
-  });
+  const { data: providers } = useProvidersQuery(capability ?? "", { skip: !capability });
 
-  const { data: artifacts } = useArtifacts({ limit: 24 });
+  const { data: artifacts } = useArtifactsQuery({ limit: 24 });
   const recentOutputs = (artifacts ?? [])
     .filter((a) => a.agentId === agentId)
     .slice(0, 8);

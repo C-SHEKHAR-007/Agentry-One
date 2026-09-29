@@ -1,5 +1,5 @@
 import { Globe, Database, Layers, Cpu } from "lucide-react";
-import type { SystemHealth } from "../api/types";
+import type { SystemHealth } from "../models";
 import { cn } from "../lib/utils";
 
 function Row({

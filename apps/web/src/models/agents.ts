@@ -23,10 +23,12 @@ export interface AgentDetail extends Agent {
   };
 }
 
+/** A capability a provider can serve (GET /capabilities). */
 export interface Capability {
   id: string;
   key: string;
-  name: string;
+  label: string;
+  description?: string | null;
 }
 
 export interface AgentStats {
@@ -59,16 +61,48 @@ export interface FieldSchema {
 export interface AgentManifestDetail {
   id: string;
   name: string;
+  version?: string;
   description?: string;
+  status?: string;
   manifest: {
     steps: Array<{
       key: string;
       name?: string;
+      humanGate?: boolean;
       requiresCapability?: string;
       requiresSocialAccount?: boolean;
       producesArtifactKinds: string[];
       consumesArtifactKinds?: string[];
       inputSchema: { properties?: Record<string, FieldSchema>; required?: string[] };
     }>;
+    [key: string]: unknown;
   };
+}
+
+export interface ScaffoldBody {
+  id: string;
+  name: string;
+  description?: string;
+  capability?: string;
+  fields: Array<{ name: string; type: string; required: boolean }>;
+}
+
+/** POST /agents/scaffold: the generated Python agent. */
+export interface ScaffoldResult {
+  agent: Agent;
+  files: string[];
+  workerCommand: string;
+}
+
+/** POST /agents/custom: a database-served ("dynamic") agent. */
+export interface CustomAgentBody {
+  name: string;
+  description?: string;
+  capabilityKey: string;
+  modelId?: string;
+  inputTypes: string[];
+  outputTypes: string[];
+  systemPrompt: string;
+  inputSchema: Record<string, unknown>;
+  humanGate: boolean;
 }

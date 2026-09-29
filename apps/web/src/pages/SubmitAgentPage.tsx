@@ -1,13 +1,16 @@
 import Form from "@rjsf/core";
 import { NotFoundPage } from "./NotFoundPage";
 import { cspSafeValidator as validator } from "../lib/schemaValidator";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { BookmarkPlus, Sparkles } from "lucide-react";
-import { api } from "../api/client.js";
-import type { Prompt } from "../api/types";
+import { useAgentQuery } from "../features/agents/agents.api";
+import { useProjectsQuery } from "../features/projects/projects.api";
+import { useCreatePromptMutation, usePromptsQuery } from "../features/prompts/prompts.api";
+import { useProvidersQuery } from "../features/providers/providers.api";
+import { useStartAgentRunMutation } from "../features/runs/agentRuns.api";
+import { errorMessage } from "../services/http/errors";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -15,49 +18,16 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 
-interface AgentDetail {
-  id: string;
-  name: string;
-  manifest: {
-    steps: Array<{
-      inputSchema: { properties?: Record<string, { type?: string }> };
-      requiresCapability?: string;
-    }>;
-  };
-}
-
-interface Project {
-  id: string;
-  name: string;
-}
-
-interface Workflow {
-  id: string;
-}
-
-interface ProviderConfig {
-  id: string;
-  name: string;
-  providerType: string;
-  isDefault: boolean;
-  status: string;
-}
-
 export function SubmitAgentPage() {
   const { agentId } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState("");
   const [providerConfigId, setProviderConfigId] = useState("");
   const [formData, setFormData] = useState<Record<string, unknown>>({});
 
-  const { data: agent, isError: agentLoadFailed } = useQuery({ queryKey: ["agent", agentId], queryFn: () => api.get<AgentDetail>(`/agents/${agentId}`) });
-  const { data: projects } = useQuery({ queryKey: ["projects"], queryFn: () => api.get<Project[]>("/projects") });
-  const { data: prompts } = useQuery({
-    queryKey: ["prompts", agentId],
-    queryFn: () => api.get<Prompt[]>(`/prompts?agentId=${agentId}`),
-    enabled: Boolean(agentId),
-  });
+  const { data: agent, isError: agentLoadFailed } = useAgentQuery(agentId ?? "", { skip: !agentId });
+  const { data: projects } = useProjectsQuery();
+  const { data: prompts } = usePromptsQuery(agentId ?? "", { skip: !agentId });
 
   // The field a saved prompt targets: a string field literally named "prompt",
   // else the first string field in the schema.
@@ -67,20 +37,17 @@ export function SubmitAgentPage() {
     return Object.entries(props).find(([, v]) => v.type === "string")?.[0] ?? null;
   }, [agent]);
 
-  const savePrompt = useMutation({
-    mutationFn: (template: string) => {
+  const [createPrompt] = useCreatePromptMutation();
+  const savePrompt = {
+    mutate: (template: string) => {
       const key = window.prompt("Save prompt as (key):", "my-prompt");
-      if (!key?.trim()) return Promise.reject(new Error("cancelled"));
-      return api.post<Prompt>("/prompts", { agentId, key: key.trim(), template });
+      if (!key?.trim() || !agentId) return;
+      createPrompt({ agentId, key: key.trim(), template })
+        .unwrap()
+        .then((p) => toast.success(`Saved "${p.key}" v${p.version}`))
+        .catch((err) => toast.error(errorMessage(err)));
     },
-    onSuccess: (p) => {
-      queryClient.invalidateQueries({ queryKey: ["prompts", agentId] });
-      toast.success(`Saved "${p.key}" v${p.version}`);
-    },
-    onError: (err) => {
-      if (err.message !== "cancelled") toast.error(err.message);
-    },
-  });
+  };
 
   // "Use in run" from the prompt library links here with ?prompt=<id>:
   // pre-fill the prompt field with that saved prompt, once.
@@ -102,11 +69,7 @@ export function SubmitAgentPage() {
   }, [projects, projectId]);
 
   const requiredCapability = agent?.manifest.steps[0]?.requiresCapability;
-  const { data: providers } = useQuery({
-    queryKey: ["providers", requiredCapability],
-    queryFn: () => api.get<ProviderConfig[]>(`/providers?capability=${requiredCapability}`),
-    enabled: Boolean(requiredCapability),
-  });
+  const { data: providers } = useProvidersQuery(requiredCapability ?? "", { skip: !requiredCapability });
   const activeProviders = providers?.filter((p) => p.status === "active") ?? [];
 
   // Auto-select default provider or only active provider so submissions never fail with 422
@@ -121,22 +84,25 @@ export function SubmitAgentPage() {
     }
   }, [activeProviders, providerConfigId]);
 
-  const submit = useMutation({
-    mutationFn: (input: unknown) =>
-      api.post<Workflow>(`/projects/${projectId}/workflows`, {
-        agentId,
-        input,
-        providerConfigId: providerConfigId || undefined,
-      }),
-    onSuccess: (workflow) => {
-      toast.success("Run started");
-      navigate(`/workflows/${workflow.id}`);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [startRun, startState] = useStartAgentRunMutation();
+  const submit = (input: Record<string, unknown>) => {
+    if (!agentId) return;
+    startRun({ projectId, agentId, input, providerConfigId: providerConfigId || undefined })
+      .unwrap()
+      .then((workflow) => {
+        toast.success("Run started");
+        navigate(`/workflows/${workflow.id}`);
+      })
+      .catch((err) => toast.error(errorMessage(err)));
+  };
+
+  // rjsf's validator annotates the schema it's given; cached API data is
+  // frozen, so hand it a copy.
+  const inputSchema = agent?.manifest.steps[0]?.inputSchema;
+  const schema = useMemo(() => (inputSchema ? structuredClone(inputSchema) : undefined), [inputSchema]);
 
   if (agentLoadFailed) return <NotFoundPage what="agent" />;
-  if (!agent) {
+  if (!agent || !schema) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-14 max-w-md" />
@@ -144,7 +110,6 @@ export function SubmitAgentPage() {
       </div>
     );
   }
-  const schema = agent.manifest.steps[0].inputSchema;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -232,13 +197,11 @@ export function SubmitAgentPage() {
               validator={validator}
               formData={formData}
               onChange={({ formData }) => setFormData(formData ?? {})}
-              onSubmit={({ formData }) => submit.mutate(formData)}
+              onSubmit={({ formData }) => submit(formData ?? {})}
               className="rjsf-form"
             />
           )}
-          {submit.isError && (
-            <p className="text-sm text-destructive">{(submit.error as Error).message}</p>
-          )}
+          {startState.isError && <p className="text-sm text-destructive">{errorMessage(startState.error)}</p>}
         </CardContent>
       </Card>
     </div>

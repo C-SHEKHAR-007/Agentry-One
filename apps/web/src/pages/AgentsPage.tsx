@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Plus, RefreshCw, Code2, Search, Trash2, Bot, Sparkles, Activity, Layers } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { api } from "../api/client.js";
-import type { Agent, Capability } from "../api/types";
-import { useAgentStats, useSystemHealth } from "../api/queries";
+import type { ScaffoldResult } from "../models";
+import { useAgentsQuery, useCapabilitiesQuery, useRescanAgentsMutation, useScaffoldAgentMutation } from "../features/agents/agents.api";
+import { useAgentStats, useSystemHealth } from "../features/stats/stats.api";
+import { errorMessage } from "../services/http/errors";
 import { comingSoonAgents } from "../data/comingSoonAgents";
 import { ComingSoonAgentCard, InstalledAgentCard } from "../components/AgentCard";
 import { PageHeader } from "../components/PageHeader";
@@ -26,29 +26,17 @@ interface FieldDraft {
   required: boolean;
 }
 
-interface ScaffoldResult {
-  agent: Agent;
-  files: string[];
-  workerCommand: string;
-}
 
 export function AgentsPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Active tab: "all" | "installed" | "custom" | "workers"
   const activeTab = searchParams.get("tab") || (searchParams.get("filter") === "installed" ? "installed" : "all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: agents, isLoading } = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => api.get<Agent[]>("/agents"),
-  });
-  const { data: capabilities } = useQuery({
-    queryKey: ["capabilities"],
-    queryFn: () => api.get<Capability[]>("/capabilities"),
-  });
+  const { data: agents, isLoading } = useAgentsQuery();
+  const { data: capabilities } = useCapabilitiesQuery();
   const { data: agentStats } = useAgentStats();
   const { data: health } = useSystemHealth();
 
@@ -67,32 +55,31 @@ export function AgentsPage() {
     { name: "message", type: "string", required: true },
   ]);
 
-  const rescan = useMutation({
-    mutationFn: () => api.post<{ agents: { id: string }[] }>("/agents/rescan"),
-    onSuccess: (d) => {
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
-      toast.success(`Registry rescanned — ${d.agents.length} agent(s) found`);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
+  const [rescanAgents, rescanState] = useRescanAgentsMutation();
+  const rescan = {
+    isPending: rescanState.isLoading,
+    mutate: () =>
+      rescanAgents()
+        .unwrap()
+        .then((d) => toast.success(`Registry rescanned — ${d.agents.length} agent(s) found`))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
-  const scaffold = useMutation({
-    mutationFn: () =>
-      api.post<ScaffoldResult>("/agents/scaffold", {
-        ...scaffoldForm,
-        capability: scaffoldForm.capability || undefined,
-        fields: scaffoldFields,
-      }),
-    onSuccess: (r) => {
-      queryClient.invalidateQueries({ queryKey: ["agents"] });
-      setScaffoldOpen(false);
-      setScaffoldResult(r);
-      setScaffoldForm({ id: "", name: "", description: "", capability: "" });
-      setScaffoldFields([{ name: "message", type: "string", required: true }]);
-      toast.success(`Python agent "${r.agent?.name}" scaffolded to agents/${r.agent?.id}`);
-    },
-    onError: (err: any) => toast.error(err.message),
-  });
+  const [scaffoldAgent, scaffoldState] = useScaffoldAgentMutation();
+  const scaffold = {
+    isPending: scaffoldState.isLoading,
+    mutate: () =>
+      scaffoldAgent({ ...scaffoldForm, capability: scaffoldForm.capability || undefined, fields: scaffoldFields })
+        .unwrap()
+        .then((r) => {
+          setScaffoldOpen(false);
+          setScaffoldResult(r);
+          setScaffoldForm({ id: "", name: "", description: "", capability: "" });
+          setScaffoldFields([{ name: "message", type: "string", required: true }]);
+          toast.success(`Python agent "${r.agent?.name}" scaffolded to agents/${r.agent?.id}`);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const setTab = (tab: string) => {
     setSearchParams(tab === "all" ? {} : { tab });
@@ -338,8 +325,8 @@ export function AgentsPage() {
               >
                 <option value="">None / custom</option>
                 {capabilities?.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                  <option key={c.id} value={c.key}>
+                    {c.label}
                   </option>
                 ))}
               </Select>

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { diffLines, segmentTemplate } from "../../lib/promptText";
-import { cn } from "../../lib/utils";
+import { diffLines, segmentTemplate } from "../../../lib/promptText";
+import { cn } from "../../../lib/utils";
 
 /** A prompt template rendered as written (line breaks kept), with
  * `{{placeholders}}` highlighted. */

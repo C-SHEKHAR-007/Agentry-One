@@ -1,13 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { FolderKanban, Plus } from "lucide-react";
 import { motion } from "framer-motion";
-import { api } from "../api/client.js";
-import { downloadUrl } from "../api/client.js";
-import { useProjects } from "../api/queries";
-import type { Project } from "../api/types";
+import { useCreateProjectMutation, useProjectsQuery } from "../features/projects/projects.api";
+import { routes } from "../services/api/routes";
+import { errorMessage } from "../services/http/errors";
 import { timeAgo } from "../lib/format";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
@@ -18,21 +16,23 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 
 export function ProjectsPage() {
-  const queryClient = useQueryClient();
-  const { data: projects, isLoading } = useProjects();
+  const { data: projects, isLoading } = useProjectsQuery();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
 
-  const createProject = useMutation({
-    mutationFn: () => api.post<Project>("/projects", { name }),
-    onSuccess: (p) => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success(`Project "${p.name}" created`);
-      setName("");
-      setOpen(false);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [create, createState] = useCreateProjectMutation();
+  const createProject = {
+    isPending: createState.isLoading,
+    mutate: () =>
+      create({ name })
+        .unwrap()
+        .then((p) => {
+          toast.success(`Project "${p.name}" created`);
+          setName("");
+          setOpen(false);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   return (
     <div>
@@ -82,7 +82,7 @@ export function ProjectsPage() {
               <div className="flex h-32 items-center justify-center overflow-hidden bg-muted/50">
                 {p.coverArtifactId ? (
                   <img
-                    src={downloadUrl(p.coverArtifactId)}
+                    src={routes.files.download(p.coverArtifactId)}
                     alt=""
                     loading="lazy"
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Bot } from "lucide-react";
-import type { AgentStats } from "../api/types";
+import type { AgentStats } from "../models";
 
 const COLORS = [
   "hsl(var(--chart-1))",

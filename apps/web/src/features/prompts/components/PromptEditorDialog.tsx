@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Braces, GitBranchPlus, Sparkles } from "lucide-react";
-import { api } from "../../api/client";
-import type { Agent, Prompt } from "../../api/types";
-import { extractPlaceholders, textStats, toPromptKey } from "../../lib/promptText";
-import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Select } from "../ui/select";
-import { Spinner } from "../ui/spinner";
-import { Textarea } from "../ui/textarea";
+import type { Agent, Prompt } from "../../../models";
+import { errorMessage } from "../../../services/http/errors";
+import { useCreatePromptMutation } from "../prompts.api";
+import { extractPlaceholders, textStats, toPromptKey } from "../../../lib/promptText";
+import { Button } from "../../../components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Select } from "../../../components/ui/select";
+import { Spinner } from "../../../components/ui/spinner";
+import { Textarea } from "../../../components/ui/textarea";
 
 export type EditorMode =
   | { kind: "new" }
@@ -31,7 +31,7 @@ export function PromptEditorDialog({
   prompts: Prompt[];
   onSaved: (p: Prompt) => void;
 }) {
-  const queryClient = useQueryClient();
+  const [createPrompt, createState] = useCreatePromptMutation();
   const [agentId, setAgentId] = useState("");
   const [key, setKey] = useState("");
   const [template, setTemplate] = useState("");
@@ -64,16 +64,18 @@ export function PromptEditorDialog({
       .reduce<Prompt | null>((best, p) => (!best || p.version > best.version ? p : best), null);
   }, [isVersion, agentId, normalizedKey, prompts]);
 
-  const save = useMutation({
-    mutationFn: () => api.post<Prompt>("/prompts", { agentId, key: normalizedKey, template }),
-    onSuccess: (p) => {
-      queryClient.invalidateQueries({ queryKey: ["prompts"] });
-      toast.success(p.version > 1 ? `Saved "${p.key}" as v${p.version}` : `Created "${p.key}"`);
-      onSaved(p);
-      onClose();
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const save = {
+    isPending: createState.isLoading,
+    mutate: () =>
+      createPrompt({ agentId, key: normalizedKey, template })
+        .unwrap()
+        .then((p) => {
+          toast.success(p.version > 1 ? `Saved "${p.key}" as v${p.version}` : `Created "${p.key}"`);
+          onSaved(p);
+          onClose();
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const canSave = Boolean(agentId && normalizedKey && template.trim()) && !unchanged && !save.isPending;
 

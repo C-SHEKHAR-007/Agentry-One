@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { ChevronRight } from "lucide-react";
-import type { RunSummaryStep } from "../../api/types";
+import type { RunSummaryStep } from "../../models";
 import { cn } from "../../lib/utils";
 import { statusStyle, TONE } from "../../lib/status";
 import { StatusDot } from "../StatusBadge";
