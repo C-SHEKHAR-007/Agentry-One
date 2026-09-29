@@ -1,9 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowRight, Keyboard, Link2, PenLine } from "lucide-react";
-import { api } from "../../api/client";
-import type { InputMappingValue } from "../../api/types";
+import type { InputMappingValue } from "../../models";
+import { useSocialAccountsQuery } from "../../features/integrations/socialAccounts.api";
 import type { FieldSchema, TemplateDraft } from "../../hooks/useTemplateDraft";
 import { consumersOf, fieldIssues, stepLabel } from "../../lib/workflowGraph";
 import { cn } from "../../lib/utils";
@@ -332,10 +331,8 @@ function LiteralInput({
   const size = compact ? "h-8 py-1 text-xs" : undefined;
   const placeholder = schema.default !== undefined ? `Default: ${String(schema.default)}` : "Enter a value";
 
-  const { data: socialAccounts } = useQuery({
-    queryKey: ["socialAccounts", draft.targetProjectId],
-    queryFn: () => api.get<Array<{ id: string; platform: string; handle?: string }>>(`/social-accounts?projectId=${draft.targetProjectId}`),
-    enabled: field === "socialAccountId" && Boolean(draft.targetProjectId),
+  const { data: socialAccounts } = useSocialAccountsQuery(draft.targetProjectId ?? "", {
+    skip: field !== "socialAccountId" || !draft.targetProjectId,
   });
 
   if (field === "socialAccountId") {

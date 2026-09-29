@@ -65,7 +65,8 @@ function ReviewGate({ workflowId }: { workflowId: string }) {
 export function StepInspector({ step, agentName }: { step: RunStep; agentName: string }) {
   const u = step.usage;
   const live = ["running", "queued", "pending"].includes(step.status) && Boolean(step.workflowId);
-  const { data: artifacts } = useAgentRunArtifactsQuery(step.workflowId ?? "", {
+  // currentData: selecting another step never shows the previous step's outputs.
+  const { currentData: artifacts } = useAgentRunArtifactsQuery(step.workflowId ?? "", {
     skip: !step.workflowId || !["completed", "awaiting_review"].includes(step.status),
   });
   const hint = step.status === "failed" ? failureHint(u.error) : null;

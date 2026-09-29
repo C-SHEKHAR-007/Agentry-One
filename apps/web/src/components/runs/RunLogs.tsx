@@ -14,7 +14,9 @@ const LEVEL: Record<string, string> = {
 
 /** A run's log lines, polled every 1.5s while it's live. */
 export function useRunLogs(workflowId: string | null | undefined, live: boolean) {
-  return useAgentRunLogsQuery(workflowId ?? "", { skip: !workflowId, ...poll(live ? 1500 : 0) });
+  const result = useAgentRunLogsQuery(workflowId ?? "", { skip: !workflowId, ...poll(live ? 1500 : 0) });
+  // currentData: switching to another run never shows the previous run's lines.
+  return { ...result, data: result.currentData, isLoading: result.isLoading || (result.isFetching && !result.currentData) };
 }
 
 /** Terminal-style log for one agent run: attempt starts, progress messages,

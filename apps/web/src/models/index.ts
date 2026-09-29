@@ -13,3 +13,5 @@ export * from "./stats";
 export * from "./notifications";
 export * from "./users";
 export * from "./settings";
+export * from "./socialAccounts";
+export * from "./studio";

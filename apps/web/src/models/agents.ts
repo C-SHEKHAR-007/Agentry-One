@@ -43,3 +43,32 @@ export interface AgentStats {
   tokens?: number;
   costUsd?: number;
 }
+
+/** The subset of JSON Schema the workflow editor renders fields from. */
+export interface FieldSchema {
+  type?: string;
+  title?: string;
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+}
+
+/** An agent with the manifest details the editor needs (GET /agents/:id). */
+export interface AgentManifestDetail {
+  id: string;
+  name: string;
+  description?: string;
+  manifest: {
+    steps: Array<{
+      key: string;
+      name?: string;
+      requiresCapability?: string;
+      requiresSocialAccount?: boolean;
+      producesArtifactKinds: string[];
+      consumesArtifactKinds?: string[];
+      inputSchema: { properties?: Record<string, FieldSchema>; required?: string[] };
+    }>;
+  };
+}

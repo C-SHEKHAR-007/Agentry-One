@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { api } from "../api/client";
-import type { InputMappingValue } from "../api/types";
+import type { AgentManifestDetail, InputMappingValue } from "../models";
+import { useAgentManifests, useAgentsQuery } from "../features/agents/agents.api";
+import { useCreateTemplateMutation, useTemplateQuery, useUpdateTemplateMutation } from "../features/workflows/templates.api";
+import { errorMessage } from "../services/http/errors";
 import { validateTemplateSteps } from "../lib/templateValidation";
+
+// Moved to models/ (v2.2); re-exported for the editor components.
+export type { AgentManifestDetail, FieldSchema } from "../models";
 
 export interface StepDraft {
   stepOrder: number;
@@ -13,46 +17,9 @@ export interface StepDraft {
   inputMapping: Record<string, InputMappingValue>;
 }
 
-interface AgentSummary {
-  id: string;
-  name: string;
-  description?: string;
-}
 
-/** The subset of JSON Schema the editor renders fields from. */
-export interface FieldSchema {
-  type?: string;
-  title?: string;
-  description?: string;
-  default?: unknown;
-  enum?: unknown[];
-  minimum?: number;
-  maximum?: number;
-}
 
-export interface AgentManifestDetail {
-  id: string;
-  name: string;
-  description?: string;
-  manifest: {
-    steps: Array<{
-      key: string;
-      name?: string;
-      requiresCapability?: string;
-      requiresSocialAccount?: boolean;
-      producesArtifactKinds: string[];
-      consumesArtifactKinds?: string[];
-      inputSchema: { properties?: Record<string, FieldSchema>; required?: string[] };
-    }>;
-  };
-}
 
-interface TemplateDetail {
-  id: string;
-  projectId: string;
-  name: string;
-  steps: StepDraft[];
-}
 
 export function emptyStep(order: number): StepDraft {
   return { stepOrder: order, agentId: "", agentStepKey: "generate", inputMapping: {} };
@@ -62,18 +29,10 @@ export function emptyStep(order: number): StepDraft {
  * the canvas view bind to this hook's state and helpers. */
 export function useTemplateDraft(templateId: string | undefined, projectIdFromQuery: string) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const isNew = templateId === undefined;
 
-  const { data: agents } = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => api.get<AgentSummary[]>("/agents"),
-  });
-  const { data: existing, isError: loadFailed } = useQuery({
-    queryKey: ["template", templateId],
-    queryFn: () => api.get<TemplateDetail>(`/templates/${templateId}`),
-    enabled: !isNew,
-  });
+  const { data: agents } = useAgentsQuery();
+  const { data: existing, isError: loadFailed } = useTemplateQuery(templateId ?? "", { skip: isNew });
 
   const [name, setName] = useState("");
   const [steps, setSteps] = useState<StepDraft[]>([emptyStep(0)]);
@@ -82,8 +41,12 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
   // What's on the server -- the draft is "dirty" when it differs.
   const [baseline, setBaseline] = useState(() => JSON.stringify({ name: "", steps: [emptyStep(0)] }));
 
+  // Load the saved workflow into the draft once per workflow. Later cache
+  // updates (e.g. the save response) must not overwrite edits in progress.
+  const loadedId = useRef<string | null>(null);
   useEffect(() => {
-    if (existing) {
+    if (existing && loadedId.current !== existing.id) {
+      loadedId.current = existing.id;
       setName(existing.name);
       setSteps(existing.steps.map((s) => ({ ...s })));
       setBaseline(JSON.stringify({ name: existing.name, steps: existing.steps }));
@@ -108,17 +71,7 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
     () => [...new Set(steps.map((s) => s.agentId).filter(Boolean))],
     [steps],
   );
-  const manifestQueries = useQueries({
-    queries: agentIds.map((id) => ({
-      queryKey: ["agent", id],
-      queryFn: () => api.get<AgentManifestDetail>(`/agents/${id}`),
-    })),
-  });
-  const manifestsById = useMemo(() => {
-    const map = new Map<string, AgentManifestDetail>();
-    for (const q of manifestQueries) if (q.data) map.set(q.data.id, q.data);
-    return map;
-  }, [manifestQueries]);
+  const manifestsById = useAgentManifests(agentIds);
 
   const producesFor = (step: StepDraft): string[] => {
     const agent = manifestsById.get(step.agentId);
@@ -142,22 +95,26 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
 
   const targetProjectId = isNew ? projectIdFromQuery : existing?.projectId;
 
-  const save = useMutation({
-    mutationFn: async () => {
+  // Saving refreshes the workflow lists (library, project page) via tags.
+  const [createTemplate, createState] = useCreateTemplateMutation();
+  const [updateTemplate, updateState] = useUpdateTemplateMutation();
+  const save = {
+    isPending: createState.isLoading || updateState.isLoading,
+    mutate: async () => {
       const body = { name, steps };
-      if (isNew) return api.post<TemplateDetail>(`/projects/${projectIdFromQuery}/templates`, body);
-      return api.put<TemplateDetail>(`/templates/${templateId}`, body);
+      try {
+        const template = isNew
+          ? await createTemplate({ projectId: projectIdFromQuery, body }).unwrap()
+          : await updateTemplate({ id: templateId!, body }).unwrap();
+        setServerErrors([]);
+        setBaseline(JSON.stringify({ name, steps }));
+        toast.success("Workflow saved");
+        if (isNew) navigate(`/templates/${template.id}/edit`, { replace: true });
+      } catch (err) {
+        setServerErrors(errorMessage(err, "Couldn't save the workflow").split("; "));
+      }
     },
-    onSuccess: (template) => {
-      setServerErrors([]);
-      setBaseline(JSON.stringify({ name, steps }));
-      // Workflow lists (library, project page) show names and steps.
-      queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success("Workflow saved");
-      if (isNew) navigate(`/templates/${template.id}/edit`, { replace: true });
-    },
-    onError: (err: Error) => setServerErrors(err.message.split("; ")),
-  });
+  };
 
   function updateStep(index: number, patch: Partial<StepDraft>) {
     setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));

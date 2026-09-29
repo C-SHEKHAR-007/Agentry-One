@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -18,10 +17,17 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
-import { api } from "../api/client";
-import { useProjects } from "../api/queries";
-import type { InputMappingValue } from "../api/types";
-import type { AgentManifestDetail } from "../hooks/useTemplateDraft";
+import type { AgentManifestDetail, WorkflowSummary } from "../models";
+import { useAgentManifests } from "../features/agents/agents.api";
+import { useProjectsQuery } from "../features/projects/projects.api";
+import {
+  templatesApi,
+  useDeleteTemplateMutation,
+  useDuplicateTemplateMutation,
+  useWorkflowLibraryQuery,
+} from "../features/workflows/templates.api";
+import { poll } from "../services/api/polling";
+import { errorMessage } from "../services/http/errors";
 import { describeCron } from "../lib/cron";
 import { timeAgo } from "../lib/format";
 import { runInputsOf } from "../lib/workflowGraph";
@@ -37,19 +43,6 @@ import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 
-interface WorkflowSummary {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  project: { id: string; name: string };
-  steps: Array<{ stepOrder: number; agentId: string; inputMapping: Record<string, InputMappingValue> }>;
-  runs: Array<{ id: string; status: string; createdAt: string; updatedAt: string }>;
-  schedules: Array<{ id: string; cronExpr: string }>;
-  runCount: number;
-}
 
 type SortKey = "updated" | "lastRun" | "runs" | "name";
 
@@ -66,7 +59,6 @@ function runTone(status: string): { dot: string; label: string } {
 
 export function BuilderPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const projectFilter = searchParams.get("project") ?? "";
@@ -74,33 +66,15 @@ export function BuilderPage() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<WorkflowSummary | null>(null);
 
-  const { data: projects = [] } = useProjects();
-  const {
-    data: workflows,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: ["templates", "library"],
-    queryFn: () => api.get<WorkflowSummary[]>("/templates"),
-    // Keep last-run badges fresh while something is running.
-    refetchInterval: (q) => (q.state.data?.some((w) => RUNNING.includes(w.runs[0]?.status ?? "")) ? 5000 : 30_000),
-  });
+  const { data: projects = [] } = useProjectsQuery();
+  // Keep last-run badges fresh: every 5s while something is running, else 30s.
+  const cached = templatesApi.endpoints.workflowLibrary.useQueryState(undefined);
+  const anyRunning = (cached.data ?? []).some((w) => RUNNING.includes(w.runs[0]?.status ?? ""));
+  const { data: workflows, isLoading, isError, refetch } = useWorkflowLibraryQuery(undefined, poll(anyRunning ? 5000 : 30_000));
 
   // Agent manifests give each step its icon and name (shared cache with the editor).
   const agentIds = useMemo(() => [...new Set((workflows ?? []).flatMap((w) => w.steps.map((s) => s.agentId)).filter(Boolean))], [workflows]);
-  const manifestQueries = useQueries({
-    queries: agentIds.map((id) => ({
-      queryKey: ["agent", id],
-      queryFn: () => api.get<AgentManifestDetail>(`/agents/${id}`),
-      staleTime: 5 * 60_000,
-    })),
-  });
-  const manifests = useMemo(() => {
-    const m = new Map<string, AgentManifestDetail>();
-    for (const q of manifestQueries) if (q.data) m.set(q.data.id, q.data);
-    return m;
-  }, [manifestQueries]);
+  const manifests = useAgentManifests(agentIds);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -152,35 +126,32 @@ export function BuilderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wantsNew, projects.length]);
 
-  const duplicate = useMutation({
-    mutationFn: async (w: WorkflowSummary) => {
-      const full = await api.get<{ steps: Array<{ stepOrder: number; agentId: string; agentStepKey: string; inputMapping: unknown }> }>(
-        `/templates/${w.id}`,
-      );
-      return api.post<{ id: string }>(`/projects/${w.project.id}/templates`, {
-        name: `Copy of ${w.name}`.slice(0, 200),
-        description: w.description ?? undefined,
-        steps: full.steps.map(({ stepOrder, agentId, agentStepKey, inputMapping }) => ({ stepOrder, agentId, agentStepKey, inputMapping })),
-      });
-    },
-    onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success("Workflow duplicated", {
-        action: { label: "Open", onClick: () => navigate(`/templates/${created.id}/edit`) },
-      });
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [duplicateTemplate, duplicateState] = useDuplicateTemplateMutation();
+  const duplicate = {
+    isPending: duplicateState.isLoading,
+    mutate: (w: WorkflowSummary) =>
+      duplicateTemplate(w)
+        .unwrap()
+        .then((created) =>
+          toast.success("Workflow duplicated", {
+            action: { label: "Open", onClick: () => navigate(`/templates/${created.id}/edit`) },
+          }),
+        )
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
-  const remove = useMutation({
-    mutationFn: (w: WorkflowSummary) => api.delete(`/templates/${w.id}`),
-    onSuccess: (_, w) => {
-      queryClient.invalidateQueries({ queryKey: ["templates"] });
-      toast.success(`Deleted “${w.name}”`);
-      setConfirmDelete(null);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [deleteTemplate, deleteState] = useDeleteTemplateMutation();
+  const remove = {
+    isPending: deleteState.isLoading,
+    mutate: (w: WorkflowSummary) =>
+      deleteTemplate(w.id)
+        .unwrap()
+        .then(() => {
+          toast.success(`Deleted “${w.name}”`);
+          setConfirmDelete(null);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const setProjectFilter = (id: string) =>
     setSearchParams(

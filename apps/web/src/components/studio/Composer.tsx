@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Check, Lock, Sparkles } from "lucide-react";
 import { planBrief, ROLE_ORDER, type Role } from "../../lib/studioPlan";
+import type { StudioDraft } from "../../features/studio/studio.slice";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -13,19 +14,11 @@ import { Textarea } from "../ui/textarea";
 import { PipelineStrip } from "./PipelineStrip";
 import { ROLES } from "./roles";
 
-export interface SocialAccount {
-  id: string;
-  platform: string;
-  handle: string | null;
-  status: string;
-}
+export type { SocialAccount } from "../../models";
+import type { SocialAccount } from "../../models";
 
-export interface ComposerState {
-  topic: string;
-  tone: string;
-  roles: Role[];
-  socialAccountId: string;
-}
+/** The composer's state is the Studio draft (features/studio/studio.slice). */
+export type ComposerState = StudioDraft;
 
 const TONE_PRESETS = ["Friendly & warm", "Bold & viral", "Professional", "Playful", "Calm & minimal"];
 const EXAMPLES = [

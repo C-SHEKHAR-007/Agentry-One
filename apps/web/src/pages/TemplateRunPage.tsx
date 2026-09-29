@@ -1,10 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotFoundPage } from "./NotFoundPage";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Play, Plus, ExternalLink, MessageSquare, Trash2 } from "lucide-react";
-import { api } from "../api/client.js";
+import { useSocialAccountsQuery } from "../features/integrations/socialAccounts.api";
+import {
+  useAddScheduleMutation,
+  useDeleteScheduleMutation,
+  useRunTemplateMutation,
+  useSchedulesQuery,
+  useTemplateQuery,
+} from "../features/workflows/templates.api";
+import { errorMessage } from "../services/http/errors";
 import { PageHeader } from "../components/PageHeader";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -15,91 +22,66 @@ import { Label } from "../components/ui/label";
 import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 
-type MappingValue = { kind: "literal" | "fromStep" } | { kind: "fromRunInput"; field: string };
-
-interface TemplateDetail {
-  id: string;
-  projectId: string;
-  name: string;
-  steps: Array<{ inputMapping: Record<string, MappingValue> }>;
-}
-
-interface TemplateRun {
-  id: string;
-}
-
-interface Schedule {
-  id: string;
-  cronExpr: string;
-  isActive: boolean;
-  createdAt: string;
-}
-
 export function TemplateRunPage() {
   const { templateId } = useParams();
   const navigate = useNavigate();
-  const { data: template, isError: templateLoadFailed } = useQuery({
-    queryKey: ["template", templateId],
-    queryFn: () => api.get<TemplateDetail>(`/templates/${templateId}`),
-  });
+  const { data: template, isError: templateLoadFailed } = useTemplateQuery(templateId ?? "", { skip: !templateId });
 
   const runInputFields = useMemo(() => {
     const fields = new Set<string>();
     for (const step of template?.steps ?? []) {
       for (const mapping of Object.values(step.inputMapping)) {
-        if (mapping.kind === "fromRunInput") fields.add((mapping as { field: string }).field);
+        if (mapping.kind === "fromRunInput") fields.add(mapping.field);
       }
     }
     return Array.from(fields);
   }, [template]);
 
-  const { data: socialAccounts } = useQuery({
-    queryKey: ["socialAccounts", template?.projectId],
-    queryFn: () =>
-      api.get<Array<{ id: string; platform: string; handle?: string }>>(
-        `/social-accounts?projectId=${template?.projectId}`,
-      ),
-    enabled: Boolean(template?.projectId),
-  });
+  const { data: socialAccounts } = useSocialAccountsQuery(template?.projectId ?? "", { skip: !template?.projectId });
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [cronExpr, setCronExpr] = useState<string>("0 9 * * 2"); // Default Tuesday 9am
 
-  const run = useMutation({
-    mutationFn: () => api.post<TemplateRun>(`/templates/${templateId}/run`, values),
-    onSuccess: (run) => {
-      toast.success("Template run started");
-      navigate(`/template-runs/${run.id}`);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [runTemplate, runState] = useRunTemplateMutation();
+  const run = {
+    isPending: runState.isLoading,
+    isError: runState.isError,
+    error: runState.error,
+    mutate: () =>
+      runTemplate({ templateId: templateId!, inputs: values })
+        .unwrap()
+        .then((r) => {
+          toast.success("Template run started");
+          navigate(`/template-runs/${r.id}`);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
-  const queryClient = useQueryClient();
-  const { data: schedules } = useQuery({
-    queryKey: ["schedules", templateId],
-    queryFn: () => api.get<Schedule[]>(`/templates/${templateId}/schedules`),
-    enabled: Boolean(templateId),
-  });
+  const { data: schedules } = useSchedulesQuery(templateId ?? "", { skip: !templateId });
 
-  const schedule = useMutation({
-    mutationFn: () => api.post(`/templates/${templateId}/schedule`, { cronExpr, runInputs: values }),
-    onSuccess: () => {
-      toast.success(`Workflow scheduled (${cronExpr})`);
-      queryClient.invalidateQueries({ queryKey: ["schedules", templateId] });
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [addSchedule, addState] = useAddScheduleMutation();
+  const schedule = {
+    isPending: addState.isLoading,
+    mutate: () =>
+      addSchedule({ templateId: templateId!, cronExpr, runInputs: values })
+        .unwrap()
+        .then(() => toast.success(`Workflow scheduled (${cronExpr})`))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const deleteSchedule = useMutation({
-    mutationFn: (id: string) => api.delete(`/schedules/${id}`),
-    onSuccess: () => {
-      toast.success("Schedule removed");
-      setConfirmDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ["schedules", templateId] });
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [removeSchedule, removeState] = useDeleteScheduleMutation();
+  const deleteSchedule = {
+    isPending: removeState.isLoading,
+    mutate: (id: string) =>
+      removeSchedule({ scheduleId: id, templateId: templateId! })
+        .unwrap()
+        .then(() => {
+          toast.success("Schedule removed");
+          setConfirmDeleteId(null);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   if (templateLoadFailed) return <NotFoundPage what="template" />;
   if (!template) {
@@ -194,7 +176,7 @@ export function TemplateRunPage() {
             {run.isPending ? <Spinner className="mr-2" /> : <Play className="h-4 w-4 mr-2" />}
             Run now
           </Button>
-          {run.isError && <p className="text-sm text-destructive">{(run.error as Error).message}</p>}
+          {run.isError && <p className="text-sm text-destructive">{errorMessage(run.error)}</p>}
         </CardContent>
       </Card>
 

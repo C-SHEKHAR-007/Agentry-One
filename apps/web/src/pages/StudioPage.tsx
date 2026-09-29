@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState, useLayoutEffect, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { FolderKanban, Sparkles, Wand2 } from "lucide-react";
-import { api } from "../api/client";
-import { useProjects } from "../api/queries";
+import { useAppDispatch, useAppSelector } from "../app/hooks";
+import { useProjectsQuery } from "../features/projects/projects.api";
+import { useSocialAccountsQuery } from "../features/integrations/socialAccounts.api";
+import { useWorkflowRunLive } from "../features/runs/runs.api";
+import { useCreateBriefMutation } from "../features/studio/studio.api";
+import { setDraft as setDraftAction, type StudioDraft } from "../features/studio/studio.slice";
+import { useWorkflowLibraryQuery } from "../features/workflows/templates.api";
+import { errorMessage } from "../services/http/errors";
 import { planBrief } from "../lib/studioPlan";
 import { PageHeader } from "../components/PageHeader";
-import { Composer, type ComposerState, type SocialAccount } from "../components/studio/Composer";
-import { RecentCreationsButton, type LibraryWorkflow } from "../components/studio/RecentCreations";
-import { RunView, type TemplateRun } from "../components/studio/RunView";
+import { Composer } from "../components/studio/Composer";
+import { RecentCreationsButton } from "../components/studio/RecentCreations";
+import { RunView } from "../components/studio/RunView";
 import { PipelineStrip } from "../components/studio/PipelineStrip";
 import { LIVE_RUN_STATUSES } from "../components/studio/roles";
 import { OrchestrationScene } from "../components/three/OrchestrationScene";
@@ -19,17 +24,6 @@ import { EmptyState } from "../components/ui/empty-state";
 import { Skeleton } from "../components/ui/skeleton";
 import { cn } from "../lib/utils";
 
-const DRAFT_KEY = "agentry.studio.draft";
-
-function loadDraft(): ComposerState {
-  const fallback: ComposerState = { topic: "", tone: "", roles: ["search", "text", "image"], socialAccountId: "" };
-  try {
-    const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
-    return saved && typeof saved.topic === "string" ? { ...fallback, ...saved, socialAccountId: "" } : fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 /** The results pane before anything is generated: the pipeline the current
  * brief will run (it updates as outputs are picked), over the orchestration
@@ -97,33 +91,21 @@ function useFitHeight() {
 }
 
 export function StudioPage() {
-  const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   const fit = useFitHeight();
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get("run");
-  const { data: projects = [], isLoading: projectsLoading } = useProjects();
+  const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery();
   const [projectId, setProjectId] = useState("");
   const activeProjectId = projectId || projects[0]?.id || "";
-  // The composer draft survives reloads (per browser).
-  const [draft, setDraft] = useState<ComposerState>(loadDraft);
-  useEffect(() => {
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ topic: draft.topic, tone: draft.tone, roles: draft.roles }));
-    } catch {
-      /* storage unavailable: drafts just won't persist */
-    }
-  }, [draft.topic, draft.tone, draft.roles]);
+  // The composer draft lives in the store and survives reloads (per browser).
+  const draft = useAppSelector((st) => st.studio.draft);
+  const setDraft = (d: StudioDraft) => dispatch(setDraftAction(d));
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["socialAccounts", activeProjectId],
-    queryFn: () => api.get<SocialAccount[]>(`/social-accounts?projectId=${activeProjectId}`),
-    enabled: Boolean(activeProjectId),
-  });
+  const { data: accounts = [] } = useSocialAccountsQuery(activeProjectId, { skip: !activeProjectId });
 
-  const { data: library = [] } = useQuery({
-    queryKey: ["templates", "library"],
-    queryFn: () => api.get<LibraryWorkflow[]>("/templates"),
-  });
+  // The library refreshes via tags when a creation starts or finishes.
+  const { data: library = [] } = useWorkflowLibraryQuery();
   // Studio creations are the workflows it generated ("Brief: …").
   const recent = useMemo(
     () =>
@@ -145,42 +127,33 @@ export function StudioPage() {
       { replace: false },
     );
 
-  const generate = useMutation({
-    mutationFn: () => {
+  const [createBrief, briefState] = useCreateBriefMutation();
+  const generate = {
+    isPending: briefState.isLoading,
+    mutate: () => {
       const plan = planBrief(draft.roles, Boolean(draft.socialAccountId));
       const publishing = plan.steps.some((s) => s.role === "publish");
-      return api.post<{ templateId: string; runId: string }>(`/projects/${activeProjectId}/briefs`, {
-        topic: draft.topic.trim(),
-        tone: draft.tone.trim() || undefined,
-        formats: draft.roles,
-        socialAccountId: publishing ? draft.socialAccountId : undefined,
-      });
+      createBrief({
+        projectId: activeProjectId,
+        body: {
+          topic: draft.topic.trim(),
+          tone: draft.tone.trim() || undefined,
+          formats: draft.roles,
+          socialAccountId: publishing ? draft.socialAccountId : undefined,
+        },
+      })
+        .unwrap()
+        .then((result) => {
+          setRun(result.runId);
+          toast.success("Generating your content");
+        })
+        .catch((err) => toast.error(errorMessage(err)));
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["templates"] });
-      setRun(result.runId);
-      toast.success("Generating your content");
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  };
 
-  const {
-    data: run,
-    isError: runMissing,
-  } = useQuery({
-    queryKey: ["template-run", runId],
-    queryFn: () => api.get<TemplateRun>(`/template-runs/${runId}`),
-    enabled: Boolean(runId),
-    // Step starts/finishes are pushed (useLiveActivity); this short poll only
-    // runs while generating, for in-step progress messages.
-    refetchInterval: (q) => (LIVE_RUN_STATUSES.includes(q.state.data?.status ?? "running") ? 3000 : false),
-  });
-
-  // When a run finishes, refresh the library so "Recent creations" is current.
-  const runStatus = run?.status;
-  useEffect(() => {
-    if (runStatus && !LIVE_RUN_STATUSES.includes(runStatus)) queryClient.invalidateQueries({ queryKey: ["templates", "library"] });
-  }, [runStatus, queryClient]);
+  // Step starts/finishes are pushed (live activity); this short poll only
+  // runs while generating, for in-step progress messages.
+  const { data: run, isError: runMissing } = useWorkflowRunLive(runId ?? undefined, 3000);
 
   if (!projectsLoading && projects.length === 0) {
     return (

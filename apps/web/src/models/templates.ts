@@ -34,3 +34,27 @@ export interface WorkflowSummary {
   schedules: Array<{ id: string; cronExpr: string }>;
   runCount: number;
 }
+
+/** A workflow as edited (GET /templates/:id). */
+export interface TemplateDetail {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string | null;
+  status?: string;
+  steps: TemplateStep[];
+}
+
+export interface TemplateBody {
+  name: string;
+  description?: string;
+  steps: Array<Pick<TemplateStep, "stepOrder" | "agentId" | "agentStepKey" | "inputMapping">>;
+}
+
+export interface Schedule {
+  id: string;
+  templateId?: string;
+  cronExpr: string;
+  isActive: boolean;
+  createdAt: string;
+}

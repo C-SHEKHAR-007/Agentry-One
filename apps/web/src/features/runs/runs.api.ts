@@ -34,5 +34,8 @@ export const useWorkflowRuns = (status: string = "active", limit = 6) =>
 export function useWorkflowRunLive(runId: string | undefined, ms = 2000) {
   const state = runsApi.endpoints.workflowRun.useQueryState(runId ?? "", { skip: !runId });
   const interval = useLiveInterval(state.data?.status, LIVE_STATUSES, ms);
-  return useWorkflowRunQuery(runId ?? "", { skip: !runId, ...poll(interval) });
+  const result = useWorkflowRunQuery(runId ?? "", { skip: !runId, ...poll(interval) });
+  // RTK Query keeps the last result in `data` after switching to skip; with
+  // no run selected there is no run.
+  return runId ? result : { ...result, data: undefined, isError: false };
 }
