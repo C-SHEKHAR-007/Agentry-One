@@ -184,7 +184,7 @@ export function StudioPage() {
                 <Wand2 className="h-6 w-6" />
               </span>
               <div>
-                <h2 className="font-semibold">Your content will appear here</h2>
+                <h2 className="text-base font-semibold">Your content will appear here</h2>
                 <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
                   Describe an idea, pick what you want made, and the agents take it from research to a finished post.
                 </p>

@@ -243,7 +243,7 @@ export function WorkflowPage() {
             <div className="min-w-0 flex-1 space-y-2">
               <div>
                 <h2 className="text-sm font-semibold">{failure.hint.title}</h2>
-                <p className="mt-0.5 text-[13px] text-muted-foreground">{failure.hint.advice}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{failure.hint.advice}</p>
               </div>
               {failure.message && <ErrorBlock message={failure.message} />}
               <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -286,7 +286,7 @@ export function WorkflowPage() {
               <h2 className="flex items-center gap-2 text-sm font-semibold text-warning">
                 <Eye className="h-4 w-4" /> Waiting for your review
               </h2>
-              <p className="mt-0.5 text-[13px] text-muted-foreground">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 Step <code className="text-foreground">{awaitingStep.stepKey}</code> finished. Check its output below, then approve to continue or reject to stop the run.
               </p>
             </div>
@@ -515,7 +515,7 @@ function Inputs({ params }: { params: Record<string, unknown> }) {
         return (
           <div key={k} className="min-w-0">
             <dt className="text-[11px] text-muted-foreground">{k}</dt>
-            <dd className="mt-0.5 text-[13px]">
+            <dd className="mt-0.5 text-sm">
               {v === null || v === undefined || v === "" ? (
                 <span className="text-muted-foreground">—</span>
               ) : typeof v === "object" ? (

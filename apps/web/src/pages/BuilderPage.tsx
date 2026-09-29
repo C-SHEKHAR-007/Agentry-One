@@ -381,7 +381,7 @@ function WorkflowCard({
     <Card glass className="group flex min-w-0 flex-col transition-colors hover:border-primary/40">
       <div className="flex items-start justify-between gap-3 p-4 pb-3">
         <Link to={`/templates/${w.id}/edit`} className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 font-semibold leading-snug group-hover:text-primary">{w.name}</h3>
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug group-hover:text-primary">{w.name}</h3>
           {showProject && (
             <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
               <FolderKanban className="h-3 w-3 shrink-0" /> {w.project.name}

@@ -85,7 +85,7 @@ function ArtifactCard({
               <Headphones className="h-6 w-6" />
             </span>
             <span className="text-xs font-medium text-foreground">Audio Recording</span>
-            <span className="text-[10px] text-muted-foreground">{artifact.mimeType}</span>
+            <span className="text-[11px] text-muted-foreground">{artifact.mimeType}</span>
           </div>
         ) : isText ? (
           <div className="p-5 bg-secondary/10 flex flex-col justify-between min-h-[120px]">
@@ -116,7 +116,7 @@ function ArtifactCard({
           <p className="truncate text-xs text-muted-foreground">
             {artifact.projectName} · {timeAgo(artifact.createdAt)}
           </p>
-          <Badge variant="outline" className="ml-2 shrink-0 text-[10px] capitalize">
+          <Badge variant="outline" className="ml-2 shrink-0 text-[11px] capitalize">
             {artifact.kind}
           </Badge>
         </div>
@@ -210,7 +210,7 @@ function PreviewDialog({
                       <Headphones className="h-8 w-8" />
                     </span>
                   </div>
-                  <h4 className="font-semibold text-base capitalize">{artifact.kind}</h4>
+                  <h4 className="text-sm font-semibold capitalize">{artifact.kind}</h4>
                   <audio controls src={previewUrl || downloadUrl} className="w-full max-w-md mx-auto" autoPlay />
                 </div>
               ) : isVideo ? (
@@ -247,7 +247,7 @@ function PreviewDialog({
               ) : (
                 <div className="flex items-center gap-3 p-14">
                   <FileArchive className="h-10 w-10 text-muted-foreground" />
-                  <span className="text-lg font-medium">{artifact.kind}</span>
+                  <span className="text-sm font-medium capitalize">{artifact.kind}</span>
                 </div>
               )}
             </div>
@@ -255,7 +255,7 @@ function PreviewDialog({
             {/* Footer */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card/80 px-5 py-4 backdrop-blur-sm">
               <div className="min-w-0">
-                <p className="truncate font-medium capitalize">{artifact.kind}</p>
+                <p className="truncate text-sm font-medium capitalize">{artifact.kind}</p>
                 <p className="text-xs text-muted-foreground">
                   {artifact.mimeType}
                   {artifact.sizeBytes ? ` · ${formatBytes(artifact.sizeBytes)}` : ""}

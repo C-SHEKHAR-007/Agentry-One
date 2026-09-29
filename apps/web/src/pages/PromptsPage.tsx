@@ -203,7 +203,7 @@ export function PromptsPage() {
                 aria-label="Search prompts"
                 className="pl-9 pr-10"
               />
-              <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 text-[10px] text-muted-foreground sm:block">
+              <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-border px-1.5 text-[11px] text-muted-foreground sm:block">
                 /
               </kbd>
             </div>
@@ -345,7 +345,7 @@ function PromptListItem({
           v{group.latest.version}
         </Badge>
       </div>
-      <p className="mt-2.5 line-clamp-2 text-[13px] leading-snug text-muted-foreground">{group.latest.template}</p>
+      <p className="mt-2.5 line-clamp-2 text-sm leading-snug text-muted-foreground">{group.latest.template}</p>
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground/80">
         <span className="flex items-center gap-1">
           <Layers className="h-3 w-3" />
@@ -552,7 +552,7 @@ function PromptDetail({
                     <span className="min-w-0">
                       <span className="flex items-center gap-1.5 text-sm font-medium">
                         v{v.version}
-                        {v.id === group.latest.id && <span className="text-[10px] font-normal text-success">latest</span>}
+                        {v.id === group.latest.id && <span className="text-[11px] font-normal text-success">latest</span>}
                       </span>
                       <span className="block text-xs text-muted-foreground">{timeAgo(v.createdAt)}</span>
                     </span>

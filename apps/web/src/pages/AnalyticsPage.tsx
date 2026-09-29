@@ -95,7 +95,7 @@ export function AnalyticsPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card glass>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Job outcomes per day</CardTitle>
+            <CardTitle>Job outcomes per day</CardTitle>
             {/* completed/failed are statuses -- reserved status colors + legend */}
             <ChartLegend
               items={[
@@ -139,7 +139,7 @@ export function AnalyticsPage() {
         <Card glass>
           <CardHeader>
             {/* single series -- the title names it, no legend needed */}
-            <CardTitle className="text-base">Avg. generation time (seconds)</CardTitle>
+            <CardTitle>Avg. generation time (seconds)</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading && <Skeleton className="h-64" />}
@@ -187,7 +187,7 @@ export function AnalyticsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Agent breakdown</CardTitle>
+          <CardTitle>Agent breakdown</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-8 sm:flex-row sm:items-start min-w-0">
           <Donut
@@ -204,7 +204,7 @@ export function AnalyticsPage() {
             {agents.length > 0 && (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                     <th className="pb-2 pr-4 font-medium">Agent</th>
                     <th className="pb-2 pr-4 font-medium">Runs</th>
                     <th className="pb-2 pr-4 font-medium">Share</th>

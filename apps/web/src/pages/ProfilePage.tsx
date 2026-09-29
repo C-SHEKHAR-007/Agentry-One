@@ -146,7 +146,7 @@ export function ProfilePage() {
       {/* Avatar & Basic Info */}
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2">
             <UserCircle className="h-5 w-5 text-primary" /> Profile Photo
           </CardTitle>
           <CardDescription>
@@ -163,7 +163,7 @@ export function ProfilePage() {
                   className="h-24 w-24 rounded-full object-cover border-2 border-primary/50 shadow-lg"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary/70 to-primary text-2xl font-bold text-primary-foreground shadow-lg border-2 border-primary/30">
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-primary-foreground shadow-lg border-2 border-primary/30">
                   {initials}
                 </div>
               )}
@@ -240,7 +240,7 @@ export function ProfilePage() {
       <form onSubmit={handleSaveProfile}>
         <Card glass>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" /> Personal Information
             </CardTitle>
             <CardDescription>
@@ -301,7 +301,7 @@ export function ProfilePage() {
       <form onSubmit={handleUpdatePassword}>
         <Card glass>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <KeyRound className="h-5 w-5 text-primary" /> Change Password
             </CardTitle>
             <CardDescription>

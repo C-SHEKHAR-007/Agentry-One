@@ -79,7 +79,7 @@ export function ProjectsPage() {
               to={`/projects/${p.id}`}
               className="group block overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/50"
             >
-              <div className="flex h-32 items-center justify-center overflow-hidden bg-gradient-to-br from-secondary to-secondary/40">
+              <div className="flex h-32 items-center justify-center overflow-hidden bg-muted/50">
                 {p.coverArtifactId ? (
                   <img
                     src={downloadUrl(p.coverArtifactId)}
@@ -92,7 +92,7 @@ export function ProjectsPage() {
                 )}
               </div>
               <div className="p-4">
-                <p className="truncate font-medium group-hover:text-primary">{p.name}</p>
+                <p className="truncate text-sm font-semibold group-hover:text-primary">{p.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {p.counts.workflows} workflows · {p.counts.templates} templates ·{" "}
                   {p.counts.artifacts} artifacts
