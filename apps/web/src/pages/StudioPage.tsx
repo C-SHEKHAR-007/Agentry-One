@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useLayoutEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -36,13 +36,8 @@ function loadDraft(): ComposerState {
  * core. */
 function EmptyCanvas({ plan, topic }: { plan: ReturnType<typeof planBrief>; topic: string }) {
   return (
-    <Card glass className="glow-border relative flex min-h-[440px] flex-col items-center justify-center overflow-hidden border-transparent p-8 text-center lg:min-h-[calc(100dvh-11.5rem)]">
-      {/* The core sits low and dim so the text above it stays readable. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-[-18%] top-[30%] opacity-40">
-        <OrchestrationScene activity={plan.steps.length} nodes={Math.max(plan.steps.length, 4)} className="h-full w-full" />
-      </div>
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_45%,hsl(var(--card)/0.85),transparent_75%)]" />
-      <div className="relative flex flex-col items-center gap-5">
+    <Card glass className="glow-border relative flex min-h-[440px] flex-col overflow-hidden border-transparent text-center lg:h-[var(--studio-h,calc(100dvh-12.5rem))]">
+      <div className="relative z-10 flex flex-col items-center gap-5 px-8 pt-10">
         <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/40 bg-primary/10 text-primary shadow-[0_0_30px_hsl(var(--primary)/0.35)]">
           <Wand2 className="h-6 w-6" />
         </span>
@@ -59,17 +54,51 @@ function EmptyCanvas({ plan, topic }: { plan: ReturnType<typeof planBrief>; topi
             <PipelineStrip size="lg" steps={plan.steps.map((s) => ({ role: s.role, auto: s.reason.kind === "required" }))} />
           </div>
         )}
-        <div className="flex flex-wrap justify-center gap-2 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]" /> you picked</span>
           <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground" /> added because another output needs it</span>
         </div>
+      </div>
+      {/* The orchestration core fills the space below the text, fading in at
+          its top edge so the two read as one composition. */}
+      <div className="pointer-events-none relative min-h-[180px] flex-1 [mask-image:linear-gradient(to_bottom,transparent,black_30%)]">
+        <OrchestrationScene activity={plan.steps.length} nodes={Math.max(plan.steps.length, 4)} className="absolute inset-0" />
       </div>
     </Card>
   );
 }
 
+/** The height left for the composer and results pane: the page's scroll area
+ * minus its padding and the header above the grid. Measured (and kept up to
+ * date on resize) so the page fits exactly -- no scrollbar -- whatever the
+ * window size or header wrapping; exposed as --studio-h. */
+function useFitHeight() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const grid = gridRef.current;
+    const main = root?.closest("main");
+    if (!root || !grid || !main) return;
+    const measure = () => {
+      const cs = getComputedStyle(main);
+      const available = main.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const above = grid.getBoundingClientRect().top - root.getBoundingClientRect().top;
+      setHeight(Math.max(0, Math.floor(available - above)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(main);
+    ro.observe(root.firstElementChild ?? root);
+    return () => ro.disconnect();
+  }, []);
+  return { rootRef, gridRef, style: height ? ({ "--studio-h": `${height}px` } as React.CSSProperties) : undefined };
+}
+
 export function StudioPage() {
   const queryClient = useQueryClient();
+  const fit = useFitHeight();
   const [searchParams, setSearchParams] = useSearchParams();
   const runId = searchParams.get("run");
   const { data: projects = [], isLoading: projectsLoading } = useProjects();
@@ -172,17 +201,17 @@ export function StudioPage() {
   }
 
   return (
-    <div>
+    <div ref={fit.rootRef} style={fit.style}>
       <PageHeader
         title="Content Studio"
         description="Turn one idea into a caption, visual, voiceover and video — then publish it."
         actions={<RecentCreationsButton items={recent} activeRunId={runId} onOpen={setRun} />}
       />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
+      <div ref={fit.gridRef} className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
         <div className="min-w-0 lg:sticky lg:top-0">
           {projectsLoading ? (
-            <Skeleton className="h-[560px] rounded-xl" />
+            <Skeleton className="h-[560px] rounded-xl lg:h-[var(--studio-h,560px)]" />
           ) : (
             <Composer
               value={draft}

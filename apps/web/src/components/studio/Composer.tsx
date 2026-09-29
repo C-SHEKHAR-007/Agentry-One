@@ -69,7 +69,7 @@ export function Composer({
         : null;
 
   return (
-    <Card glass className="flex flex-col overflow-hidden lg:h-[calc(100dvh-11.5rem)] lg:min-h-[560px]">
+    <Card glass className="flex flex-col overflow-hidden lg:h-[var(--studio-h,calc(100dvh-12.5rem))] lg:min-h-[480px]">
       <form
         className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {
