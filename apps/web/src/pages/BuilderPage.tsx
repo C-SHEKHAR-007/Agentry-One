@@ -136,6 +136,22 @@ export function BuilderPage() {
     else setPickerOpen(true);
   };
 
+  // ?new=1 (e.g. from the command palette) jumps straight into creating one.
+  const wantsNew = searchParams.get("new") === "1";
+  useEffect(() => {
+    if (!wantsNew || projects.length === 0) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("new");
+        return next;
+      },
+      { replace: true },
+    );
+    startNew();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsNew, projects.length]);
+
   const duplicate = useMutation({
     mutationFn: async (w: WorkflowSummary) => {
       const full = await api.get<{ steps: Array<{ stepOrder: number; agentId: string; agentStepKey: string; inputMapping: unknown }> }>(
