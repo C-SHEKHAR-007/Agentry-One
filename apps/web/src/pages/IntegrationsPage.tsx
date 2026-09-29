@@ -1,338 +1,54 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
+import { Plus, ShieldCheck } from "lucide-react";
+import { useProjectsQuery } from "../features/projects/projects.api";
 import {
-  Plug,
-  Plus,
-  Trash2,
-  Camera,
-  MessageCircle,
-  Briefcase,
-  Video,
-  KeyRound,
-  CheckCircle2,
-  RefreshCw,
-  ExternalLink,
-  ShieldCheck,
-  Send,
-  Lock,
-  Globe,
-  Radio,
-  Tv,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Zap,
-  Loader2,
-} from "lucide-react";
-import { api } from "../api/client.js";
+  useDeleteSocialAccountMutation,
+  useSocialAccountsQuery,
+  useTestSocialAccountMutation,
+} from "../features/integrations/socialAccounts.api";
+import { PLATFORMS } from "../features/integrations/platforms";
+import { AccountCard } from "../features/integrations/components/AccountCard";
+import { PlatformCard } from "../features/integrations/components/PlatformCard";
+import { ConnectAccountDialog } from "../features/integrations/components/ConnectAccountDialog";
+import { errorMessage } from "../services/http/errors";
 import { PageHeader } from "../components/PageHeader";
-import { Dialog, DialogContent, DialogTitle } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
-import { Spinner } from "../components/ui/spinner";
-import { Badge } from "../components/ui/badge";
-
-interface Project {
-  id: string;
-  name: string;
-}
-
-interface SocialAccount {
-  id: string;
-  platform: string;
-  handle: string;
-  status: string;
-  createdAt: string;
-}
-
-const PLATFORMS = [
-  {
-    id: "instagram",
-    name: "Instagram",
-    icon: Camera,
-    color: "from-primary to-primary",
-    description: "Direct Login (Username & Password via mobile emulation) or Meta Graph API. Publishes posts and Reels.",
-    supportsDirectLogin: true,
-    directFields: ["username", "password"],
-    badge: "Direct Login Supported",
-  },
-  {
-    id: "twitter",
-    name: "X / Twitter",
-    icon: MessageCircle,
-    color: "from-chart-3 to-chart-3",
-    description: "Publish tweets, threads, and media via Direct API Keys (Consumer Key/Secret) or Bearer Token.",
-    supportsDirectLogin: true,
-    directFields: ["twitter_keys", "bearer_token"],
-    badge: "API Keys / Bearer",
-  },
-  {
-    id: "telegram",
-    name: "Telegram Channel / Group",
-    icon: Send,
-    color: "from-chart-3 to-chart-3",
-    description: "Instantly publish messages, high-res photos, and videos to any public or private channel via Bot Token.",
-    supportsDirectLogin: true,
-    directFields: ["telegram_bot"],
-    badge: "Instant Bot Connect",
-  },
-  {
-    id: "discord",
-    name: "Discord Server",
-    icon: Radio,
-    color: "from-primary to-primary",
-    description: "Broadcast rich announcements, images, and videos to any Discord channel via Webhook URL or Bot Token.",
-    supportsDirectLogin: true,
-    directFields: ["discord_webhook"],
-    badge: "Webhook / Bot",
-  },
-  {
-    id: "linkedin",
-    name: "LinkedIn",
-    icon: Briefcase,
-    color: "from-chart-3 to-chart-3",
-    description: "Publish professional posts and company updates to LinkedIn Profiles and Pages via Access Token or OAuth.",
-    supportsDirectLogin: true,
-    directFields: ["token_only"],
-    badge: "Access Token / OAuth",
-  },
-  {
-    id: "facebook",
-    name: "Facebook Pages",
-    icon: Globe,
-    color: "from-chart-3 to-primary",
-    description: "Publish posts, photos, and video reels to Facebook Pages via Page Access Token and Page ID.",
-    supportsDirectLogin: true,
-    directFields: ["facebook_page"],
-    badge: "Page Token",
-  },
-  {
-    id: "youtube",
-    name: "YouTube Shorts",
-    icon: Video,
-    color: "from-destructive to-destructive",
-    description: "Publish vertical video shorts and video content via YouTube Data API v3 token or OAuth.",
-    supportsDirectLogin: true,
-    directFields: ["token_only"],
-    badge: "Direct Token / OAuth",
-  },
-  {
-    id: "tiktok",
-    name: "TikTok",
-    icon: Tv,
-    color: "from-muted to-muted",
-    description: "Publish vertical short-form reels and videos via TikTok Open API credentials.",
-    supportsDirectLogin: true,
-    directFields: ["token_only"],
-    badge: "API Token",
-  },
-];
 
 export function IntegrationsPage() {
-  const queryClient = useQueryClient();
   const [projectId, setProjectId] = useState<string>("");
   const [showModal, setShowModal] = useState<boolean>(false);
   const [selectedPlatform, setSelectedPlatform] = useState<string>("instagram");
-  const [authMode, setAuthMode] = useState<"direct" | "raw_token">("direct");
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [browserLoggingIn, setBrowserLoggingIn] = useState<boolean>(false);
-  const [browserLoginStatus, setBrowserLoginStatus] = useState<string>("");
-  const [helperOnline, setHelperOnline] = useState<boolean | null>(null);
-  const pollTimerRef = useRef<any>(null);
 
-  // Check if local browser helper daemon is running
-  useEffect(() => {
-    if (!showModal || selectedPlatform !== "instagram") return;
-    fetch("http://localhost:4005/status")
-      .then((r) => r.json())
-      .then((d) => setHelperOnline(Boolean(d.ready)))
-      .catch(() => setHelperOnline(false));
-  }, [showModal, selectedPlatform]);
-
-  // Clean up polling timer on unmount
-  useEffect(() => {
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    };
-  }, []);
-
-  const cancelBrowserLogin = async () => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-    try {
-      await fetch("http://localhost:4005/login/cancel", { method: "POST" });
-    } catch {}
-    setBrowserLoggingIn(false);
-    setBrowserLoginStatus("");
-  };
-
-  const handleBrowserLogin = async () => {
-    setBrowserLoggingIn(true);
-    setBrowserLoginStatus("Opening Google Chrome on your desktop...");
-    try {
-      const startRes = await fetch("http://localhost:4005/login/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: activeProjectId }),
-      });
-      if (!startRes.ok) {
-        throw new Error("Helper daemon failed to start login session");
-      }
-
-      setHelperOnline(true);
-      setBrowserLoginStatus("Chrome is open! Please log into Instagram in Chrome...");
-      toast.info("Google Chrome opened! Please log into Instagram in the browser window.");
-
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-
-      pollTimerRef.current = setInterval(async () => {
-        try {
-          const statusRes = await fetch("http://localhost:4005/login/status");
-          if (!statusRes.ok) return;
-          const statusData = await statusRes.json();
-
-          if (statusData.status === "success") {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setBrowserLoggingIn(false);
-            setBrowserLoginStatus("");
-            toast.success(`Instagram account ${statusData.handle || ""} connected successfully!`);
-            queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-            setShowModal(false);
-          } else if (statusData.status === "closed") {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setBrowserLoggingIn(false);
-            setBrowserLoginStatus("");
-            toast.warning("Chrome window was closed before Instagram login completed.");
-          } else if (statusData.status === "failed") {
-            clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setBrowserLoggingIn(false);
-            setBrowserLoginStatus("");
-            toast.error(statusData.error || "Instagram login failed.");
-          } else if (statusData.status === "in_progress") {
-            setBrowserLoginStatus(
-              statusData.elapsed > 0
-                ? `Waiting for login in Chrome window (${statusData.elapsed}s)...`
-                : "Waiting for login in Chrome window..."
-            );
-          }
-        } catch {
-          // Keep polling through transient errors
-        }
-      }, 1500);
-    } catch (err: any) {
-      setBrowserLoggingIn(false);
-      setBrowserLoginStatus("");
-      setHelperOnline(false);
-      toast.error(
-        "Could not reach local browser helper daemon at http://localhost:4005. Make sure scripts/instagram_browser_login.py is running."
-      );
-    }
-  };
-
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => api.get<Project[]>("/projects"),
-  });
-
+  const { data: projects } = useProjectsQuery();
   const activeProjectId = projectId || projects?.[0]?.id || "";
+  // currentData: switching project never shows the previous project's accounts.
+  const { currentData: accounts, isFetching } = useSocialAccountsQuery(activeProjectId, { skip: !activeProjectId });
+  const isLoading = isFetching && !accounts;
 
-  const { data: accounts, isLoading } = useQuery({
-    queryKey: ["socialAccounts", activeProjectId],
-    queryFn: () => api.get<SocialAccount[]>(`/social-accounts?projectId=${activeProjectId}`),
-    enabled: Boolean(activeProjectId),
-  });
+  const [testAccount, testState] = useTestSocialAccountMutation();
+  const testConnection = (id: string) =>
+    testAccount({ id, projectId: activeProjectId })
+      .unwrap()
+      .then((data) => {
+        if (data.success) toast.success(data.message || `Account verified! Connected as ${data.handle || "active"}`);
+      })
+      .catch((err) => toast.error(`Verification error: ${errorMessage(err)}`));
 
-  // Direct login form fields
-  const [form, setForm] = useState({
-    username: "",
-    password: "",
-    handle: "",
-    apiKey: "",
-    apiSecret: "",
-    accessToken: "",
-    accessTokenSecret: "",
-    botToken: "",
-    chatId: "",
-    webhookUrl: "",
-    pageId: "",
-  });
-
-  const connectDirect = useMutation({
-    mutationFn: () =>
-      api.post("/social-accounts/direct-login", {
-        projectId: activeProjectId,
-        platform: selectedPlatform,
-        username: form.username || undefined,
-        password: form.password || undefined,
-        handle: form.handle || form.username || undefined,
-        apiKey: form.apiKey || undefined,
-        apiSecret: form.apiSecret || undefined,
-        accessToken: form.accessToken || undefined,
-        accessTokenSecret: form.accessTokenSecret || undefined,
-        botToken: form.botToken || undefined,
-        chatId: form.chatId || undefined,
-        webhookUrl: form.webhookUrl || undefined,
-        pageId: form.pageId || undefined,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-      toast.success(`Successfully connected ${selectedPlatform} account!`);
-      setShowModal(false);
-      setForm({
-        username: "",
-        password: "",
-        handle: "",
-        apiKey: "",
-        apiSecret: "",
-        accessToken: "",
-        accessTokenSecret: "",
-        botToken: "",
-        chatId: "",
-        webhookUrl: "",
-        pageId: "",
-      });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const testConnection = useMutation({
-    mutationFn: (id: string) =>
-      api.post<{ success: boolean; status: string; handle?: string; message?: string }>(`/social-accounts/${id}/test`),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-      if (data.success) {
-        toast.success(data.message || `Account verified! Connected as ${data.handle || "active"}`);
-      }
-    },
-    onError: (err: any) => toast.error(`Verification error: ${err.message}`),
-  });
-
-  const deleteAccount = useMutation({
-    mutationFn: (id: string) => api.delete(`/social-accounts/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["socialAccounts", activeProjectId] });
-      toast.success("Account disconnected");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
+  const [removeAccount, deleteState] = useDeleteSocialAccountMutation();
+  const deleteAccount = (id: string) =>
+    removeAccount({ id, projectId: activeProjectId })
+      .unwrap()
+      .then(() => toast.success("Account disconnected"))
+      .catch((err) => toast.error(errorMessage(err)));
 
   const openConnectModal = (platformId: string) => {
     setSelectedPlatform(platformId);
     setShowModal(true);
   };
-
-  const currentPlatformMeta = PLATFORMS.find((p) => p.id === selectedPlatform) || PLATFORMS[0];
 
   return (
     <div className="space-y-6">
@@ -378,60 +94,16 @@ export function IntegrationsPage() {
         </div>
 
         <div className="grid gap-3">
-          {accounts?.map((acc) => {
-            const platformMeta = PLATFORMS.find((p) => p.id === acc.platform);
-            const PlatformIcon = platformMeta?.icon || Plug;
-            return (
-              <Card
-                key={acc.id}
-                className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel border-l-4 border-l-primary"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-                    <PlatformIcon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold capitalize text-foreground">{acc.platform}</span>
-                      <Badge
-                        variant={acc.status === "active" ? "default" : "destructive"}
-                        className="text-xs"
-                      >
-                        {acc.status === "active" ? "Connected & Ready" : acc.status}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                      <span className="font-medium text-foreground">{acc.handle || "Authorized Account"}</span>
-                      <span>·</span>
-                      <span>Connected {new Date(acc.createdAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end md:self-auto">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 text-xs"
-                    onClick={() => testConnection.mutate(acc.id)}
-                    disabled={testConnection.isPending}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${testConnection.isPending ? "animate-spin text-primary" : ""}`} />
-                    Test Connection
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => deleteAccount.mutate(acc.id)}
-                    disabled={deleteAccount.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive hover:scale-110 transition-transform" />
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
+          {accounts?.map((acc) => (
+            <AccountCard
+              key={acc.id}
+              acc={acc}
+              testing={testState.isLoading && testState.originalArgs?.id === acc.id}
+              deleting={deleteState.isLoading && deleteState.originalArgs?.id === acc.id}
+              onTest={() => testConnection(acc.id)}
+              onDelete={() => deleteAccount(acc.id)}
+            />
+          ))}
 
           {accounts?.length === 0 && (
             <div className="p-8 text-center border border-dashed rounded-xl text-muted-foreground bg-card/20">
@@ -445,443 +117,19 @@ export function IntegrationsPage() {
       <div className="space-y-4">
         <h2 className="text-base font-semibold tracking-tight">Available Social Platforms</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {PLATFORMS.map((p) => {
-            const Icon = p.icon;
-            return (
-              <Card
-                key={p.id}
-                glass
-                className="p-5 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all cursor-pointer group"
-                onClick={() => openConnectModal(p.id)}
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:scale-105 transition-transform">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <Badge variant="outline" className="text-[11px] group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                      {p.badge}
-                    </Badge>
-                  </div>
-                  <h3 className="pt-1 text-sm font-semibold text-foreground">{p.name}</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{p.description}</p>
-                </div>
-
-                <div className="pt-2 border-t border-border/40 flex items-center justify-between text-xs text-primary font-medium">
-                  <span>Connect Directly</span>
-                  <Plus className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </Card>
-            );
-          })}
+          {PLATFORMS.map((p) => (
+            <PlatformCard key={p.id} p={p} onSelect={() => openConnectModal(p.id)} />
+          ))}
         </div>
       </div>
 
-      {/* Direct Login / Connect Modal */}
-      <Dialog open={showModal} onOpenChange={(o) => !o && setShowModal(false)}>
-        <DialogContent hideClose aria-describedby={undefined} className="max-w-xl border-0 bg-transparent p-0 shadow-none">
-          <DialogTitle className="sr-only">Connect an account</DialogTitle>
-          <Card className="w-full max-w-xl glass-panel border-primary/40 shadow-2xl">
-            <CardHeader className="border-b border-border/40 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-                    <currentPlatformMeta.icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <CardTitle>
-                      Connect {currentPlatformMeta.name}
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      Direct Credentials &amp; Automatic Social Publisher
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>
-                  ✕
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent className="pt-5 space-y-5">
-
-
-              {/* Platform Selector & Mode Toggle */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label>Platform</Label>
-                  <Select
-                    value={selectedPlatform}
-                    onChange={(e) => setSelectedPlatform(e.target.value)}
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Connection Mode</Label>
-                  <div className="flex rounded-md bg-muted/40 p-1 border border-border/40">
-                    <button
-                      type="button"
-                      className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
-                        authMode === "direct" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      onClick={() => setAuthMode("direct")}
-                    >
-                      Direct Credentials
-                    </button>
-                    <button
-                      type="button"
-                      className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors ${
-                        authMode === "raw_token" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground"
-                      }`}
-                      onClick={() => setAuthMode("raw_token")}
-                    >
-                      Raw Access Token
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <form
-                autoComplete="off"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  connectDirect.mutate();
-                }}
-                className="space-y-4"
-              >
-                {/* 1. INSTAGRAM DIRECT LOGIN */}
-                {selectedPlatform === "instagram" && authMode === "direct" && (
-                  <div className="space-y-4">
-                    {/* Automated Browser Login (No manual copy-paste) */}
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/30 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                          <Globe className="h-4 w-4 text-primary" />
-                          1-Click Automated Browser Login
-                        </div>
-                        <Badge className="bg-primary/20 text-primary text-[11px]">Zero Copy-Paste</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        Opens a real Google Chrome window on your screen to log into Instagram. Once logged in, Agentry automatically captures your session cookie and connects your account without touching DevTools.
-                      </p>
-                      {helperOnline === false && (
-                        <div className="p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-[11px] text-warning flex items-start gap-2">
-                          <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                          <div>
-                            <span>Local browser helper daemon is currently offline.</span>
-                            <span className="block text-muted-foreground mt-0.5">
-                              Run <code>python3 scripts/instagram_browser_login.py --daemon</code> on your desktop, or use the manual credential inputs below.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {browserLoggingIn ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-center gap-2.5 p-3 rounded-lg bg-primary/10 border border-primary/40 text-xs text-primary">
-                            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
-                            <span className="font-medium">{browserLoginStatus || "Waiting for Instagram login in Chrome..."}</span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={cancelBrowserLogin}
-                            className="w-full text-xs text-muted-foreground hover:text-foreground h-7"
-                          >
-                            Cancel browser login
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          type="button"
-                          onClick={handleBrowserLogin}
-                          className="w-full gap-2"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Open Instagram in Browser &amp; Auto-Connect
-                        </Button>
-                      )}
-                    </div>
-
-                    <div className="relative flex py-1 items-center">
-                      <div className="flex-grow border-t border-border/60"></div>
-                      <span className="flex-shrink mx-3 text-[11px] text-muted-foreground uppercase font-medium">Or enter credentials manually</span>
-                      <div className="flex-grow border-t border-border/60"></div>
-                    </div>
-
-                    <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                        <Camera className="h-4 w-4" /> Manual Credentials / Session Cookie
-                      </div>
-                      <div>
-                        <Label>Instagram Username / Handle</Label>
-                        <Input
-                          name="ig_manual_username"
-                          autoComplete="off"
-                          placeholder="your_handle (do NOT enter your email address)"
-                          value={form.username}
-                          onChange={(e) => setForm({ ...form, username: e.target.value })}
-                        />
-                        <p className="text-[11px] text-muted-foreground mt-1">
-                          Enter your exact Instagram handle (e.g. <code>my_handle</code>). Do not use your email address.
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Instagram Password (or Session ID Cookie)</Label>
-                        <div className="relative">
-                          <Input
-                            name="ig_manual_secret"
-                            autoComplete="new-password"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Your Instagram Password or sessionid cookie"
-                            value={form.password}
-                            onChange={(e) => setForm({ ...form, password: e.target.value })}
-                          />
-                          <button
-                            type="button"
-                            className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
-                            onClick={() => setShowPassword(!showPassword)}
-                          >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 2. TWITTER / X DIRECT LOGIN */}
-                {(selectedPlatform === "twitter" || selectedPlatform === "x") && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
-                      <MessageCircle className="h-4 w-4" /> Direct Twitter API Credentials
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label>API Key (Consumer Key)</Label>
-                        <Input
-                          name="tw_consumer_key"
-                          autoComplete="off"
-                          placeholder="e.g. abcd1234efgh"
-                          value={form.apiKey}
-                          onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>API Key Secret</Label>
-                        <Input
-                          name="tw_consumer_secret"
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder="••••••••"
-                          value={form.apiSecret}
-                          onChange={(e) => setForm({ ...form, apiSecret: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>User Access Token</Label>
-                        <Input
-                          name="tw_user_token"
-                          autoComplete="off"
-                          placeholder="e.g. 123456789-abcdef"
-                          value={form.accessToken}
-                          onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>User Access Token Secret</Label>
-                        <Input
-                          name="tw_token_secret"
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder="••••••••"
-                          value={form.accessTokenSecret}
-                          onChange={(e) => setForm({ ...form, accessTokenSecret: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Or Bearer Token (App-Only / User Token)</Label>
-                      <Input
-                        name="tw_bearer_token"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder="AAAAAAAAAAAAAAAAAAAAA..."
-                        value={form.accessToken}
-                        onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. TELEGRAM BOT DIRECT LOGIN */}
-                {selectedPlatform === "telegram" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
-                      <Send className="h-4 w-4" /> Telegram Bot Credentials
-                    </div>
-                    <div>
-                      <Label>Telegram Bot Token (from @BotFather)</Label>
-                      <Input
-                        name="tg_bot_token"
-                        autoComplete="off"
-                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                        value={form.botToken}
-                        onChange={(e) => setForm({ ...form, botToken: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label>Target Channel / Group ID (Optional)</Label>
-                      <Input
-                        name="tg_chat_id"
-                        autoComplete="off"
-                        placeholder="e.g. @your_channel or -100123456789"
-                        value={form.chatId}
-                        onChange={(e) => setForm({ ...form, chatId: e.target.value })}
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Make sure your bot is added as an Administrator to your channel.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. DISCORD WEBHOOK / BOT */}
-                {selectedPlatform === "discord" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                      <Radio className="h-4 w-4" /> Discord Webhook or Bot Token
-                    </div>
-                    <div>
-                      <Label>Discord Channel Webhook URL</Label>
-                      <Input
-                        name="dc_webhook_url"
-                        autoComplete="off"
-                        placeholder="https://discord.com/api/webhooks/123456789/abcd_efgh..."
-                        value={form.webhookUrl}
-                        onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })}
-                      />
-                    </div>
-                    <div className="pt-2 text-center text-xs text-muted-foreground">--- OR ---</div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label>Bot Token</Label>
-                        <Input
-                          name="dc_bot_token"
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder="MTA2..."
-                          value={form.botToken}
-                          onChange={(e) => setForm({ ...form, botToken: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label>Channel ID</Label>
-                        <Input
-                          name="dc_channel_id"
-                          autoComplete="off"
-                          placeholder="123456789012345678"
-                          value={form.chatId}
-                          onChange={(e) => setForm({ ...form, chatId: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. FACEBOOK PAGE */}
-                {selectedPlatform === "facebook" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
-                      <Globe className="h-4 w-4" /> Facebook Page Credentials
-                    </div>
-                    <div>
-                      <Label>Page Access Token</Label>
-                      <Input
-                        name="fb_page_token"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder="EAA..."
-                        value={form.accessToken}
-                        onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label>Facebook Page ID</Label>
-                      <Input
-                        name="fb_page_id"
-                        autoComplete="off"
-                        placeholder="e.g. 104829105829104"
-                        value={form.pageId}
-                        onChange={(e) => setForm({ ...form, pageId: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. RAW ACCESS TOKEN / GENERIC PLATFORM (LinkedIn, YouTube, TikTok, etc.) */}
-                {(authMode === "raw_token" || ["linkedin", "youtube", "tiktok"].includes(selectedPlatform)) && (
-                  <div className="space-y-3 p-4 rounded-xl bg-muted/30 border border-border/40">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                      <KeyRound className="h-4 w-4 text-primary" /> API Access Token / OAuth Bearer
-                    </div>
-                    <div>
-                      <Label>Access Token / API Key</Label>
-                      <Input
-                        name="platform_raw_token"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder={`Paste ${currentPlatformMeta.name} Access Token`}
-                        value={form.accessToken}
-                        onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label>Account Handle / Identifier (Optional)</Label>
-                      <Input
-                        name="platform_raw_handle"
-                        autoComplete="off"
-                        placeholder="e.g. @yourbrand"
-                        value={form.handle}
-                        onChange={(e) => setForm({ ...form, handle: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Footer buttons */}
-                <div className="flex items-center justify-between pt-3 border-t border-border/40">
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Lock className="h-3.5 w-3.5 text-success" />
-                    <span>AES-256 Encrypted</span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button type="button" variant="ghost" onClick={() => setShowModal(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={connectDirect.isPending}>
-                      {connectDirect.isPending ? <Spinner className="mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                      Save &amp; Connect Account
-                    </Button>
-                  </div>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </DialogContent>
-      </Dialog>
+      <ConnectAccountDialog
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        projectId={activeProjectId}
+        selectedPlatform={selectedPlatform}
+        onPlatformChange={setSelectedPlatform}
+      />
     </div>
   );
 }

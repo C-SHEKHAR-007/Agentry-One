@@ -43,6 +43,27 @@ INSTALL_LOCAL_SD=true docker compose build worker
 
 Model weights download on first use into the `hf-cache` volume. Without either, the sketch agent fails with a clear error, unless `SKETCH_ALLOW_PLACEHOLDER=true` (development only), which produces placeholder images.
 
+## Instagram browser login helper
+
+Personal Instagram accounts connect through a small helper that runs on the desktop of the person connecting: it opens Chrome, waits for them to sign in to Instagram, and links the session to a project.
+
+```bash
+python scripts/instagram_browser_login.py --daemon   # listens on 127.0.0.1:4005
+```
+
+The browser never calls the helper. The web app goes through the API (`GET /integrations/instagram/browser-login/status`, `POST .../start`, `GET .../session`, `POST .../cancel`), which forwards to `INSTAGRAM_HELPER_URL` (default `http://localhost:4005`) with a 4-second timeout. If the helper isn't running, `status` answers `{ "online": false }` and the other routes answer `503 helper_offline`. Starting a login requires access to the target project.
+
+- **API on the host, or `scripts/local-up.sh`** (host networking): nothing to configure.
+- **Plain `docker compose up`** (bridged network): the API container can't see the host's loopback. Start the helper on the Docker bridge address, which containers can reach but the network can't, and point the API at it:
+
+  ```bash
+  IG_HELPER_HOST=172.17.0.1 python scripts/instagram_browser_login.py --daemon
+  # .env
+  INSTAGRAM_HELPER_URL=http://172.17.0.1:4005
+  ```
+
+The helper keeps one login session at a time, for the desktop it runs on. Don't expose it beyond the machine: it drives a signed-in browser.
+
 ## Behind a TLS proxy
 
 Terminate TLS in front of `web`. Keep `NODE_ENV=production`, so session cookies are `Secure`, and set `FRONTEND_URL` / `GOOGLE_REDIRECT_URI` to the public HTTPS origin. The API trusts `X-Forwarded-For` from loopback and private networks (`TRUST_PROXY`), so per-IP rate limits see real client addresses. `COOKIE_SECURE=false` exists only to test a production build over plain HTTP.

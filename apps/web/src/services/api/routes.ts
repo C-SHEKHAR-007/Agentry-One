@@ -107,7 +107,7 @@ export const routes = {
     instagramBrowserLogin: {
       status: "/integrations/instagram/browser-login/status",
       start: "/integrations/instagram/browser-login/start",
-      session: (sessionId: string) => `/integrations/instagram/browser-login/sessions/${id(sessionId)}`,
+      session: "/integrations/instagram/browser-login/session",
       cancel: "/integrations/instagram/browser-login/cancel",
     },
   },

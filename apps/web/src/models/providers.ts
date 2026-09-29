@@ -39,3 +39,35 @@ export interface DiscoveredModel {
   providerConfig?: { name: string };
   createdAt?: string;
 }
+
+/** POST /providers */
+export interface CreateProviderBody {
+  capabilityKey: string;
+  providerType: string;
+  name: string;
+  baseUrl?: string;
+  secret?: string;
+  authMode: string;
+  config: Record<string, unknown>;
+  isDefault: boolean;
+}
+
+/** PUT /providers/:id -- `secret` only when replacing the saved key. */
+export interface UpdateProviderBody {
+  name: string;
+  baseUrl: string;
+  secret?: string;
+  config: Record<string, unknown>;
+  status: string;
+}
+
+/** POST /models: a model added to a provider by hand. */
+export interface CreateModelBody {
+  providerConfigId: string;
+  modelId: string;
+  name: string;
+  description?: string;
+  inputTypes: string[];
+  outputTypes: string[];
+  contextLength?: number;
+}
