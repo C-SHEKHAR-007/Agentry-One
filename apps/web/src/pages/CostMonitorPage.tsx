@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -10,8 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { CircleDollarSign, HelpCircle, PiggyBank, Zap } from "lucide-react";
-import { api } from "../api/client";
-import type { CostBreakdown } from "../api/types";
+import { useCostsQuery } from "../features/stats/stats.api";
 import { PageHeader } from "../components/PageHeader";
 import { PricingEditor } from "../components/PricingEditor";
 import { StatCard } from "../components/StatCard";
@@ -23,10 +21,7 @@ import { Skeleton } from "../components/ui/skeleton";
 
 export function CostMonitorPage() {
   const [days, setDays] = useState(30);
-  const { data, isLoading } = useQuery({
-    queryKey: ["stats", "costs", days],
-    queryFn: () => api.get<CostBreakdown>(`/stats/costs?days=${days}`),
-  });
+  const { data, isLoading } = useCostsQuery(days);
 
   const totalJobs = (data?.perProvider ?? []).reduce((a, p) => a + p.jobs, 0);
 

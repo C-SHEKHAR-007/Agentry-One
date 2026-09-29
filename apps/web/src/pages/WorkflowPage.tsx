@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -19,8 +18,20 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
-import { api, sseUrl } from "../api/client";
-import type { JobRun, Workflow, WorkflowEvent, WorkflowStep } from "../api/types";
+import type { JobRun, Workflow, WorkflowEvent, WorkflowStep } from "../models";
+import { useAppDispatch } from "../app/hooks";
+import {
+  agentRunsApi,
+  useAdvanceAgentRunMutation,
+  useAgentRunEventsQuery,
+  useAgentRunQuery,
+  useCancelAgentRunMutation,
+  useStartAgentRunMutation,
+} from "../features/runs/agentRuns.api";
+import { poll, useLiveInterval } from "../services/api/polling";
+import { routes } from "../services/api/routes";
+import { errorMessage } from "../services/http/errors";
+import { openStream } from "../services/realtime/stream";
 import { attemptError, failureHint } from "../lib/failureHints";
 import { formatDuration, formatTokens, formatUsd, timeAgo } from "../lib/format";
 import { RunLogs } from "../components/runs/RunLogs";
@@ -68,20 +79,17 @@ function useElapsed(since: string | undefined, active: boolean): number | null {
 export function WorkflowPage() {
   const { workflowId } = useParams();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   const [progress, setProgress] = useState<{ percent?: number; message?: string }>({});
   const [reviewNotes, setReviewNotes] = useState("");
 
-  const { data: workflow, isError: loadFailed } = useQuery({
-    queryKey: ["workflow", workflowId],
-    queryFn: () => api.get<Workflow>(`/workflows/${workflowId}`),
-    refetchInterval: (q) => (LIVE.includes(q.state.data?.status ?? "") ? 3000 : false),
-  });
-  const { data: events = [] } = useQuery({
-    queryKey: ["workflow-events", workflowId],
-    queryFn: () => api.get<WorkflowEvent[]>(`/workflows/${workflowId}/events`),
-    refetchInterval: LIVE.includes(workflow?.status ?? "") ? 5000 : false,
-  });
+  const id = workflowId ?? "";
+  // Polled every 3s while live (events every 5s); step changes and log lines
+  // also arrive over the job stream below.
+  const cached = agentRunsApi.endpoints.agentRun.useQueryState(id);
+  const interval = useLiveInterval(cached.data?.status, LIVE, 3000);
+  const { data: workflow, isError: loadFailed } = useAgentRunQuery(id, poll(interval));
+  const { data: events = [] } = useAgentRunEventsQuery(id, poll(LIVE.includes(workflow?.status ?? "") ? 5000 : 0));
 
   const steps = workflow?.steps ?? [];
   const activeStep = steps.find((s) => s.status === "running" || s.status === "queued");
@@ -92,55 +100,55 @@ export function WorkflowPage() {
   // Live progress for the running job (server-sent events).
   useEffect(() => {
     if (!activeJobId) return;
-    const source = new EventSource(sseUrl(activeJobId));
-    source.onmessage = (event) => {
-      let payload: { type?: string; percent?: number; message?: string };
-      try {
-        payload = JSON.parse(event.data);
-      } catch {
-        return;
-      }
+    const close = openStream<{ type?: string; percent?: number; message?: string }>(routes.streams.job(activeJobId), (payload) => {
       if (payload.type === "progress") setProgress({ percent: payload.percent, message: payload.message });
-      if (payload.type === "log") queryClient.invalidateQueries({ queryKey: ["workflow-logs", workflowId] });
+      if (payload.type === "log") dispatch(agentRunsApi.util.invalidateTags([{ type: "WorkflowLogs", id }]));
       if (payload.type === "completed" || payload.type === "failed") {
-        queryClient.invalidateQueries({ queryKey: ["workflow", workflowId] });
-        queryClient.invalidateQueries({ queryKey: ["workflow-events", workflowId] });
-        source.close();
+        dispatch(agentRunsApi.util.invalidateTags([{ type: "Workflow", id }, { type: "WorkflowEvents", id }]));
+        close();
       }
-    };
-    return () => source.close();
-  }, [activeJobId, workflowId, queryClient]);
+    });
+    return close;
+  }, [activeJobId, id, dispatch]);
 
   const elapsed = useElapsed(workflow?.createdAt, isLive);
 
-  const cancel = useMutation({
-    mutationFn: () => api.post(`/workflows/${workflowId}/cancel`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflow", workflowId] });
-      toast.success("Cancelling…");
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [cancelRun, cancelState] = useCancelAgentRunMutation();
+  const cancel = {
+    isPending: cancelState.isLoading,
+    mutate: () =>
+      cancelRun(id)
+        .unwrap()
+        .then(() => toast.success("Cancelling…"))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
-  const approve = useMutation({
-    mutationFn: () => api.post(`/workflows/${workflowId}/steps/${awaitingStep?.stepKey}/advance`, { notes: reviewNotes }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflow", workflowId] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-events", workflowId] });
-      toast.success("Approved — continuing");
-      setReviewNotes("");
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [advance, advanceState] = useAdvanceAgentRunMutation();
+  const approve = {
+    isPending: advanceState.isLoading,
+    mutate: () =>
+      awaitingStep &&
+      advance({ workflowId: id, stepKey: awaitingStep.stepKey, notes: reviewNotes })
+        .unwrap()
+        .then(() => {
+          toast.success("Approved — continuing");
+          setReviewNotes("");
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
-  const rerun = useMutation({
-    mutationFn: () => api.post<{ id: string }>(`/projects/${workflow!.projectId}/workflows`, { agentId: workflow!.agentId, input: workflow!.inputParams }),
-    onSuccess: (wf) => {
-      toast.success("Started a new run with the same inputs");
-      navigate(`/workflows/${wf.id}`);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [startRun, startState] = useStartAgentRunMutation();
+  const rerun = {
+    isPending: startState.isLoading,
+    mutate: () =>
+      startRun({ projectId: workflow!.projectId, agentId: workflow!.agentId, input: workflow!.inputParams })
+        .unwrap()
+        .then((wf) => {
+          toast.success("Started a new run with the same inputs");
+          navigate(`/workflows/${wf.id}`);
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const failure = useMemo(() => {
     if (workflow?.status !== "failed") return null;

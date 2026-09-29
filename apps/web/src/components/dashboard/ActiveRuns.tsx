@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Bot, Workflow as WorkflowIcon, Zap } from "lucide-react";
-import { useRecentWorkflows, useWorkflowRuns } from "../../api/queries";
-import type { RecentWorkflow, RunSummary } from "../../api/types";
+import { useRecentAgentRuns } from "../../features/runs/agentRuns.api";
+import { useWorkflowRuns } from "../../features/runs/runs.api";
+import type { RecentWorkflow, RunSummary } from "../../models";
 import { formatDuration, runCode } from "../../lib/format";
 import { cn } from "../../lib/utils";
 import { useNow } from "../../hooks/useNow";
@@ -81,7 +82,7 @@ function AgentRunRow({ wf }: { wf: RecentWorkflow }) {
  * then single-agent runs that aren't part of a workflow. */
 export function ActiveRuns() {
   const { data: runs } = useWorkflowRuns("active", 4);
-  const { data: running } = useRecentWorkflows(12, "running");
+  const { data: running } = useRecentAgentRuns(12, "running");
   const inRuns = new Set((runs ?? []).flatMap((r) => r.steps.map((s) => s.workflowId).filter(Boolean)));
   const agentRuns = (running ?? []).filter((w) => !inRuns.has(w.id)).slice(0, 4);
   const loading = !runs || !running;

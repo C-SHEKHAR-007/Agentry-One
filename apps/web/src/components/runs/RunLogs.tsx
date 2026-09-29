@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Terminal } from "lucide-react";
-import { api } from "../../api/client";
-import type { RunLogLine } from "../../api/types";
+import { useAgentRunLogsQuery } from "../../features/runs/agentRuns.api";
+import { poll } from "../../services/api/polling";
 import { formatClock } from "../../lib/format";
 import { cn } from "../../lib/utils";
 
@@ -13,13 +12,9 @@ const LEVEL: Record<string, string> = {
   debug: "text-muted-foreground",
 };
 
+/** A run's log lines, polled every 1.5s while it's live. */
 export function useRunLogs(workflowId: string | null | undefined, live: boolean) {
-  return useQuery({
-    queryKey: ["workflow-logs", workflowId],
-    queryFn: () => api.get<RunLogLine[]>(`/workflows/${workflowId}/logs`),
-    enabled: Boolean(workflowId),
-    refetchInterval: live ? 1500 : false,
-  });
+  return useAgentRunLogsQuery(workflowId ?? "", { skip: !workflowId, ...poll(live ? 1500 : 0) });
 }
 
 /** Terminal-style log for one agent run: attempt starts, progress messages,

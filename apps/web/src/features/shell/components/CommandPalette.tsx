@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
   CornerDownLeft,
@@ -16,8 +15,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
-import { api } from "../../../api/client";
-import type { RecentWorkflow, RunSummary } from "../../../api/types";
+import { useAgentsQuery } from "../../agents/agents.api";
+import { useProjectsQuery } from "../../projects/projects.api";
+import { useRecentAgentRunsQuery } from "../../runs/agentRuns.api";
+import { useWorkflowRunsQuery } from "../../runs/runs.api";
+import { useWorkflowLibraryQuery } from "../../workflows/templates.api";
 import { runCode, timeAgo } from "../../../lib/format";
 import { cn } from "../../../lib/utils";
 import { StatusDot } from "../../../components/StatusBadge";
@@ -58,23 +60,13 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   const [selected, setSelected] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { data: agents } = useQuery<{ id: string; name: string }[]>({ queryKey: ["agents"], queryFn: () => api.get("/agents"), enabled: open });
-  const { data: projects } = useQuery<{ id: string; name: string }[]>({ queryKey: ["projects"], queryFn: () => api.get("/projects"), enabled: open });
-  const { data: workflows } = useQuery<{ id: string; name: string; project: { name: string } }[]>({
-    queryKey: ["templates", "library"],
-    queryFn: () => api.get("/templates"),
-    enabled: open,
-  });
-  const { data: runs } = useQuery<RunSummary[]>({
-    queryKey: ["template-runs", "all", 6],
-    queryFn: () => api.get("/template-runs?status=all&limit=6"),
-    enabled: open,
-  });
-  const { data: agentRuns } = useQuery<RecentWorkflow[]>({
-    queryKey: ["workflows", "recent", 6, "all"],
-    queryFn: () => api.get("/workflows/recent?limit=6"),
-    enabled: open,
-  });
+  // Loaded only while the palette is open.
+  const skip = !open;
+  const { data: agents } = useAgentsQuery(undefined, { skip });
+  const { data: projects } = useProjectsQuery(undefined, { skip });
+  const { data: workflows } = useWorkflowLibraryQuery(undefined, { skip });
+  const { data: runs } = useWorkflowRunsQuery({ status: "all", limit: 6 }, { skip });
+  const { data: agentRuns } = useRecentAgentRunsQuery({ limit: 6 }, { skip });
 
   const recent = useMemo<Entry[]>(() => {
     const items = [

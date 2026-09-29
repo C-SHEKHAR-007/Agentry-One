@@ -12,3 +12,4 @@ export * from "./events";
 export * from "./stats";
 export * from "./notifications";
 export * from "./users";
+export * from "./settings";

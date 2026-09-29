@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { BridgedQueryClient } from "./api/legacyQueryClient";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -12,7 +13,7 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/geist-mono";
 import "./index.css";
 
-const queryClient = new QueryClient({
+const queryClient = new BridgedQueryClient({
   defaultOptions: {
     queries: {
       // A 4xx (not found / no access / bad request) won't fix itself on retry;
@@ -24,6 +25,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+queryClient.bindStore(store.dispatch);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

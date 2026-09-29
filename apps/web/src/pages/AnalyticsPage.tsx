@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -12,8 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { Activity, Bot, CheckCircle2, Clock } from "lucide-react";
-import { api } from "../api/client";
-import { useAgentStats, useStatsOverview } from "../api/queries";
+import { useAgentStats, useStatsOverview, useStatsSeriesQuery } from "../features/stats/stats.api";
 import { formatDuration, formatPercent, timeAgo, formatTokens, formatUsd } from "../lib/format";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
@@ -23,17 +21,9 @@ import { Donut } from "../components/ui/donut";
 import { Select } from "../components/ui/select";
 import { Skeleton } from "../components/ui/skeleton";
 
-interface SeriesResponse {
-  days: number;
-  perDay: { date: string; completed: number; failed: number; avgDurationMs: number | null }[];
-}
-
 export function AnalyticsPage() {
   const [days, setDays] = useState(14);
-  const { data: series, isLoading } = useQuery({
-    queryKey: ["stats", "series", days],
-    queryFn: () => api.get<SeriesResponse>(`/stats/series?days=${days}`),
-  });
+  const { data: series, isLoading } = useStatsSeriesQuery(days);
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
 

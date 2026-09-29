@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { NotFoundPage } from "./NotFoundPage";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -19,8 +18,12 @@ import {
   Timer,
   Wallet,
 } from "lucide-react";
-import { api } from "../api/client.js";
-import type { RunDetail } from "../api/types";
+import type { RunStepWorkflow } from "../models";
+import { useAgentsQuery } from "../features/agents/agents.api";
+import { useAdvanceAgentRunMutation, useAgentRunQuery } from "../features/runs/agentRuns.api";
+import { useCancelWorkflowRunMutation, useWorkflowRunLive } from "../features/runs/runs.api";
+import { poll, useLiveInterval } from "../services/api/polling";
+import { errorMessage } from "../services/http/errors";
 import { RunGraph } from "../components/runs/RunGraph";
 import { StepInspector } from "../components/runs/StepInspector";
 import { useNow } from "../hooks/useNow";
@@ -28,7 +31,7 @@ import { formatDuration, formatTokens, formatUsd, runCode, timeAgo } from "../li
 import { LIVE_STATUSES, statusStyle } from "../lib/status";
 import { cn } from "../lib/utils";
 import { StatusBadge } from "../components/StatusBadge";
-import { ArtifactPreview, type ArtifactItem } from "../components/ArtifactPreview";
+import { ArtifactPreview } from "../components/ArtifactPreview";
 import { Button, buttonVariants } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { Textarea } from "../components/ui/textarea";
@@ -36,55 +39,33 @@ import { Skeleton } from "../components/ui/skeleton";
 import { Spinner } from "../components/ui/spinner";
 import { Badge } from "../components/ui/badge";
 
-interface WorkflowStep {
-  id: string;
-  stepKey: string;
-  status: string;
-  artifacts?: ArtifactItem[];
-}
+const AGENT_RUN_LIVE = ["running", "awaiting_review"] as const;
 
-interface WorkflowDetail {
-  id: string;
-  status: string;
-  steps: WorkflowStep[];
-}
-
-interface TemplateRunStep {
-  id: string;
-  status: string;
-  workflowId: string | null;
-  templateStep: { stepOrder: number; agentId: string };
-}
-
-
-function StepRowCard({ step, agentName, onStepUpdated }: { step: TemplateRunStep; agentName: string; onStepUpdated: () => void }) {
-  const queryClient = useQueryClient();
+function StepRowCard({ step, agentName }: { step: RunStepWorkflow; agentName: string }) {
   const [reviewNotes, setReviewNotes] = useState("");
 
-  const { data: workflow } = useQuery({
-    queryKey: ["workflow-detail", step.workflowId],
-    queryFn: () => api.get<WorkflowDetail>(`/workflows/${step.workflowId}`),
-    enabled: Boolean(step.workflowId),
-    refetchInterval: (query) =>
-      query.state.data?.status === "running" || query.state.data?.status === "awaiting_review" ? 2000 : false,
-  });
+  // The step's agent run, polled every 2s while running or awaiting review.
+  const cached = useAgentRunQuery(step.workflowId ?? "", { skip: !step.workflowId });
+  const interval = useLiveInterval(cached.data?.status, AGENT_RUN_LIVE, 2000);
+  const { data: workflow } = useAgentRunQuery(step.workflowId ?? "", { skip: !step.workflowId, ...poll(interval) });
 
   const awaitingWfStep = workflow?.steps?.find((s) => s.status === "awaiting_review");
 
-  const advanceStepMutation = useMutation({
-    mutationFn: () =>
-      api.post(`/workflows/${step.workflowId}/steps/${awaitingWfStep?.stepKey}/advance`, {
-        notes: reviewNotes,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["template-run"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-detail", step.workflowId] });
-      toast.success(`Step approved! Pipeline continuing to next stage.`);
-      setReviewNotes("");
-      onStepUpdated();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  // Refreshes this agent run and the workflow run (tags).
+  const [advance, { isLoading: advancing }] = useAdvanceAgentRunMutation();
+  const advanceStepMutation = {
+    isPending: advancing,
+    mutate: () =>
+      step.workflowId &&
+      awaitingWfStep &&
+      advance({ workflowId: step.workflowId, stepKey: awaitingWfStep.stepKey, notes: reviewNotes })
+        .unwrap()
+        .then(() => {
+          toast.success(`Step approved! Pipeline continuing to next stage.`);
+          setReviewNotes("");
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const allArtifacts = workflow?.steps?.flatMap((s) => s.artifacts || []) || [];
 
@@ -194,31 +175,24 @@ function Tile({ icon: Icon, label, value, sub }: { icon: typeof Layers; label: s
 
 export function TemplateRunViewPage() {
   const { runId } = useParams();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const view = (searchParams.get("view") as View) || "graph";
   const [selected, setSelected] = useState<number | null>(null);
 
-  const { data: run, isError: runLoadFailed, refetch } = useQuery({
-    queryKey: ["template-run", runId],
-    queryFn: () => api.get<RunDetail>(`/template-runs/${runId}`),
-    refetchInterval: (query) => (LIVE_STATUSES.includes(query.state.data?.status ?? "running") ? 2000 : false),
-  });
-  const { data: agents } = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => api.get<Array<{ id: string; name: string }>>("/agents"),
-    staleTime: 60_000,
-  });
+  const { data: run, isError: runLoadFailed } = useWorkflowRunLive(runId);
+  const { data: agents } = useAgentsQuery();
   const agentNames = useMemo(() => new Map((agents ?? []).map((a) => [a.id, a.name])), [agents]);
 
-  const cancel = useMutation({
-    mutationFn: () => api.post(`/template-runs/${runId}/cancel`),
-    onSuccess: () => {
-      toast.success("Cancelling — steps already running will finish, nothing new starts");
-      queryClient.invalidateQueries({ queryKey: ["template-run", runId] });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const [cancelRun, { isLoading: cancelling }] = useCancelWorkflowRunMutation();
+  const cancel = {
+    isPending: cancelling,
+    mutate: () =>
+      runId &&
+      cancelRun(runId)
+        .unwrap()
+        .then(() => toast.success("Cancelling — steps already running will finish, nothing new starts"))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const live = LIVE_STATUSES.includes(run?.status ?? "");
   const now = useNow(1000, live);
@@ -375,10 +349,6 @@ export function TemplateRunViewPage() {
               key={step.id}
               step={step}
               agentName={nameOf(step)}
-              onStepUpdated={() => {
-                refetch();
-                queryClient.invalidateQueries({ queryKey: ["template-run", runId] });
-              }}
             />
           ))}
         </div>

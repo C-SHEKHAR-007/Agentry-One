@@ -17,3 +17,23 @@ export interface ArtifactListItem extends Artifact {
   projectName: string;
   agentId: string;
 }
+
+/** An artifact as listed for a run (GET /workflows/:id/artifacts), with URLs. */
+export interface ArtifactItem {
+  id: string;
+  workflowId?: string;
+  kind: string;
+  mimeType: string;
+  storageKey?: string;
+  sizeBytes?: number | null;
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+  createdAt?: string;
+  metadata?: Record<string, any> | null;
+}
+
+/** A short-lived signed URL (Azure SAS) for previewing/downloading. */
+export interface SignedUrl {
+  url: string;
+  expiresAt: string;
+}

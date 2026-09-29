@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Monitor, Moon, Plus, Sun } from "lucide-react";
-import { api } from "../api/client";
-import { useSystemHealth } from "../api/queries";
+import { usePutSettingMutation, useSettingsQuery, useVersionQuery } from "../features/settings/settings.api";
+import { useSystemHealth } from "../features/stats/stats.api";
+import { errorMessage } from "../services/http/errors";
 import { useTheme } from "../features/shell/theme";
 import { cn } from "../lib/utils";
 import { PageHeader } from "../components/PageHeader";
@@ -15,15 +15,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../co
 import { Input } from "../components/ui/input";
 import { Skeleton } from "../components/ui/skeleton";
 
-interface Setting {
-  id: string;
-  scope: string;
-  projectId: string | null;
-  agentId: string | null;
-  key: string;
-  value: unknown;
-}
-
 const THEME_OPTIONS = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
@@ -31,29 +22,25 @@ const THEME_OPTIONS = [
 ] as const;
 
 export function SettingsPage() {
-  const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
-  const { data: version } = useQuery({
-    queryKey: ["version"],
-    queryFn: () => api.get<{ name: string; version: string }>("/version"),
-  });
+  const { data: version } = useVersionQuery();
   const { data: health } = useSystemHealth();
-  const { data: settings } = useQuery({
-    queryKey: ["settings", "global"],
-    queryFn: () => api.get<Setting[]>("/settings"),
-  });
+  // One cache shared with the pricing editor below.
+  const { data: settings } = useSettingsQuery();
 
   const [newKV, setNewKV] = useState({ key: "", value: "" });
-  const putSetting = useMutation({
-    mutationFn: (input: { key: string; value: unknown }) =>
-      api.put("/settings", { scope: "global", key: input.key, value: input.value }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast.success("Setting saved");
-      setNewKV({ key: "", value: "" });
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const [put, putState] = usePutSettingMutation();
+  const putSetting = {
+    isPending: putState.isLoading,
+    mutate: (input: { key: string; value: unknown }) =>
+      put({ scope: "global", key: input.key, value: input.value })
+        .unwrap()
+        .then(() => {
+          toast.success("Setting saved");
+          setNewKV({ key: "", value: "" });
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   const otherSettings = (settings ?? []).filter((s) => !s.key.startsWith("pricing."));
 

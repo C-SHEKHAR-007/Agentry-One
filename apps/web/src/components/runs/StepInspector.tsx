@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowUpRight, CheckCircle2, Eye } from "lucide-react";
-import { api } from "../../api/client";
-import type { RunDetail } from "../../api/types";
+import { useAdvanceAgentRunMutation, useAgentRunArtifactsQuery, useAgentRunQuery } from "../../features/runs/agentRuns.api";
+import { errorMessage } from "../../services/http/errors";
+import type { RunDetail } from "../../models";
 import { failureHint } from "../../lib/failureHints";
 import { formatDuration, formatTokens, formatUsd, runCode } from "../../lib/format";
 import { cn } from "../../lib/utils";
-import { ArtifactPreview, type ArtifactItem } from "../ArtifactPreview";
+import { ArtifactPreview } from "../ArtifactPreview";
 import { StatusBadge } from "../StatusBadge";
 import { Button, buttonVariants } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -29,23 +29,23 @@ function Metric({ label, value, mono = true }: { label: string; value: React.Rea
 
 /** Approve a human-review gate on this step's agent run. */
 function ReviewGate({ workflowId }: { workflowId: string }) {
-  const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
-  const { data: wf } = useQuery({
-    queryKey: ["workflow-detail", workflowId],
-    queryFn: () => api.get<{ steps: Array<{ stepKey: string; status: string }> }>(`/workflows/${workflowId}`),
-  });
-  const gate = wf?.steps.find((s) => s.status === "awaiting_review");
-  const approve = useMutation({
-    mutationFn: () => api.post(`/workflows/${workflowId}/steps/${gate?.stepKey}/advance`, { notes }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["template-run"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-detail", workflowId] });
-      toast.success("Approved — the run continues with the next steps");
-      setNotes("");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const { data: wf } = useAgentRunQuery(workflowId);
+  const gate = wf?.steps?.find((s) => s.status === "awaiting_review");
+  // Refreshes this agent run, its events and every workflow run (tags).
+  const [advance, { isLoading: approving }] = useAdvanceAgentRunMutation();
+  const approve = {
+    isPending: approving,
+    mutate: () =>
+      gate &&
+      advance({ workflowId, stepKey: gate.stepKey, notes })
+        .unwrap()
+        .then(() => {
+          toast.success("Approved — the run continues with the next steps");
+          setNotes("");
+        })
+        .catch((err) => toast.error(errorMessage(err))),
+  };
   if (!gate) return null;
   return (
     <div className="space-y-2 rounded-lg border border-warning/40 bg-warning/10 p-3">
@@ -65,10 +65,8 @@ function ReviewGate({ workflowId }: { workflowId: string }) {
 export function StepInspector({ step, agentName }: { step: RunStep; agentName: string }) {
   const u = step.usage;
   const live = ["running", "queued", "pending"].includes(step.status) && Boolean(step.workflowId);
-  const { data: artifacts } = useQuery({
-    queryKey: ["workflow-artifacts", step.workflowId],
-    queryFn: () => api.get<ArtifactItem[]>(`/workflows/${step.workflowId}/artifacts`),
-    enabled: Boolean(step.workflowId) && ["completed", "awaiting_review"].includes(step.status),
+  const { data: artifacts } = useAgentRunArtifactsQuery(step.workflowId ?? "", {
+    skip: !step.workflowId || !["completed", "awaiting_review"].includes(step.status),
   });
   const hint = step.status === "failed" ? failureHint(u.error) : null;
   const now = useNow(1000, step.status === "running");

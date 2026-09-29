@@ -1,10 +1,10 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Bot, RefreshCw, Workflow as WorkflowIcon } from "lucide-react";
-import { api } from "../api/client";
-import { useRecentWorkflows, useWorkflowRuns } from "../api/queries";
-import type { RunSummary } from "../api/types";
+import { useReapStaleRunsMutation, useRecentAgentRuns } from "../features/runs/agentRuns.api";
+import { useWorkflowRuns } from "../features/runs/runs.api";
+import { errorMessage } from "../services/http/errors";
+import type { RunSummary } from "../models";
 import { ExecutionsTable } from "../components/ExecutionsTable";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
@@ -87,22 +87,18 @@ export function ExecutionsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const queryClient = useQueryClient();
-  const { data: workflows, isLoading } = useRecentWorkflows(50, status === "all" ? undefined : status);
+  const { data: workflows, isLoading } = useRecentAgentRuns(50, status === "all" ? undefined : status);
   const { data: runs, isLoading: runsLoading } = useWorkflowRuns(status, 50);
 
-  const reapMutation = useMutation({
-    mutationFn: () => api.post<{ reaped: number }>("/workflows/reap-stale"),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["workflows", "recent"] });
-      if (res.reaped > 0) {
-        toast.success(`Cleaned up ${res.reaped} stale runs`);
-      } else {
-        toast.info("No stale runs found");
-      }
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const [reap, { isLoading: reaping }] = useReapStaleRunsMutation();
+  const reapMutation = {
+    isPending: reaping,
+    mutate: () =>
+      reap()
+        .unwrap()
+        .then((res) => (res.reaped > 0 ? toast.success(`Cleaned up ${res.reaped} stale runs`) : toast.info("No stale runs found")))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   return (
     <div>

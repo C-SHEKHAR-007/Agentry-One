@@ -37,9 +37,10 @@ test("dialogs open centred (no jump), animate in and out", async ({ page }) => {
     expect(Math.abs(x - 720)).toBeLessThanOrEqual(2); // horizontally centred every frame
     expect(Math.abs(y - 450)).toBeLessThanOrEqual(16); // only the small rise-in offset
   }
-  // It fades in (starts transparent, ends opaque).
+  // It fades in: starts transparent, then settles fully opaque (polled, so a
+  // busy machine that renders fewer frames doesn't fail it).
   expect(samples[0][2]).toBeLessThan(1);
-  expect(samples.at(-1)![2]).toBe(1);
+  await expect.poll(() => dialog.evaluate((d) => +getComputedStyle(d).opacity)).toBe(1);
 
   // Closing animates out and then unmounts.
   await page.keyboard.press("Escape");

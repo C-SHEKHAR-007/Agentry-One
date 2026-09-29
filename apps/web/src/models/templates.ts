@@ -18,3 +18,19 @@ export interface Template {
   status: string;
   steps: TemplateStep[];
 }
+
+/** A workflow in the library (GET /templates): with its steps, latest runs
+ * and schedules. */
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  project: { id: string; name: string };
+  steps: Array<{ stepOrder: number; agentId: string; inputMapping: Record<string, InputMappingValue> }>;
+  runs: Array<{ id: string; status: string; createdAt: string; updatedAt: string }>;
+  schedules: Array<{ id: string; cronExpr: string }>;
+  runCount: number;
+}

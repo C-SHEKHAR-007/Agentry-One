@@ -31,3 +31,8 @@ export interface SystemHealth {
   redis: boolean;
   workers: { queue: string; agentId: string; online: boolean }[];
 }
+
+export interface StatsSeries {
+  days: number;
+  perDay: { date: string; completed: number; failed: number; avgDurationMs: number | null }[];
+}

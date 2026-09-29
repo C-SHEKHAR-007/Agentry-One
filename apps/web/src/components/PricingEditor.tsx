@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Save } from "lucide-react";
-import { api } from "../api/client";
+import { usePutSettingMutation, useSettingsQuery } from "../features/settings/settings.api";
+import { errorMessage } from "../services/http/errors";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
-
-interface Setting {
-  id: string;
-  scope: string;
-  key: string;
-  value: unknown;
-}
 
 const LABELS: Record<string, string> = {
   "pricing.sd_turbo_local": "Local SD-Turbo (per image)",
@@ -23,11 +16,7 @@ const LABELS: Record<string, string> = {
 // Editable per-job USD prices stored as global settings (pricing.* keys).
 // Shared between the Cost Monitor and Settings pages.
 export function PricingEditor() {
-  const queryClient = useQueryClient();
-  const { data: settings } = useQuery({
-    queryKey: ["settings", "global"],
-    queryFn: () => api.get<Setting[]>("/settings"),
-  });
+  const { data: settings } = useSettingsQuery();
 
   const pricing = (settings ?? []).filter((s) => s.key.startsWith("pricing."));
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -41,20 +30,16 @@ export function PricingEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
-  const save = useMutation({
-    mutationFn: (key: string) =>
-      api.put("/settings", {
-        scope: "global",
-        key,
-        value: { perJobUsd: Number(drafts[key]) || 0 },
-      }),
-    onSuccess: (_d, key) => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      queryClient.invalidateQueries({ queryKey: ["stats"] });
-      toast.success(`${LABELS[key] ?? key} updated`);
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  // Saving invalidates settings and every Stats entry (costs use pricing).
+  const [putSetting, { isLoading: saving }] = usePutSettingMutation();
+  const save = {
+    isPending: saving,
+    mutate: (key: string) =>
+      putSetting({ scope: "global", key, value: { perJobUsd: Number(drafts[key]) || 0 } })
+        .unwrap()
+        .then(() => toast.success(`${LABELS[key] ?? key} updated`))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   if (pricing.length === 0) {
     return <p className="text-sm text-muted-foreground">No pricing settings found.</p>;

@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -21,18 +20,12 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { api } from "../api/client.js";
 import { CHART, ChartLegend, ChartTooltip } from "../components/charts/chartTheme";
-import {
-  useAgentStats,
-  useEvents,
-  useProjects,
-  useRecentWorkflows,
-  useSasPreviewUrl,
-  useStatsOverview,
-  useSystemHealth,
-  useWorkflowRuns,
-} from "../api/queries";
+import { useArtifactPreviewUrlQuery } from "../features/artifacts/artifacts.api";
+import { useProjectsQuery } from "../features/projects/projects.api";
+import { useRecentAgentRuns } from "../features/runs/agentRuns.api";
+import { useWorkflowRuns } from "../features/runs/runs.api";
+import { useAgentStats, useRecentEvents, useStatsOverview, useStatsSeriesQuery, useSystemHealth } from "../features/stats/stats.api";
 import { formatDuration, formatPercent, formatTokens, formatUsd, timeAgo } from "../lib/format";
 import { useAuth } from "../features/auth/useAuth";
 import { ActivityFeed } from "../components/ActivityFeed";
@@ -44,11 +37,12 @@ import { DashboardHero } from "../components/dashboard/DashboardHero";
 import { UsageBars } from "../components/dashboard/UsageBars";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
-import type { Project } from "../api/types";
+import type { Project } from "../models";
 
 // ── Project card with SAS cover image ────────────────────────────────────────
 function ProjectCard({ project }: { project: Project }) {
-  const { data: sas } = useSasPreviewUrl(!project.coverPreviewUrl && project.coverArtifactId ? project.coverArtifactId : undefined);
+  const sasId = !project.coverPreviewUrl && project.coverArtifactId ? project.coverArtifactId : undefined;
+  const { data: sas } = useArtifactPreviewUrlQuery(sasId ?? "", { skip: !sasId });
   const url = project.coverPreviewUrl || sas?.url;
   const initial = project.name[0]?.toUpperCase() ?? "P";
 
@@ -152,20 +146,14 @@ export function DashboardPage() {
   const { user } = useAuth();
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
-  const { data: events } = useEvents(14);
-  const { data: recent } = useRecentWorkflows(6);
+  const { data: events } = useRecentEvents(14);
+  const { data: recent } = useRecentAgentRuns(6);
   const { data: health, dataUpdatedAt: healthUpdatedAt } = useSystemHealth();
-  const { data: projects } = useProjects();
+  const { data: projects } = useProjectsQuery();
   const { data: activeRuns } = useWorkflowRuns("active", 4);
 
   const [trendDays, setTrendDays] = useState<number>(14);
-  const { data: trendSeries, isLoading: isLoadingTrends } = useQuery<{
-    days: number;
-    perDay: { date: string; completed: number; failed: number; avgDurationMs: number | null }[];
-  }>({
-    queryKey: ["stats", "series", trendDays],
-    queryFn: () => api.get(`/stats/series?days=${trendDays}`),
-  });
+  const { data: trendSeries, isLoading: isLoadingTrends } = useStatsSeriesQuery(trendDays);
 
   const displayName = user?.firstName?.trim() || user?.email?.split("@")[0] || "there";
   const series = overview?.series.completedPerDay.map((d) => d.count) ?? [];

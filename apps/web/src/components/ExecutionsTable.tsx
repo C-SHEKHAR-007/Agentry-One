@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { Bot, ImageIcon, MoreHorizontal, Ban, Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "../api/client";
-import type { RecentWorkflow } from "../api/types";
-import { useSasPreviewUrl } from "../api/queries";
+import type { RecentWorkflow } from "../models";
+import { useArtifactPreviewUrlQuery } from "../features/artifacts/artifacts.api";
+import { useCancelAgentRunMutation } from "../features/runs/agentRuns.api";
+import { errorMessage } from "../services/http/errors";
 import { formatDuration, timeAgo } from "../lib/format";
 import { StatusBadge } from "./StatusBadge";
 import { EmptyState } from "./ui/empty-state";
@@ -12,23 +12,23 @@ import { PlayCircle } from "lucide-react";
 
 /** Tiny component so the hook call is always at top level per item */
 function ThumbImage({ artifactId, previewUrl }: { artifactId?: string | null; previewUrl?: string | null }) {
-  const { data: sas } = useSasPreviewUrl(!previewUrl && artifactId ? artifactId : undefined);
+  const sasId = !previewUrl && artifactId ? artifactId : undefined;
+  const { data: sas } = useArtifactPreviewUrlQuery(sasId ?? "", { skip: !sasId });
   const url = previewUrl || sas?.url;
   if (!url) return <ImageIcon className="h-4 w-4 text-muted-foreground" />;
   return <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" />;
 }
 
 export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) {
-  const queryClient = useQueryClient();
-
-  const cancelMutation = useMutation({
-    mutationFn: (workflowId: string) => api.post(`/workflows/${workflowId}/cancel`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflows", "recent"] });
-      toast.success("Execution cancelled");
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
+  const [cancelRun, { isLoading: cancelling }] = useCancelAgentRunMutation();
+  const cancelMutation = {
+    isPending: cancelling,
+    mutate: (workflowId: string) =>
+      cancelRun(workflowId)
+        .unwrap()
+        .then(() => toast.success("Execution cancelled"))
+        .catch((err) => toast.error(errorMessage(err))),
+  };
 
   if (workflows.length === 0) {
     return (

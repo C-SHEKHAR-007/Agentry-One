@@ -70,3 +70,6 @@ export interface RunDetail {
   }>;
   totals: { inputTokens: number; outputTokens: number; costUsd: number; durationMs: number | null };
 }
+
+/** One step of a workflow run (GET /template-runs/:id). */
+export type RunStepWorkflow = RunDetail["steps"][number];
