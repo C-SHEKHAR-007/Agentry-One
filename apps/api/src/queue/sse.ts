@@ -7,10 +7,15 @@ const emitter = new EventEmitter();
 emitter.setMaxListeners(100);
 
 export interface JobSseEvent {
-  type: "progress" | "completed" | "failed";
+  type: "progress" | "completed" | "failed" | "started" | "log";
   percent?: number;
   message?: string;
   error?: unknown;
+  attemptNumber?: number;
+  /** log events */
+  jobRunId?: string;
+  level?: string;
+  createdAt?: string;
 }
 
 export function publishJobEvent(jobId: string, event: JobSseEvent): void {

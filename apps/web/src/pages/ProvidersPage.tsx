@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
+import { Dialog, DialogContent, DialogTitle } from "../components/ui/dialog";
+import { useSticky } from "../hooks/useSticky";
 import { StatCard } from "../components/StatCard";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -160,6 +162,7 @@ export function ProvidersPage() {
     availableModels?: DiscoveredModel[];
     hasSecret?: boolean;
   } | null>(null);
+  const editShown = useSticky(editingProvider);
 
   const handleOpenEdit = async (p: ProviderConfig) => {
     const currentModel = (p.config as any)?.model || (p.models && p.models.length > 0 ? p.models[0].modelId : "");
@@ -274,6 +277,7 @@ export function ProvidersPage() {
   });
 
   const [addModelForProvider, setAddModelForProvider] = useState<string | null>(null);
+  const addModelShown = useSticky(addModelForProvider);
   const [modelForm, setModelForm] = useState({
     modelId: "",
     name: "",
@@ -926,8 +930,9 @@ export function ProvidersPage() {
       </div>
 
       {/* REGISTER PROVIDER MODAL DIALOG */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+      <Dialog open={showAddModal} onOpenChange={(o) => !o && closeAddModal()}>
+        <DialogContent hideClose aria-describedby={undefined} className="max-w-2xl border-0 bg-transparent p-0 shadow-none">
+          <DialogTitle className="sr-only">Register AI provider</DialogTitle>
           <Card className="w-full max-w-2xl border-primary/30 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
@@ -1101,17 +1106,19 @@ export function ProvidersPage() {
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* EDIT PROVIDER MODAL DIALOG */}
-      {editingProvider && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+      <Dialog open={Boolean(editingProvider)} onOpenChange={(o) => !o && setEditingProvider(null)}>
+        <DialogContent hideClose aria-describedby={undefined} className="max-w-xl border-0 bg-transparent p-0 shadow-none">
+          <DialogTitle className="sr-only">Edit provider</DialogTitle>
+        {editShown && (
           <Card className="w-full max-w-xl border-primary/40 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-                  <Pencil className="h-4 w-4 text-primary" /> Edit Provider: {editingProvider.name}
+                  <Pencil className="h-4 w-4 text-primary" /> Edit Provider: {editShown.name}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Update credentials, endpoint URL, default model, and status.
@@ -1136,8 +1143,8 @@ export function ProvidersPage() {
                   <Input
                     name="edit_provider_display_name"
                     autoComplete="off"
-                    value={editingProvider.name}
-                    onChange={(e) => setEditingProvider({ ...editingProvider, name: e.target.value })}
+                    value={editShown.name}
+                    onChange={(e) => setEditingProvider({ ...editShown, name: e.target.value })}
                     required
                     className="h-9 text-xs"
                   />
@@ -1146,7 +1153,7 @@ export function ProvidersPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <Label className="text-xs">Default Model</Label>
-                    {editingProvider.availableModels && editingProvider.availableModels.length > 0 && (
+                    {editShown.availableModels && editShown.availableModels.length > 0 && (
                       <button
                         type="button"
                         onClick={() => setIsCustomModelMode(!isCustomModelMode)}
@@ -1156,18 +1163,18 @@ export function ProvidersPage() {
                       </button>
                     )}
                   </div>
-                  {editingProvider.availableModels && editingProvider.availableModels.length > 0 && !isCustomModelMode ? (
+                  {editShown.availableModels && editShown.availableModels.length > 0 && !isCustomModelMode ? (
                     <Select
-                      value={editingProvider.model}
-                      onChange={(e) => setEditingProvider({ ...editingProvider, model: e.target.value })}
+                      value={editShown.model}
+                      onChange={(e) => setEditingProvider({ ...editShown, model: e.target.value })}
                     >
                       <option value="">-- Select Default Model --</option>
-                      {editingProvider.model && !editingProvider.availableModels.some((m) => m.modelId === editingProvider.model) && (
-                        <option value={editingProvider.model}>
-                          {editingProvider.model} (Current)
+                      {editShown.model && !editShown.availableModels.some((m) => m.modelId === editShown.model) && (
+                        <option value={editShown.model}>
+                          {editShown.model} (Current)
                         </option>
                       )}
-                      {editingProvider.availableModels.map((m) => (
+                      {editShown.availableModels.map((m) => (
                         <option key={m.modelId} value={m.modelId}>
                           {m.name} ({m.modelId})
                         </option>
@@ -1178,8 +1185,8 @@ export function ProvidersPage() {
                       name="edit_provider_model_id"
                       autoComplete="off"
                       placeholder="e.g. gpt-4o, gemini-1.5-pro, qwen3:8b"
-                      value={editingProvider.model}
-                      onChange={(e) => setEditingProvider({ ...editingProvider, model: e.target.value })}
+                      value={editShown.model}
+                      onChange={(e) => setEditingProvider({ ...editShown, model: e.target.value })}
                       className="h-9 text-xs font-mono"
                     />
                   )}
@@ -1191,8 +1198,8 @@ export function ProvidersPage() {
                     name="edit_provider_base_url"
                     autoComplete="off"
                     placeholder="e.g. https://api.openai.com/v1"
-                    value={editingProvider.baseUrl}
-                    onChange={(e) => setEditingProvider({ ...editingProvider, baseUrl: e.target.value })}
+                    value={editShown.baseUrl}
+                    onChange={(e) => setEditingProvider({ ...editShown, baseUrl: e.target.value })}
                     className="h-9 text-xs font-mono"
                   />
                   <p className="text-[11px] text-muted-foreground mt-1">
@@ -1203,7 +1210,7 @@ export function ProvidersPage() {
                 <div className="sm:col-span-2">
                   <div className="flex items-center justify-between mb-1">
                     <Label className="text-xs">API Key / Secret</Label>
-                    {editingProvider.hasSecret && (
+                    {editShown.hasSecret && (
                       <span className="text-[11px] text-muted-foreground">A key is saved</span>
                     )}
                   </div>
@@ -1214,9 +1221,9 @@ export function ProvidersPage() {
                       data-lpignore="true"
                       data-1p-ignore="true"
                       type={showEditSecret ? "text" : "password"}
-                      placeholder={editingProvider.hasSecret ? "Leave blank to keep the saved key" : "Enter API key or leave blank"}
-                      value={editingProvider.secret}
-                      onChange={(e) => setEditingProvider({ ...editingProvider, secret: e.target.value })}
+                      placeholder={editShown.hasSecret ? "Leave blank to keep the saved key" : "Enter API key or leave blank"}
+                      value={editShown.secret}
+                      onChange={(e) => setEditingProvider({ ...editShown, secret: e.target.value })}
                       className="h-9 text-xs pr-10 font-mono"
                     />
                     <button
@@ -1236,8 +1243,8 @@ export function ProvidersPage() {
                 <div>
                   <Label className="text-xs">Status</Label>
                   <Select
-                    value={editingProvider.status}
-                    onChange={(e) => setEditingProvider({ ...editingProvider, status: e.target.value })}
+                    value={editShown.status}
+                    onChange={(e) => setEditingProvider({ ...editShown, status: e.target.value })}
                   >
                     <option value="active">Active</option>
                     <option value="disabled">Disabled</option>
@@ -1256,12 +1263,15 @@ export function ProvidersPage() {
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
+        </DialogContent>
+      </Dialog>
 
       {/* ADD CUSTOM MODEL MODAL DIALOG */}
-      {addModelForProvider && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+      <Dialog open={Boolean(addModelForProvider)} onOpenChange={(o) => !o && setAddModelForProvider(null)}>
+        <DialogContent hideClose aria-describedby={undefined} className="max-w-lg border-0 bg-transparent p-0 shadow-none">
+          <DialogTitle className="sr-only">Add a model</DialogTitle>
+        {addModelShown && (
           <Card className="w-full max-w-lg border-primary/30 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
@@ -1372,8 +1382,9 @@ export function ProvidersPage() {
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

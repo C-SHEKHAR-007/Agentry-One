@@ -24,6 +24,7 @@
   --destructive-foreground: 0 0% 100%;
   --success: 152 60% 38%;
   --warning: 38 92% 44%;
+  --info: 190 85% 38%;
   --border: 240 6% 88%;
   --input: 240 6% 84%;
   --ring: 255 85% 62%;
@@ -34,36 +35,39 @@
   --chart-2: 152 70% 36%;
   --chart-3: 210 90% 58%;
   --chart-4: 175 85% 34%;
-  --radius: 0.75rem;
+  --radius: 0.625rem;
   color-scheme: light;
 }
 
 .dark {
-  --background: 232 38% 6%;
-  --foreground: 220 15% 92%;
-  --card: 232 32% 9%;
-  --card-foreground: 220 15% 92%;
-  --popover: 232 30% 10%;
-  --popover-foreground: 220 15% 92%;
-  --primary: 255 85% 66%;
+  /* Deep navy/charcoal "control plane": #0B0D12 canvas, #11141B surfaces. */
+  --background: 225 25% 5.5%;
+  --foreground: 220 20% 96%;
+  --card: 224 22% 8.5%;
+  --card-foreground: 220 20% 96%;
+  --popover: 224 22% 10%;
+  --popover-foreground: 220 20% 96%;
+  --primary: 258 90% 66%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 232 28% 14%;
-  --secondary-foreground: 220 12% 78%;
-  --muted: 232 28% 12%;
-  --muted-foreground: 220 10% 52%;
-  --accent: 255 60% 18%;
-  --accent-foreground: 255 80% 82%;
+  --secondary: 224 20% 13%;
+  --secondary-foreground: 220 14% 80%;
+  --muted: 224 20% 11.5%;
+  --muted-foreground: 222 10% 60%;
+  --accent: 258 55% 18%;
+  --accent-foreground: 258 85% 84%;
   --destructive: 0 68% 55%;
   --destructive-foreground: 0 0% 100%;
-  --success: 152 60% 48%;
+  --success: 158 64% 52%;
   --warning: 38 92% 55%;
-  --border: 232 22% 16%;
-  --input: 232 22% 18%;
-  --ring: 255 85% 66%;
-  --chart-1: 255 85% 66%;
-  --chart-2: 152 65% 48%;
-  --chart-3: 210 90% 58%;
-  --chart-4: 38 92% 55%;
+  --info: 188 86% 53%;
+  --border: 222 18% 17%;
+  --input: 222 18% 19%;
+  --ring: 258 90% 66%;
+  --chart-1: 258 90% 66%;
+  --chart-2: 158 64% 52%;
+  --chart-3: 210 90% 60%;
+  /* Same hue family as light mode (teal), so a colour means one thing. */
+  --chart-4: 178 70% 45%;
   color-scheme: dark;
 }
 
@@ -130,4 +134,160 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background-color: hsl(var(--border));
   border-radius: 9999px;
+}
+
+/* ── Ambient "control plane" backdrop ──────────────────────────────────────
+   A fixed layer behind the app: two slow-drifting colour fields (violet top
+   left, cyan bottom right), a faint engineering grid that fades out towards
+   the bottom, and a vignette. Pure CSS, GPU-composited, no layout cost. */
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: hsl(var(--background));
+}
+.app-backdrop::before,
+.app-backdrop::after {
+  content: "";
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 9999px;
+  filter: blur(90px);
+  animation: aurora-drift 26s ease-in-out infinite;
+  will-change: transform;
+}
+.app-backdrop::before {
+  top: -38vmax;
+  left: -22vmax;
+  background: radial-gradient(closest-side, hsl(var(--primary) / 0.16), transparent);
+}
+.app-backdrop::after {
+  bottom: -42vmax;
+  right: -26vmax;
+  background: radial-gradient(closest-side, hsl(var(--info) / 0.1), transparent);
+  animation-delay: -13s;
+}
+.app-backdrop > .grid-layer {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(hsl(var(--foreground) / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+}
+:root:not(.dark) .app-backdrop::before {
+  background: radial-gradient(closest-side, hsl(var(--primary) / 0.1), transparent);
+}
+:root:not(.dark) .app-backdrop::after {
+  background: radial-gradient(closest-side, hsl(var(--info) / 0.08), transparent);
+}
+
+/* A 1px gradient border (violet → cyan) that brightens on hover; used on
+   featured surfaces only (hero, live panels), never on every card. */
+.glow-border {
+  position: relative;
+  isolation: isolate;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.55), hsl(var(--border) / 0.2) 40%, hsl(var(--border) / 0.2) 60%, hsl(var(--info) / 0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.glow-border:hover::before {
+  opacity: 1;
+}
+
+/* Soft light pool that follows the pointer on interactive cards (the card
+   sets --mx/--my from JS; see useSpotlight). */
+.spotlight {
+  background-image: radial-gradient(420px circle at var(--mx, -999px) var(--my, -999px), hsl(var(--primary) / 0.08), transparent 45%);
+}
+
+/* Live status dot with an expanding halo (running/queued). */
+.status-dot {
+  position: relative;
+  display: inline-flex;
+  height: 0.5rem;
+  width: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: currentColor;
+}
+.status-dot[data-live="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: currentColor;
+  animation: status-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Animated dashes on React Flow edges into a running step. */
+.react-flow__edge.edge-live .react-flow__edge-path {
+  stroke-dasharray: 6 6;
+  animation: edge-flow 0.9s linear infinite;
+  filter: drop-shadow(0 0 4px hsl(var(--primary) / 0.6));
+}
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-backdrop::before,
+  .app-backdrop::after,
+  .status-dot[data-live="true"]::after,
+  .react-flow__edge.edge-live .react-flow__edge-path,
+  .animate-status-glow,
+  .animate-sweep,
+  .animate-float,
+  .animate-dialog-in,
+  .animate-dialog-out,
+  .animate-overlay-in,
+  .animate-overlay-out,
+  .animate-drawer-in,
+  .animate-drawer-out {
+    animation: none !important;
+  }
+}
+
+/* Raw CSS uses these directly, so they can't rely on Tailwind emitting them. */
+@keyframes aurora-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -2%, 0) scale(1.06);
+  }
+}
+@keyframes status-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
 }

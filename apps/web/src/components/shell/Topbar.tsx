@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
+import { useSystemHealth } from "../../api/queries";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationDropdown } from "./NotificationDropdown";
@@ -31,7 +33,7 @@ export function Topbar({
         className="hidden h-9 w-full max-w-sm items-center gap-2 rounded-lg border border-border/60 bg-muted/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:border-border sm:flex"
       >
         <Search className="h-4 w-4" />
-        <span>Search anything...</span>
+        <span>Search agents, workflows, runs…</span>
         <kbd className="ml-auto flex items-center gap-0.5 rounded border border-border/60 bg-background/60 px-1.5 py-0.5 text-[11px]">
           ⌘K
         </kbd>
@@ -47,6 +49,7 @@ export function Topbar({
       </Button>
 
       <div className="ml-auto flex items-center gap-1.5">
+        <HealthPill />
         <ThemeToggle />
 
         <NotificationDropdown />
@@ -54,6 +57,28 @@ export function Topbar({
         <UserMenu />
       </div>
     </header>
+  );
+}
+
+/** Always-visible system verdict; opens Settings (full service list). */
+function HealthPill() {
+  const { data: health } = useSystemHealth();
+  if (!health) return null;
+  const core = health.api && health.db && health.redis;
+  const online = health.workers.filter((w) => w.online).length;
+  const ok = core && (health.workers.length === 0 || online > 0);
+  return (
+    <Link
+      to="/settings"
+      title={`API ${health.api ? "up" : "down"} · Postgres ${health.db ? "up" : "down"} · Redis ${health.redis ? "up" : "down"} · ${online}/${health.workers.length} workers online`}
+      className={cn(
+        "mr-1 hidden items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors lg:flex",
+        ok ? "border-success/30 bg-success/10 text-success hover:bg-success/15" : "border-warning/40 bg-warning/10 text-warning hover:bg-warning/15",
+      )}
+    >
+      <span className="status-dot h-1.5 w-1.5" data-live={ok ? "true" : undefined} />
+      {ok ? "System healthy" : core ? "Workers offline" : "Degraded"}
+    </Link>
   );
 }
 

@@ -22,7 +22,8 @@ import {
 import { api, sseUrl } from "../api/client";
 import type { JobRun, Workflow, WorkflowEvent, WorkflowStep } from "../api/types";
 import { attemptError, failureHint } from "../lib/failureHints";
-import { formatDuration, timeAgo } from "../lib/format";
+import { formatDuration, formatTokens, formatUsd, timeAgo } from "../lib/format";
+import { RunLogs } from "../components/runs/RunLogs";
 import { cn } from "../lib/utils";
 import { ArtifactPreview } from "../components/ArtifactPreview";
 import { Button, buttonVariants } from "../components/ui/button";
@@ -100,6 +101,7 @@ export function WorkflowPage() {
         return;
       }
       if (payload.type === "progress") setProgress({ percent: payload.percent, message: payload.message });
+      if (payload.type === "log") queryClient.invalidateQueries({ queryKey: ["workflow-logs", workflowId] });
       if (payload.type === "completed" || payload.type === "failed") {
         queryClient.invalidateQueries({ queryKey: ["workflow", workflowId] });
         queryClient.invalidateQueries({ queryKey: ["workflow-events", workflowId] });
@@ -173,6 +175,14 @@ export function WorkflowPage() {
   const agentName = workflow.agent?.name ?? workflow.agentId;
   const artifacts = steps.flatMap((s) => s.artifacts ?? []);
   const duration = isLive ? elapsed : runDuration(steps.flatMap((s) => s.job?.runs ?? []));
+  const allRuns = steps.flatMap((s) => s.job?.runs ?? []);
+  const usage = {
+    model: [...allRuns].reverse().find((r) => r.model)?.model ?? steps.find((s) => s.job?.providerModel)?.job?.providerModel ?? null,
+    input: allRuns.reduce((n, r) => n + (r.inputTokens ?? 0), 0),
+    output: allRuns.reduce((n, r) => n + (r.outputTokens ?? 0), 0),
+    tokens: allRuns.reduce((n, r) => n + (r.inputTokens ?? 0) + (r.outputTokens ?? 0), 0),
+    cost: allRuns.some((r) => r.costUsd != null) ? allRuns.reduce((n, r) => n + (r.costUsd ?? 0), 0) : null,
+  };
 
   return (
     <div className="space-y-5">
@@ -181,7 +191,7 @@ export function WorkflowPage() {
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <Link
-              to="/executions"
+              to="/runs"
               aria-label="Back to executions"
               title="Back to executions"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -339,6 +349,10 @@ export function WorkflowPage() {
             </ol>
           </Section>
 
+          <Section title="Logs" meta={isLive ? "streaming" : undefined}>
+            <RunLogs workflowId={workflow.id} live={isLive} header={false} emptyText="This run has no log lines (runs from before logging was added won't)." />
+          </Section>
+
           <Section title="Activity">
             <Activity workflow={workflow} events={events} />
           </Section>
@@ -356,6 +370,23 @@ export function WorkflowPage() {
                 </Link>{" "}
                 <span className="text-muted-foreground">v{workflow.agentVersion}</span>
               </Detail>
+              {usage.model && (
+                <Detail label="Model">
+                  <code className="font-mono">{usage.model}</code>
+                </Detail>
+              )}
+              {usage.tokens > 0 && (
+                <Detail label="Tokens">
+                  <span className="font-mono tabular">
+                    {formatTokens(usage.tokens)} <span className="text-muted-foreground">({formatTokens(usage.input, { zero: true })} in · {formatTokens(usage.output, { zero: true })} out)</span>
+                  </span>
+                </Detail>
+              )}
+              {usage.cost !== null && (
+                <Detail label="Cost">
+                  <span className="font-mono tabular">{formatUsd(usage.cost)}</span>
+                </Detail>
+              )}
               {steps.find((s) => s.job?.providerType)?.job?.providerType && (
                 <Detail label="Provider">
                   <code>{steps.find((s) => s.job?.providerType)!.job!.providerType}</code>
@@ -483,7 +514,10 @@ function StepRow({ step, showKey, shownError }: { step: WorkflowStep; showKey: b
                   <span className="text-muted-foreground">{rs.label}</span>
                   <span className="ml-auto flex items-center gap-3 text-muted-foreground">
                     {r.startedAt && <span title={new Date(r.startedAt).toLocaleString()}>{new Date(r.startedAt).toLocaleTimeString()}</span>}
-                    {ms != null && <span className="tabular-nums">{formatDuration(ms)}</span>}
+                    {(r.inputTokens ?? 0) + (r.outputTokens ?? 0) > 0 && (
+                      <span className="font-mono tabular">{formatTokens((r.inputTokens ?? 0) + (r.outputTokens ?? 0))} tok</span>
+                    )}
+                    {ms != null && <span className="font-mono tabular">{formatDuration(ms)}</span>}
                   </span>
                 </div>
                 {err &&
@@ -545,6 +579,7 @@ function Activity({ workflow, events }: { workflow: Workflow; events: WorkflowEv
       "job.failed": ["Failed", "bg-destructive"],
       "workflow.cancelled": ["Cancelled", "bg-muted-foreground"],
       "workflow.awaiting_review": ["Paused for review", "bg-warning"],
+      "job.completed": ["Agent finished", "bg-success"],
     };
     for (const e of events) {
       const l = labels[e.type];

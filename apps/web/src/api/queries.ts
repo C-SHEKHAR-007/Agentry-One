@@ -6,11 +6,16 @@ import type {
   EventItem,
   Project,
   RecentWorkflow,
+  RunSummary,
   StatsOverview,
   SystemHealth,
 } from "./types";
 
-export function useStatsOverview(refetchInterval = 15_000) {
+// Freshness comes from the live activity stream (hooks/useLiveActivity): these
+// intervals are only a fallback in case it drops, so an idle page stays quiet.
+const FALLBACK = 5 * 60_000;
+
+export function useStatsOverview(refetchInterval = FALLBACK) {
   return useQuery<StatsOverview>({
     queryKey: ["stats", "overview"],
     queryFn: () => api.get("/stats/overview"),
@@ -22,7 +27,7 @@ export function useAgentStats() {
   return useQuery<{ agents: AgentStats[] }>({
     queryKey: ["stats", "agents"],
     queryFn: () => api.get("/stats/agents"),
-    refetchInterval: 30_000,
+    refetchInterval: FALLBACK,
   });
 }
 
@@ -30,15 +35,16 @@ export function useSystemHealth() {
   return useQuery<SystemHealth>({
     queryKey: ["stats", "system"],
     queryFn: () => api.get("/stats/system"),
-    refetchInterval: 30_000,
+    // Worker liveness isn't an event; check it once a minute.
+    refetchInterval: 60_000,
   });
 }
 
-export function useEvents(limit = 15) {
+export function useEvents(limit = 15, refetchInterval = FALLBACK) {
   return useQuery<EventItem[]>({
     queryKey: ["events", limit],
     queryFn: () => api.get(`/events?limit=${limit}`),
-    refetchInterval: 15_000,
+    refetchInterval,
   });
 }
 
@@ -47,7 +53,7 @@ export function useRecentWorkflows(limit = 10, status?: string) {
     queryKey: ["workflows", "recent", limit, status ?? "all"],
     queryFn: () =>
       api.get(`/workflows/recent?limit=${limit}${status ? `&status=${status}` : ""}`),
-    refetchInterval: 15_000,
+    refetchInterval: FALLBACK,
   });
 }
 
@@ -90,5 +96,14 @@ export function useSasDownloadUrl(artifactId: string | undefined) {
     enabled: Boolean(artifactId),
     staleTime: 90 * 60 * 1000,
     gcTime: 95 * 60 * 1000,
+  });
+}
+
+/** Workflow (multi-step) runs: "active" for the dashboard, or "all". */
+export function useWorkflowRuns(status: "active" | "all" | string = "active", limit = 6) {
+  return useQuery<RunSummary[]>({
+    queryKey: ["template-runs", status, limit],
+    queryFn: () => api.get(`/template-runs?status=${encodeURIComponent(status)}&limit=${limit}`),
+    refetchInterval: FALLBACK,
   });
 }

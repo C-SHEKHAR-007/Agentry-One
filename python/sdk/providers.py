@@ -9,6 +9,8 @@ import io
 import os
 from dataclasses import dataclass
 
+from . import telemetry
+
 
 @dataclass
 class ImageGenResult:
@@ -90,6 +92,13 @@ def _generate_local_sd_turbo(prompt: str, negative_prompt: str | None, steps: in
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return ImageGenResult(image_bytes=buf.getvalue(), width=image.width, height=image.height)
+
+
+def _record(ctx: dict, model: str | None, input_tokens=None, output_tokens=None) -> None:
+    """Adds one model call to the job's usage, if the client has one."""
+    sink = ctx.get("_telemetry")
+    if sink is not None:
+        sink.record(model, input_tokens, output_tokens)
 
 
 def _api_key(ctx: dict) -> str:
@@ -181,7 +190,9 @@ def _generate_ollama_local(ctx: dict, prompt: str, **kwargs) -> str:
         timeout=300,
     )
     response.raise_for_status()
-    return response.json().get("response", "")
+    data = response.json()
+    _record(ctx, data.get("model") or model, data.get("prompt_eval_count"), data.get("eval_count"))
+    return data.get("response", "")
 
 
 def _generate_gemini(ctx: dict, prompt: str, **kwargs) -> str:
@@ -203,6 +214,8 @@ def _generate_gemini(ctx: dict, prompt: str, **kwargs) -> str:
     )
     response.raise_for_status()
     data = response.json()
+    meta = data.get("usageMetadata") or {}
+    _record(ctx, data.get("modelVersion") or model, meta.get("promptTokenCount"), meta.get("candidatesTokenCount"))
     candidates = data.get("candidates", [])
     if not candidates:
         return ""
@@ -233,6 +246,8 @@ def _generate_openai_compatible(ctx: dict, prompt: str, **kwargs) -> str:
     )
     response.raise_for_status()
     data = response.json()
+    usage = data.get("usage") or {}
+    _record(ctx, data.get("model") or model, usage.get("prompt_tokens"), usage.get("completion_tokens"))
     choices = data.get("choices", [])
     if not choices:
         return ""
@@ -263,6 +278,8 @@ def _generate_anthropic(ctx: dict, prompt: str, **kwargs) -> str:
     )
     response.raise_for_status()
     data = response.json()
+    usage = data.get("usage") or {}
+    _record(ctx, data.get("model") or model, usage.get("input_tokens"), usage.get("output_tokens"))
     content = data.get("content", [])
     if not content:
         return ""
@@ -297,20 +314,26 @@ class CapabilityClient:
     def __init__(self, provider_context: dict | None):
         if provider_context is None:
             raise ValueError("no provider_context on this job -- the API should have rejected this submission at 422")
-        self.ctx = provider_context
+        # A copy carrying this job's usage sink (see telemetry.py): handlers
+        # call us from executor threads, where contextvars aren't visible.
+        self.ctx = {**provider_context, "_telemetry": telemetry.current()}
 
     def generate_image(
         self, prompt: str, negative_prompt: str | None = None, steps: int = 2, seed: int | None = None
     ) -> ImageGenResult:
         provider_type = self.ctx["providerType"].lower()
-        if "sd_turbo" in provider_type or "local" in provider_type:
-            return _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
-        if "stability" in provider_type:
-            return _generate_stability_ai(self.ctx, prompt, negative_prompt, steps, seed)
-        if "dalle" in provider_type or "openai" in provider_type:
-            return _generate_openai_dalle(self.ctx, prompt, negative_prompt, steps, seed)
-        # Default fallback to SD-Turbo
-        return _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
+        model = (self.ctx.get("config") or {}).get("model")
+        if "stability" in provider_type and "sd_turbo" not in provider_type and "local" not in provider_type:
+            result = _generate_stability_ai(self.ctx, prompt, negative_prompt, steps, seed)
+            _record(self.ctx, model or "stable-diffusion-xl-1024-v1-0")
+        elif ("dalle" in provider_type or "openai" in provider_type) and "local" not in provider_type:
+            result = _generate_openai_dalle(self.ctx, prompt, negative_prompt, steps, seed)
+            _record(self.ctx, model or "dall-e-3")
+        else:
+            # Local SD-Turbo (also the fallback for unknown image providers).
+            result = _generate_local_sd_turbo(prompt, negative_prompt, steps, seed)
+            _record(self.ctx, "stabilityai/sd-turbo")
+        return result
 
     def generate_text(self, prompt: str, **kwargs) -> str:
         provider_type = self.ctx["providerType"].lower()
@@ -327,9 +350,8 @@ class CapabilityClient:
 
     def generate_audio(self, text: str, out_path: str, voice: str | None = None) -> str:
         """Synthesizes speech for `text`, writes it to `out_path`, and returns that path."""
-        provider_type = self.ctx["providerType"].lower()
-        if "pyttsx3" in provider_type or "local" in provider_type:
-            _generate_pyttsx3_local(text, out_path, voice)
-            return out_path
-        return _generate_pyttsx3_local(text, out_path, voice)
+        # Only local TTS exists today; every audio provider routes here.
+        _generate_pyttsx3_local(text, out_path, voice)
+        _record(self.ctx, "pyttsx3 (local TTS)")
+        return out_path
 

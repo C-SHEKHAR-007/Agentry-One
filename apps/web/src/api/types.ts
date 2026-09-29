@@ -46,6 +46,11 @@ export interface JobRun {
   error: unknown;
   startedAt: string | null;
   finishedAt: string | null;
+  /** Reported by the worker (or the model the job was enqueued against). */
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  costUsd?: number | null;
 }
 
 export interface Job {
@@ -53,6 +58,7 @@ export interface Job {
   status: string;
   createdAt: string;
   providerType?: string | null;
+  providerModel?: string | null;
   runs?: JobRun[];
 }
 
@@ -171,6 +177,73 @@ export interface TemplateRun {
   steps: TemplateRunStep[];
 }
 
+/** A run's step, one row of GET /template-runs (dashboard / Runs list). */
+export interface RunSummaryStep {
+  id: string;
+  status: string;
+  workflowId: string | null;
+  stepOrder: number;
+  agentId: string;
+  agentName: string;
+  dependsOn: number[];
+}
+
+export interface RunSummary {
+  id: string;
+  status: string;
+  createdAt: string;
+  template: { id: string; name: string };
+  project: { id: string; name: string };
+  steps: RunSummaryStep[];
+}
+
+export interface StepUsage {
+  attempts: number;
+  model: string | null;
+  providerType: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  progressPercent: number | null;
+  progressMessage: string | null;
+  error: string | null;
+}
+
+/** GET /template-runs/:id -- every step with its template definition and
+ * the usage its attempts reported. */
+export interface RunDetail {
+  id: string;
+  templateId: string;
+  status: string;
+  runInputs: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  template: { id: string; name: string; projectId: string };
+  steps: Array<{
+    id: string;
+    status: string;
+    workflowId: string | null;
+    createdAt: string;
+    updatedAt: string;
+    templateStep: TemplateStep & { id: string; producesArtifactKindsSnapshot?: string[] };
+    workflow: { id: string; status: string; agentId: string; agentName: string; createdAt: string } | null;
+    usage: StepUsage;
+  }>;
+  totals: { inputTokens: number; outputTokens: number; costUsd: number; durationMs: number | null };
+}
+
+export interface RunLogLine {
+  id: string;
+  level: "debug" | "info" | "warn" | "error" | string;
+  message: string;
+  createdAt: string;
+  jobRunId: string;
+  attemptNumber: number;
+}
+
 export interface Prompt {
   id: string;
   agentId: string;
@@ -187,8 +260,20 @@ export interface EventItem {
   workflowId: string | null;
   jobId: string | null;
   agentId: string | null;
+  agentName?: string | null;
   projectId: string | null;
   projectName: string | null;
+  /** job.failed: failedReason; job.completed: durationMs/model/tokens/cost. */
+  payload?: {
+    failedReason?: string | null;
+    attemptNumber?: number;
+    durationMs?: number;
+    model?: string;
+    inputTokens?: number | null;
+    outputTokens?: number | null;
+    costUsd?: number | null;
+    artifacts?: number;
+  } | null;
 }
 
 export interface WorkflowEvent {
@@ -225,6 +310,9 @@ export interface AgentStats {
   avgDurationMs: number | null;
   lastRunAt: string | null;
   share: number;
+  /** Last 30 days. */
+  tokens?: number;
+  costUsd?: number;
 }
 
 export interface CostBreakdown {

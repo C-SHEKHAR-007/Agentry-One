@@ -140,6 +140,10 @@ model Job {
   // predate attribution or steps without a capability) -- powers /stats/costs.
   providerConfigId String?  @map("provider_config_id")
   providerType     String?  @map("provider_type")
+  // The model the resolved provider config pointed at when the job was
+  // enqueued (config.model), so a run can say what it ran on even if the
+  // worker doesn't report it.
+  providerModel    String?  @map("provider_model")
   createdAt        DateTime @default(now()) @map("created_at")
 
   workflowStep WorkflowStep @relation(fields: [workflowStepId], references: [id], onDelete: Cascade)
@@ -160,6 +164,12 @@ model JobRun {
   error           Json?
   startedAt       DateTime? @map("started_at")
   finishedAt      DateTime? @map("finished_at")
+  // Usage the worker reported for this attempt (result.metrics.usage), and
+  // what it cost at the per-job price in effect when it finished.
+  model           String?
+  inputTokens     Int?      @map("input_tokens")
+  outputTokens    Int?      @map("output_tokens")
+  costUsd         Float?    @map("cost_usd")
 
   job  Job   @relation(fields: [jobId], references: [id], onDelete: Cascade)
   logs Log[]
@@ -225,6 +235,7 @@ model Log {
 
   jobRun JobRun @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
 
+  @@index([jobRunId, createdAt])
   @@map("logs")
 }
 

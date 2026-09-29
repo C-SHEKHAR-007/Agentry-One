@@ -1,6 +1,6 @@
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Check, ChevronRight, Lock, Sparkles } from "lucide-react";
+import { Check, Lock, Sparkles } from "lucide-react";
 import { planBrief, ROLE_ORDER, type Role } from "../../lib/studioPlan";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -10,6 +10,7 @@ import { Label } from "../ui/label";
 import { Select } from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { Textarea } from "../ui/textarea";
+import { PipelineStrip } from "./PipelineStrip";
 import { ROLES } from "./roles";
 
 export interface SocialAccount {
@@ -68,14 +69,22 @@ export function Composer({
         : null;
 
   return (
-    <Card glass className="flex flex-col">
+    <Card glass className="flex flex-col overflow-hidden lg:h-[var(--studio-h,calc(100dvh-12.5rem))] lg:min-h-[480px]">
       <form
-        className="space-y-5 p-5"
+        className="flex min-h-0 flex-1 flex-col"
         onSubmit={(e) => {
           e.preventDefault();
           if (!blocker && !generating) onGenerate();
         }}
+        onKeyDown={(e) => {
+          // ⌘/Ctrl+Enter generates from anywhere in the composer.
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !blocker && !generating) {
+            e.preventDefault();
+            onGenerate();
+          }
+        }}
       >
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 scrollbar-thin">
         {projects.length > 1 && (
           <div className="space-y-1.5">
             <Label htmlFor="studio-project" className="text-xs">
@@ -110,13 +119,13 @@ export function Composer({
             className="text-sm leading-relaxed"
           />
           {!value.topic.trim() && (
-            <div className="flex flex-wrap gap-1.5 pt-0.5">
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 pt-0.5 scrollbar-thin">
               {EXAMPLES.map((ex) => (
                 <button
                   key={ex}
                   type="button"
                   onClick={() => set({ topic: ex })}
-                  className="rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                  className="shrink-0 whitespace-nowrap rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                 >
                   {ex}
                 </button>
@@ -129,7 +138,7 @@ export function Composer({
           <Label htmlFor="studio-tone" className="text-xs">
             Tone <span className="font-normal text-muted-foreground">· optional</span>
           </Label>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 scrollbar-thin">
             {TONE_PRESETS.map((t) => (
               <button
                 key={t}
@@ -137,7 +146,7 @@ export function Composer({
                 aria-pressed={value.tone === t}
                 onClick={() => set({ tone: value.tone === t ? "" : t })}
                 className={cn(
-                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                  "shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
                   value.tone === t ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -156,9 +165,9 @@ export function Composer({
         </div>
 
         {/* min-w-0: fieldsets default to min-content width and would overflow the card */}
-        <fieldset className="min-w-0 space-y-1.5">
-          <legend className="mb-1.5 text-xs font-medium">Outputs</legend>
-          <div className="space-y-1.5">
+        <fieldset className="min-w-0">
+          <legend className="mb-2 text-xs font-medium">Outputs</legend>
+          <div className="grid grid-cols-2 gap-2">
             {ROLE_ORDER.map((role) => {
               const meta = ROLES[role];
               const Icon = meta.icon;
@@ -168,7 +177,7 @@ export function Composer({
               const publishUnavailable = isPublish && accounts.length === 0;
               const on = selected || Boolean(neededBy);
               return (
-                <div key={role}>
+                <div key={role} className={cn(isPublish && "col-span-2")}>
                   <button
                     type="button"
                     role="checkbox"
@@ -176,24 +185,29 @@ export function Composer({
                     aria-label={meta.label}
                     disabled={Boolean(neededBy) || publishUnavailable}
                     onClick={() => toggle(role)}
+                    title={meta.description}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed",
-                      on ? "border-primary/50 bg-primary/[0.07]" : "border-border/70 hover:border-border hover:bg-secondary/30",
-                      publishUnavailable && "opacity-60",
+                      "group relative flex h-full w-full flex-col items-start gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed",
+                      on
+                        ? "border-primary/50 bg-primary/[0.08] shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]"
+                        : "border-border/70 hover:-translate-y-px hover:border-primary/30 hover:bg-secondary/30",
+                      publishUnavailable && "opacity-60 hover:translate-y-0",
+                      isPublish && "flex-row items-center",
                     )}
                   >
-                    <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", on ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground")}>
+                    <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors", on ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground group-hover:text-foreground")}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">{meta.label}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
+                      <span className="block text-sm font-medium leading-tight">{meta.label}</span>
+                      <span className={cn("mt-0.5 block text-[11px] leading-snug", neededBy ? "text-primary/90" : "text-muted-foreground", !isPublish && "line-clamp-2")}>
                         {neededBy ? `Included — needed for ${neededBy.map((r) => ROLES[r].short.toLowerCase()).join(" and ")}` : meta.description}
                       </span>
                     </span>
                     <span
                       className={cn(
-                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        "absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                        isPublish && "static",
                         on ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40",
                       )}
                     >
@@ -228,40 +242,32 @@ export function Composer({
             })}
           </div>
         </fieldset>
+        </div>
 
-        {/* What will run */}
-        <div className="rounded-lg border border-dashed border-border px-3 py-2.5">
+        {/* Pinned footer: what will run + generate, always in view. */}
+        <div className="space-y-3 border-t border-border/60 bg-card/80 p-4 backdrop-blur">
           {plan.steps.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">Pick at least one output.</p>
           ) : (
-            <>
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {plan.steps.length} {plan.steps.length === 1 ? "agent runs" : "agents run"} in order
               </p>
-              <div className="flex flex-wrap items-center gap-1 text-[11px]">
-                {plan.steps.map((s, i) => (
-                  <Fragment key={s.role}>
-                    {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/60" />}
-                    <span className={cn("rounded px-1.5 py-0.5", s.reason.kind === "selected" ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground")}>
-                      {ROLES[s.role].short}
-                    </span>
-                  </Fragment>
-                ))}
-              </div>
-            </>
+              <PipelineStrip steps={plan.steps.map((s) => ({ role: s.role, auto: s.reason.kind === "required" }))} />
+            </div>
           )}
           {plan.dropped.map((d) => (
-            <p key={d.role} className="mt-1.5 text-[11px] text-warning">
+            <p key={d.role} className="text-[11px] text-warning">
               {ROLES[d.role].label} won't run: {d.why}
             </p>
           ))}
+          <Button type="submit" className="w-full" disabled={Boolean(blocker) || generating} title={blocker ?? undefined}>
+            {generating ? <Spinner /> : <Sparkles className="h-4 w-4" />}
+            {generating ? "Starting…" : "Generate content"}
+            {!generating && !blocker && <kbd className="ml-auto hidden rounded bg-primary-foreground/15 px-1.5 font-mono text-[11px] sm:inline">⌘↵</kbd>}
+          </Button>
+          {blocker && !generating && <p className="-mt-1.5 text-center text-[11px] text-muted-foreground">{blocker}</p>}
         </div>
-
-        <Button type="submit" className="w-full" disabled={Boolean(blocker) || generating} title={blocker ?? undefined}>
-          {generating ? <Spinner /> : <Sparkles className="h-4 w-4" />}
-          {generating ? "Starting…" : "Generate content"}
-        </Button>
-        {blocker && !generating && <p className="-mt-3 text-center text-[11px] text-muted-foreground">{blocker}</p>}
       </form>
     </Card>
   );

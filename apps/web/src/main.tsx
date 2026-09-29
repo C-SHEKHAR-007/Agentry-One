@@ -7,6 +7,7 @@ import App from "./App.js";
 import { AuthProvider } from "./auth/AuthContext.js";
 import { ThemeProvider } from "./lib/theme.js";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/geist-mono";
 import "./index.css";
 
 const queryClient = new QueryClient({

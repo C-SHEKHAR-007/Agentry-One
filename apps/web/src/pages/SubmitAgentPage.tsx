@@ -1,6 +1,6 @@
 import Form from "@rjsf/core";
 import { NotFoundPage } from "./NotFoundPage";
-import validator from "@rjsf/validator-ajv8";
+import { cspSafeValidator as validator } from "../lib/schemaValidator";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";

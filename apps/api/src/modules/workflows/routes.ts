@@ -142,6 +142,26 @@ export async function workflowsRoutes(app: FastifyInstance) {
     };
   });
 
+  // Every attempt's log lines, oldest first: attempt starts, progress
+  // messages, worker log calls and completion/failure summaries.
+  app.get<{ Params: { id: string } }>("/workflows/:id/logs", async (req, reply) => {
+    if (!(await authorize(req, reply, "workflow", req.params.id))) return;
+    const logs = await prisma.log.findMany({
+      where: { jobRun: { job: { workflowStep: { workflowId: req.params.id } } } },
+      orderBy: { createdAt: "asc" },
+      take: 2000,
+      select: { id: true, level: true, message: true, createdAt: true, jobRun: { select: { id: true, attemptNumber: true } } },
+    });
+    return logs.map((l) => ({
+      id: l.id,
+      level: l.level,
+      message: l.message,
+      createdAt: l.createdAt,
+      jobRunId: l.jobRun.id,
+      attemptNumber: l.jobRun.attemptNumber,
+    }));
+  });
+
   app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req, reply) => {
     if (!(await authorize(req, reply, "workflow", req.params.id))) return;
     return prisma.workflowStep.findMany({ where: { workflowId: req.params.id }, orderBy: { sequence: "asc" } });

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
+import { Dialog, DialogContent, DialogTitle } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -477,9 +478,10 @@ export function IntegrationsPage() {
       </div>
 
       {/* Direct Login / Connect Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <Card className="w-full max-w-xl glass-panel border-primary/40 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+      <Dialog open={showModal} onOpenChange={(o) => !o && setShowModal(false)}>
+        <DialogContent hideClose aria-describedby={undefined} className="max-w-xl border-0 bg-transparent p-0 shadow-none">
+          <DialogTitle className="sr-only">Connect an account</DialogTitle>
+          <Card className="w-full max-w-xl glass-panel border-primary/40 shadow-2xl">
             <CardHeader className="border-b border-border/40 pb-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -878,8 +880,8 @@ export function IntegrationsPage() {
               </form>
             </CardContent>
           </Card>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

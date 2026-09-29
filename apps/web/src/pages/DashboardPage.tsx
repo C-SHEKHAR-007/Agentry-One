@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -16,15 +15,11 @@ import {
   Activity as ActivityIcon,
   ArrowRight,
   BarChart2,
-  Bot,
   CheckCircle2,
-  DollarSign,
-  FolderKanban,
-  Layers,
-  Play,
-  Plus,
+  Coins,
+  Gauge,
+  TrendingDown,
   TrendingUp,
-  Workflow as WorkflowIcon,
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { CHART, ChartLegend, ChartTooltip } from "../components/charts/chartTheme";
@@ -36,27 +31,20 @@ import {
   useSasPreviewUrl,
   useStatsOverview,
   useSystemHealth,
+  useWorkflowRuns,
 } from "../api/queries";
-import { formatDuration, formatPercent, greeting, timeAgo } from "../lib/format";
+import { formatDuration, formatPercent, formatTokens, formatUsd, timeAgo } from "../lib/format";
 import { useAuth } from "../auth/AuthContext.js";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ExecutionsTable } from "../components/ExecutionsTable";
 import { StatCard } from "../components/StatCard";
 import { SystemHealthPanel } from "../components/SystemHealthPanel";
-import { TopAgents } from "../components/TopAgents";
-import { Badge } from "../components/ui/badge";
-import { Button } from "../components/ui/button";
+import { ActiveRuns } from "../components/dashboard/ActiveRuns";
+import { DashboardHero } from "../components/dashboard/DashboardHero";
+import { UsageBars } from "../components/dashboard/UsageBars";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { Donut } from "../components/ui/donut";
 import { Skeleton } from "../components/ui/skeleton";
 import type { Project } from "../api/types";
-
-const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-];
 
 // ── Project card with SAS cover image ────────────────────────────────────────
 function ProjectCard({ project }: { project: Project }) {
@@ -148,14 +136,27 @@ function ViewAll({ to, label = "View all" }: { to: string; label?: string }) {
 }
 
 // ── Dashboard page ────────────────────────────────────────────────────────────
+function Delta({ value, suffix }: { value: number; suffix: string }) {
+  if (value === 0) return <span className="text-muted-foreground">No change {suffix}</span>;
+  const up = value > 0;
+  return (
+    <span className={cn("flex items-center gap-1", up ? "text-success" : "text-destructive")}>
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? "+" : "−"}
+      {Math.abs(value)} {suffix}
+    </span>
+  );
+}
+
 export function DashboardPage() {
   const { user } = useAuth();
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
-  const { data: events } = useEvents(12);
+  const { data: events } = useEvents(14);
   const { data: recent } = useRecentWorkflows(6);
-  const { data: health } = useSystemHealth();
+  const { data: health, dataUpdatedAt: healthUpdatedAt } = useSystemHealth();
   const { data: projects } = useProjects();
+  const { data: activeRuns } = useWorkflowRuns("active", 4);
 
   const [trendDays, setTrendDays] = useState<number>(14);
   const { data: trendSeries, isLoading: isLoadingTrends } = useQuery<{
@@ -169,7 +170,9 @@ export function DashboardPage() {
   const displayName = user?.firstName?.trim() || user?.email?.split("@")[0] || "there";
   const series = overview?.series.completedPerDay.map((d) => d.count) ?? [];
   const agents = agentStats?.agents ?? [];
-  const totalJobs = agents.reduce((a, s) => a + s.runs, 0);
+  const tokens30d = agents.reduce((a, s) => a + (s.tokens ?? 0), 0);
+  const cost30d = agents.reduce((a, s) => a + (s.costUsd ?? 0), 0);
+  const inFlight = (activeRuns?.length ?? 0) + (overview?.workflows.running ?? 0);
 
   const trendPoints = trendSeries?.perDay ?? [];
   const trendTotalCompleted = trendPoints.reduce((acc, p) => acc + p.completed, 0);
@@ -187,68 +190,57 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page heading */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center sm:text-left">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {greeting()}, <span className="text-primary">{displayName}</span>
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Here's what's happening with your AI agents today.
-        </p>
-      </motion.div>
+      <DashboardHero
+        name={displayName}
+        health={health}
+        healthUpdatedAt={healthUpdatedAt}
+        activeRuns={activeRuns?.length ?? overview?.workflows.running ?? 0}
+        agentCount={agents.length}
+      />
 
-      {/* ── Stat cards ── */}
+      {/* ── KPIs ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {overview ? (
           <>
             <StatCard
               icon={ActivityIcon}
-              label="Active Jobs"
-              value={overview.jobs.active}
-              sub={`${overview.workflows.running} running`}
+              label="Active runs"
+              value={<span className="font-mono tabular">{String(overview.workflows.running + overview.workflows.awaitingReview).padStart(2, "0")}</span>}
+              sub={
+                <span className="flex items-center gap-1.5">
+                  <span className="status-dot h-1.5 w-1.5 text-primary" data-live={overview.workflows.running > 0 ? "true" : undefined} />
+                  {overview.workflows.running} running · {overview.workflows.awaitingReview} in review
+                </span>
+              }
               series={series}
               color="hsl(var(--chart-1))"
-              to="/executions?status=running"
+              to="/runs?status=running"
             />
             <StatCard
               icon={CheckCircle2}
-              label="Completed Today"
-              value={overview.jobs.completedToday}
-              sub={
-                overview.jobs.completedYesterday > 0 ? (
-                  <span className="flex items-center gap-1 text-success">
-                    <TrendingUp className="h-3 w-3" />
-                    {overview.jobs.completedYesterday} yesterday
-                  </span>
-                ) : (
-                  "first runs today?"
-                )
-              }
+              label="Completed today"
+              value={<span className="font-mono tabular">{overview.jobs.completedToday}</span>}
+              sub={<Delta value={overview.jobs.completedToday - overview.jobs.completedYesterday} suffix="vs yesterday" />}
               series={series}
               color="hsl(var(--chart-2))"
               delay={0.05}
-              to="/executions?status=completed"
+              to="/runs?status=completed"
             />
             <StatCard
-              icon={Layers}
-              label="Running Workflows"
-              value={overview.workflows.running}
-              sub={`${overview.workflows.awaitingReview} waiting for input`}
+              icon={Gauge}
+              label="Success rate"
+              value={<span className="font-mono tabular">{formatPercent(overview.successRate)}</span>}
+              sub={`avg ${formatDuration(overview.avgDurationMs)} · ${overview.jobs.failedToday} failed today`}
               series={series}
               color="hsl(var(--chart-3))"
               delay={0.1}
-              to="/executions?status=running"
+              to="/analytics"
             />
             <StatCard
-              icon={DollarSign}
-              label="API Cost Saved"
-              value={`$${overview.costSavedEstUsd}`}
-              sub={
-                <span className="flex items-center gap-1 text-success">
-                  <TrendingUp className="h-3 w-3" />
-                  Est. vs paid APIs
-                </span>
-              }
+              icon={Coins}
+              label="Tokens · 30 days"
+              value={<span className="font-mono tabular">{formatTokens(tokens30d, { compact: true, zero: true })}</span>}
+              sub={`${formatUsd(cost30d)} spent · $${overview.costSavedEstUsd} saved`}
               series={series}
               color="hsl(var(--chart-4))"
               delay={0.15}
@@ -256,106 +248,43 @@ export function DashboardPage() {
             />
           </>
         ) : (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[100px] rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[112px] rounded-xl" />)
         )}
       </div>
 
-      {/* ── Main + Right rail ── */}
+      {/* ── Live: what's running + the event stream ── */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Main column */}
-        <div className="space-y-6 xl:col-span-2">
-
-          {/* Recent Executions + Usage Overview side by side */}
-          <div className="grid grid-cols-1 gap-6 2xl:grid-cols-5 items-stretch">
-            <SectionCard
-              className="2xl:col-span-3 flex flex-col h-full"
-              contentClassName="flex-1 flex flex-col justify-between overflow-x-auto"
-              title="Recent Executions"
-              action={<ViewAll to="/executions" />}
-            >
-              {recent ? <ExecutionsTable workflows={recent} /> : <Skeleton className="h-48" />}
-            </SectionCard>
-
-            <SectionCard
-              className="2xl:col-span-2 flex flex-col h-full"
-              contentClassName="flex-1 flex flex-col justify-between"
-              title="Usage Overview"
-            >
-              <div className="flex h-full flex-col items-center justify-between gap-6 sm:flex-row 2xl:flex-col 2xl:gap-4">
-                <Donut
-                  segments={agents.map((a, i) => ({
-                    value: a.runs,
-                    color: CHART_COLORS[i % CHART_COLORS.length],
-                  }))}
-                >
-                  <p className="text-2xl font-semibold">{totalJobs}</p>
-                  <p className="text-[11px] text-muted-foreground">Total Jobs</p>
-                </Donut>
-
-                <div className="w-full flex-1 flex flex-col justify-between min-h-0">
-                  {/* Scrollable Agent List */}
-                  <div className="max-h-[135px] overflow-y-auto pr-1.5 scrollbar-thin space-y-1.5">
-                    {agents.length === 0 && (
-                      <p className="text-sm text-muted-foreground py-2 text-center">No jobs run yet.</p>
-                    )}
-                    {agents.map((a, i) => (
-                      <Link
-                        key={a.agentId}
-                        to={`/agents/${a.agentId}`}
-                        className="flex items-center gap-2 text-sm hover:text-primary transition-colors py-0.5 group"
-                      >
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
-                        />
-                        <span className="min-w-0 flex-1 truncate text-xs group-hover:underline">{a.name}</span>
-                        <span className="text-xs text-muted-foreground">{Math.round(a.share * 100)}%</span>
-                        <span className="w-10 text-right text-xs text-muted-foreground font-mono">{a.runs}</span>
-                      </Link>
-                    ))}
-                  </div>
-
-                  {/* Summary Metrics */}
-                  <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3 shrink-0">
-                    <div>
-                      <p className="text-[11px] text-muted-foreground">Success Rate</p>
-                      <p className="text-sm font-semibold">{formatPercent(overview?.successRate)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground">Avg. Duration</p>
-                      <p className="text-sm font-semibold">{formatDuration(overview?.avgDurationMs)}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-          </div>
-
-          {/* Projects grid */}
-          <SectionCard title="Your Projects" action={<ViewAll to="/projects" />}>
-            {projects && projects.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No projects yet —{" "}
-                <Link to="/projects" className="text-primary hover:underline">
-                  create one
-                </Link>{" "}
-                to start running agents.
-              </p>
-            )}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {(projects ?? []).slice(0, 4).map((p) => (
-                <ProjectCard key={p.id} project={p} />
-              ))}
-              {!projects &&
-                Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-52 rounded-xl" />
-                ))}
+        <SectionCard
+          className="glow-border border-transparent xl:col-span-2"
+          title="Active runs"
+          action={
+            <div className="flex items-center gap-3">
+              {inFlight > 0 && (
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                  <span className="status-dot h-1.5 w-1.5" data-live="true" /> Live
+                </span>
+              )}
+              <ViewAll to="/runs" />
             </div>
-          </SectionCard>
+          }
+        >
+          <ActiveRuns />
+        </SectionCard>
 
+        <SectionCard title="Live activity" action={<ViewAll to="/runs" label="All runs" />}>
+          <div className="-mx-1 h-[360px] overflow-y-auto pr-1 scrollbar-thin">
+            {events ? <ActivityFeed events={events} /> : <Skeleton className="h-40" />}
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* ── Trends + usage ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="min-w-0 xl:col-span-2">
           {/* Execution Trends & Daily Throughput */}
           <SectionCard
-            title="Execution Trends & Throughput"
+            className="h-full"
+            title="Execution trends"
             action={
               <div className="flex flex-wrap items-center gap-2.5">
                 {/* Time range selector */}
@@ -472,46 +401,59 @@ export function DashboardPage() {
             )}
           </SectionCard>
         </div>
-
-        {/* Right rail */}
-        <div className="space-y-6">
-          <SectionCard title="Live Activity" action={<ViewAll to="/executions" label="View all" />}>
-            <div className="h-[320px] overflow-y-auto pr-1 scrollbar-thin">
-              {events ? <ActivityFeed events={events} /> : <Skeleton className="h-40" />}
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Top Agents" action={<ViewAll to="/agents" />}>
-            <TopAgents agents={agents} />
-          </SectionCard>
-
-          <SectionCard
-            title="System Health"
-            action={
-              health ? (
-                <span
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    health.api && health.db && health.redis
-                      ? "bg-success/15 text-success"
-                      : "bg-warning/15 text-warning",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      health.api && health.db && health.redis ? "bg-success" : "bg-warning",
-                    )}
-                  />
-                  {health.api && health.db && health.redis ? "All systems operational" : "Degraded"}
-                </span>
-              ) : null
-            }
-          >
-            {health ? <SystemHealthPanel health={health} /> : <Skeleton className="h-32" />}
-          </SectionCard>
-        </div>
+        <SectionCard title="Agent usage" action={<ViewAll to="/analytics" label="Analytics" />}>
+          {agentStats ? <UsageBars agents={agents} /> : <Skeleton className="h-48" />}
+        </SectionCard>
       </div>
+
+      {/* ── Recent runs + health ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <SectionCard
+          className="xl:col-span-2"
+          contentClassName="overflow-x-auto"
+          title="Recent agent runs"
+          action={<ViewAll to="/runs" />}
+        >
+          {recent ? <ExecutionsTable workflows={recent} /> : <Skeleton className="h-48" />}
+        </SectionCard>
+        <SectionCard
+          title="System health"
+          action={
+            health ? (
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  health.api && health.db && health.redis ? "bg-success/15 text-success" : "bg-warning/15 text-warning",
+                )}
+              >
+                <span className={cn("h-1.5 w-1.5 rounded-full", health.api && health.db && health.redis ? "bg-success" : "bg-warning")} />
+                {health.api && health.db && health.redis ? "Operational" : "Degraded"}
+              </span>
+            ) : null
+          }
+        >
+          {health ? <SystemHealthPanel health={health} /> : <Skeleton className="h-32" />}
+        </SectionCard>
+      </div>
+
+      {/* Projects */}
+      <SectionCard title="Your projects" action={<ViewAll to="/projects" />}>
+        {projects && projects.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No projects yet —{" "}
+            <Link to="/projects" className="text-primary hover:underline">
+              create one
+            </Link>{" "}
+            to start running agents.
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {(projects ?? []).slice(0, 4).map((p) => (
+            <ProjectCard key={p.id} project={p} />
+          ))}
+          {!projects && Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)}
+        </div>
+      </SectionCard>
     </div>
   );
 }

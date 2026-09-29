@@ -19,7 +19,10 @@ export function formatDuration(ms: number | null | undefined): string {
   const s = ms / 1000;
   if (s < 60) return `${s.toFixed(1)}s`;
   const m = Math.floor(s / 60);
-  return `${m}m ${Math.round(s % 60)}s`;
+  if (m < 60) return `${m}m ${Math.round(s % 60)}s`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
 export function formatBytes(bytes: number | null | undefined): string {
@@ -43,4 +46,29 @@ export function greeting(): string {
 export function formatPercent(v: number | null | undefined): string {
   if (v == null) return "—";
   return `${(v * 100).toFixed(1)}%`;
+}
+
+/** 1284 -> "1,284"; 48210 -> "48.2k"; null/0 -> "—" unless zero is allowed. */
+export function formatTokens(n: number | null | undefined, { compact = false, zero = false } = {}): string {
+  if (n == null || (!zero && n === 0)) return "—";
+  if (compact && n >= 10_000) return `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k`;
+  return n.toLocaleString("en-US");
+}
+
+/** Costs are often fractions of a cent: keep 4 decimals below $1. */
+export function formatUsd(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n === 0) return "$0";
+  return n < 1 ? `$${n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}` : `$${n.toFixed(2)}`;
+}
+
+/** "16:03:42" in the viewer's time zone. */
+export function formatClock(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+/** Short, stable run id for display: RUN_8F92A1. */
+export function runCode(id: string, prefix = "RUN"): string {
+  return `${prefix}_${id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
 }

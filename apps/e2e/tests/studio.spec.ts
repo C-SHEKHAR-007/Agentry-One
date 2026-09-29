@@ -33,12 +33,19 @@ test("content studio: plan preview, generate, live run, reopen from recent", asy
   await page.getByRole("button", { name: "Calm & minimal" }).click();
   await expect(page.getByLabel(/^Tone/)).toHaveValue("Calm & minimal");
 
-  // Generate: the run opens on the right and is kept in the URL.
-  await generate.click();
+  // The empty canvas previews the same pipeline.
+  await expect(page.getByText("Your content will appear here")).toBeVisible();
+
+  // Generate (⌘/Ctrl+Enter from the composer): the run opens on the right
+  // and is kept in the URL.
+  await page.getByLabel("What's it about?").press("Control+Enter");
   await expect(page).toHaveURL(/\/studio\?run=/);
   await expect(page.getByRole("heading", { name: topic })).toBeVisible();
   await expect(page.getByText(/of 5 done/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Short video" })).toBeVisible();
+  // Caption and visual are shown together as the post will look.
+  await expect(page.getByRole("heading", { name: "Post preview" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Run details" })).toHaveAttribute("href", /\/template-runs\/[0-9a-f-]{36}$/);
   const runUrl = page.url();
 
   // The draft survives a reload; "New" returns to the empty results pane.
@@ -47,8 +54,14 @@ test("content studio: plan preview, generate, live run, reopen from recent", asy
   await page.reload();
   await expect(page.getByLabel("What's it about?")).toHaveValue(topic);
 
-  // Recent creations reopens the run.
-  await page.getByRole("button", { name: new RegExp(topic) }).click();
+  // Recent (header) opens the creations dialog; searching and picking one
+  // reopens the run on the page and closes the dialog.
+  await page.getByRole("button", { name: /^Recent/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Recent creations" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("Search recent creations").fill(topic);
+  await dialog.getByRole("button", { name: new RegExp(topic) }).click();
+  await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(runUrl);
   await expect(page.getByRole("link", { name: "Open workflow" })).toHaveAttribute("href", /\/templates\/.+\/edit/);
 });

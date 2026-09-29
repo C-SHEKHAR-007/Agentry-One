@@ -7,6 +7,7 @@ import { Sidebar, SidebarContent } from "./shell/Sidebar";
 import { Topbar } from "./shell/Topbar";
 import { CommandPalette } from "./shell/CommandPalette";
 import { DialogOverlay, DialogPortal } from "./ui/dialog";
+import { useLiveActivity } from "../hooks/useLiveActivity";
 
 const SIDEBAR_COLLAPSED_KEY = "agentry-sidebar-collapsed";
 const SIDEBAR_WIDTH_KEY = "agentry-sidebar-width";
@@ -37,6 +38,8 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+  // Layout only renders for signed-in users (routes are behind RequireAuth).
+  useLiveActivity(true);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
@@ -91,7 +94,10 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="relative flex h-screen overflow-hidden">
+      <div className="app-backdrop" aria-hidden="true">
+        <div className="grid-layer" />
+      </div>
       <Sidebar
         collapsed={collapsed}
         onToggle={handleToggle}
@@ -107,7 +113,7 @@ export function Layout() {
         <DialogPortal>
           <DialogOverlay className="md:hidden" />
           <DialogPrimitive.Content
-            className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card shadow-xl focus:outline-none data-[state=open]:animate-fade-in md:hidden"
+            className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card shadow-xl focus:outline-none data-[state=open]:animate-drawer-in data-[state=closed]:animate-drawer-out md:hidden"
             aria-describedby={undefined}
           >
             <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
@@ -116,7 +122,7 @@ export function Layout() {
         </DialogPortal>
       </DialogPrimitive.Root>
 
-      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col h-full overflow-hidden">
         <Topbar
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}

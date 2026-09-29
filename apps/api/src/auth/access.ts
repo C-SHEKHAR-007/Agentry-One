@@ -20,7 +20,7 @@ export function requireAdmin(req: FastifyRequest, reply: FastifyReply): boolean 
 }
 
 /** The user id to scope by, or null for admins (no scoping). */
-function scopedUserId(req: FastifyRequest): string | null {
+export function scopedUserId(req: FastifyRequest): string | null {
   if (isAdmin(req)) return null;
   const p = req.principal;
   // requireAuth guarantees a principal on non-exempt routes; fail closed anyway.

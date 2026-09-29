@@ -6,6 +6,7 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/ui/button";
+import { AuthShell } from "../components/AuthShell";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -45,8 +46,8 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card glass className="w-full max-w-sm p-8">
+    <AuthShell>
+      <Card glass className="glow-border w-full max-w-sm border-transparent p-8">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Sparkles className="h-6 w-6" />
@@ -81,6 +82,6 @@ export function LoginPage() {
           </Button>
         </form>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

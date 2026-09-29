@@ -41,7 +41,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>
           ? "border-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.2)]"
           : data.issueCount > 0
             ? "border-destructive/60 hover:border-destructive"
-            : "border-border hover:border-primary/50 hover:shadow-md",
+            : "border-border hover:border-primary/50 hover:shadow-[0_0_28px_hsl(var(--primary)/0.18)]",
       )}
     >
       <Handle type="target" position={Position.Left} className={handleClass} />

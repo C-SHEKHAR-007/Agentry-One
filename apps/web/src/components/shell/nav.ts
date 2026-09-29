@@ -1,9 +1,7 @@
 import {
   LayoutDashboard,
-  Store,
   Bot,
-  UserCog,
-  PlayCircle,
+  Activity,
   Workflow,
   FolderKanban,
   Images,
@@ -32,42 +30,45 @@ export interface NavSection {
   items: NavItem[];
 }
 
+// Grouped by the orchestration mental model: agents are actors, workflows
+// orchestrate them, runs are executions of workflows.
 export const NAV_SECTIONS: NavSection[] = [
   {
+    label: "Workspace",
     items: [
-      { label: "Dashboard", icon: LayoutDashboard, to: "/", end: true },
+      { label: "Overview", icon: LayoutDashboard, to: "/", end: true },
       { label: "Content Studio", icon: Sparkles, to: "/studio", badge: "New" },
       { label: "Projects", icon: FolderKanban, to: "/projects" },
     ],
   },
   {
-    label: "AI Agents",
+    label: "Build",
     items: [
-      { label: "Agents & Skills", icon: Bot, to: "/agents" },
-    ],
-  },
-  {
-    label: "Workflows",
-    items: [
+      { label: "Agents", icon: Bot, to: "/agents" },
       { label: "Workflows", icon: Workflow, to: "/builder" },
-      { label: "Executions", icon: PlayCircle, to: "/executions" },
+      { label: "Prompts & Memory", icon: Brain, to: "/prompts" },
       { label: "Artifacts", icon: Images, to: "/artifacts" },
     ],
   },
   {
-    label: "Platform",
+    label: "Observe",
     items: [
-      { label: "Prompts & Memory", icon: Brain, to: "/prompts" },
-      { label: "Integrations", icon: Share2, to: "/integrations", badge: "New" },
+      { label: "Runs", icon: Activity, to: "/runs" },
       { label: "Analytics", icon: BarChart3, to: "/analytics" },
       { label: "Cost Monitor", icon: Wallet, to: "/costs" },
-      { label: "Team", icon: Users, to: "/team" },
+    ],
+  },
+  {
+    label: "Connect",
+    items: [
+      { label: "Integrations", icon: Share2, to: "/integrations", badge: "New" },
+      { label: "AI Providers", icon: KeyRound, to: "/providers" },
     ],
   },
 ];
 
 export const NAV_FOOTER: NavItem[] = [
+  { label: "Team", icon: Users, to: "/team" },
   { label: "Profile", icon: UserCircle, to: "/profile" },
-  { label: "AI Providers", icon: KeyRound, to: "/providers" },
   { label: "Settings", icon: Settings, to: "/settings" },
 ];

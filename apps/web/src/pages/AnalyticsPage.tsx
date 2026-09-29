@@ -14,7 +14,7 @@ import {
 import { Activity, Bot, CheckCircle2, Clock } from "lucide-react";
 import { api } from "../api/client";
 import { useAgentStats, useStatsOverview } from "../api/queries";
-import { formatDuration, formatPercent, timeAgo } from "../lib/format";
+import { formatDuration, formatPercent, timeAgo, formatTokens, formatUsd } from "../lib/format";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { CHART, ChartLegend, ChartTooltip } from "../components/charts/chartTheme";
@@ -210,6 +210,8 @@ export function AnalyticsPage() {
                     <th className="pb-2 pr-4 font-medium">Share</th>
                     <th className="pb-2 pr-4 font-medium">Success</th>
                     <th className="pb-2 pr-4 font-medium">Avg time</th>
+                    <th className="pb-2 pr-4 font-medium">Tokens</th>
+                    <th className="pb-2 pr-4 font-medium">Cost</th>
                     <th className="pb-2 font-medium">Last run</th>
                   </tr>
                 </thead>
@@ -225,10 +227,12 @@ export function AnalyticsPage() {
                           {a.name}
                         </span>
                       </td>
-                      <td className="py-2 pr-4">{a.runs}</td>
-                      <td className="py-2 pr-4 text-muted-foreground">{Math.round(a.share * 100)}%</td>
-                      <td className="py-2 pr-4 text-muted-foreground">{formatPercent(a.successRate)}</td>
-                      <td className="py-2 pr-4 text-muted-foreground">{formatDuration(a.avgDurationMs)}</td>
+                      <td className="py-2 pr-4 font-mono tabular">{a.runs}</td>
+                      <td className="py-2 pr-4 font-mono tabular text-muted-foreground">{Math.round(a.share * 100)}%</td>
+                      <td className="py-2 pr-4 font-mono tabular text-muted-foreground">{formatPercent(a.successRate)}</td>
+                      <td className="py-2 pr-4 font-mono tabular text-muted-foreground">{formatDuration(a.avgDurationMs)}</td>
+                      <td className="py-2 pr-4 font-mono tabular text-muted-foreground">{formatTokens(a.tokens, { compact: true })}</td>
+                      <td className="py-2 pr-4 font-mono tabular text-muted-foreground">{a.costUsd ? formatUsd(a.costUsd) : "—"}</td>
                       <td className="py-2 text-muted-foreground">{timeAgo(a.lastRunAt)}</td>
                     </tr>
                   ))}
