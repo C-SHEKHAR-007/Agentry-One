@@ -50,6 +50,9 @@ test("workflow library: list, search, filter, schedule badge, duplicate, delete"
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("can't be undone")).toBeVisible();
   await dialog.getByRole("button", { name: "Delete" }).click();
+  // The page is aria-hidden while the dialog is open, so wait for it to close
+  // before asserting on the list.
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole("heading", { name: `Copy of ${name}` })).toHaveCount(0);
   await expect(page.getByRole("heading", { name })).toBeVisible();
 
