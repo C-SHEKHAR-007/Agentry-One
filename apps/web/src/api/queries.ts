@@ -6,6 +6,7 @@ import type {
   EventItem,
   Project,
   RecentWorkflow,
+  RunSummary,
   StatsOverview,
   SystemHealth,
 } from "./types";
@@ -34,11 +35,11 @@ export function useSystemHealth() {
   });
 }
 
-export function useEvents(limit = 15) {
+export function useEvents(limit = 15, refetchInterval = 15_000) {
   return useQuery<EventItem[]>({
     queryKey: ["events", limit],
     queryFn: () => api.get(`/events?limit=${limit}`),
-    refetchInterval: 15_000,
+    refetchInterval,
   });
 }
 
@@ -90,5 +91,14 @@ export function useSasDownloadUrl(artifactId: string | undefined) {
     enabled: Boolean(artifactId),
     staleTime: 90 * 60 * 1000,
     gcTime: 95 * 60 * 1000,
+  });
+}
+
+/** Workflow (multi-step) runs: "active" for the dashboard, or "all". */
+export function useWorkflowRuns(status: "active" | "all" | string = "active", limit = 6) {
+  return useQuery<RunSummary[]>({
+    queryKey: ["template-runs", status, limit],
+    queryFn: () => api.get(`/template-runs?status=${encodeURIComponent(status)}&limit=${limit}`),
+    refetchInterval: status === "active" ? 4_000 : 15_000,
   });
 }

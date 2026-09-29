@@ -35,6 +35,12 @@ const TemplateRunPage = lazy(() => import("./pages/TemplateRunPage.js").then((m)
 const TemplateRunViewPage = lazy(() => import("./pages/TemplateRunViewPage.js").then((m) => ({ default: m.TemplateRunViewPage })));
 const WorkflowPage = lazy(() => import("./pages/WorkflowPage.js").then((m) => ({ default: m.WorkflowPage })));
 
+/** Old links (/executions?status=failed) keep working after the rename. */
+function RedirectKeepingQuery({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
   const location = useLocation();
@@ -73,7 +79,8 @@ export default function App() {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/studio" element={<StudioPage />} />
-        <Route path="/executions" element={<ExecutionsPage />} />
+        <Route path="/runs" element={<ExecutionsPage />} />
+        <Route path="/executions" element={<RedirectKeepingQuery to="/runs" />} />
         <Route path="/artifacts" element={<ArtifactsPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/costs" element={<CostMonitorPage />} />

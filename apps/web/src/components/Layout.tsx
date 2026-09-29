@@ -91,7 +91,10 @@ export function Layout() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="relative flex h-screen overflow-hidden">
+      <div className="app-backdrop" aria-hidden="true">
+        <div className="grid-layer" />
+      </div>
       <Sidebar
         collapsed={collapsed}
         onToggle={handleToggle}
@@ -116,7 +119,7 @@ export function Layout() {
         </DialogPortal>
       </DialogPrimitive.Root>
 
-      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col h-full overflow-hidden">
         <Topbar
           onOpenMobileNav={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}

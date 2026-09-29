@@ -1,42 +1,34 @@
-import {
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Clock,
-  Ban,
-  Eye,
-  FileEdit,
-  Rocket,
-  CircleDashed,
-} from "lucide-react";
-import { Badge, type BadgeProps } from "./ui/badge";
+import { cn } from "../lib/utils";
+import { statusStyle, TONE } from "../lib/status";
 
-// Single source of truth for status -> color/icon across the app.
-const MAP: Record<string, { variant: BadgeProps["variant"]; icon: React.ElementType; spin?: boolean; label?: string }> = {
-  running: { variant: "default", icon: Loader2, spin: true },
-  queued: { variant: "warning", icon: Clock },
-  pending: { variant: "secondary", icon: CircleDashed },
-  completed: { variant: "success", icon: CheckCircle2 },
-  failed: { variant: "destructive", icon: XCircle },
-  cancelled: { variant: "outline", icon: Ban },
-  awaiting_review: { variant: "warning", icon: Eye, label: "Awaiting review" },
-  draft: { variant: "secondary", icon: FileEdit },
-  published: { variant: "success", icon: Rocket },
-  active: { variant: "success", icon: CheckCircle2 },
-};
-
-export function StatusBadge({ status, className }: { status: string; className?: string }) {
-  const entry = MAP[status] ?? { variant: "secondary" as const, icon: CircleDashed };
-  const Icon = entry.icon;
-  return (
-    <Badge variant={entry.variant} className={className}>
-      <Icon className={`h-3 w-3 ${entry.spin ? "animate-spin" : ""}`} />
-      {entry.label ?? humanize(status)}
-    </Badge>
-  );
+/** Live status dot: pulses while the thing it describes is still moving. */
+export function StatusDot({ status, className }: { status: string; className?: string }) {
+  const st = statusStyle(status);
+  return <span className={cn("status-dot", TONE[st.tone].text, className)} data-live={st.live ? "true" : undefined} aria-hidden="true" />;
 }
 
-function humanize(status: string) {
-  const text = status.replace(/_/g, " ");
-  return text.charAt(0).toUpperCase() + text.slice(1);
+// Single source of truth for status -> colour/icon across the app (lib/status).
+export function StatusBadge({ status, className, size = "md" }: { status: string; className?: string; size?: "sm" | "md" }) {
+  const st = statusStyle(status);
+  const tone = TONE[st.tone];
+  const Icon = st.icon;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent font-medium",
+        size === "sm" ? "px-2 py-px text-[11px]" : "px-2.5 py-0.5 text-xs",
+        tone.bg,
+        tone.text,
+        status === "running" && "animate-status-glow",
+        className,
+      )}
+    >
+      {st.live ? (
+        <StatusDot status={status} className="h-1.5 w-1.5" />
+      ) : (
+        <Icon className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} />
+      )}
+      {st.label}
+    </span>
+  );
 }

@@ -155,7 +155,7 @@ export function SidebarContent({
       {/* Footer nav */}
       <div className={cn("border-t border-border/60 py-2", collapsed ? "px-0" : "px-3")}>
         <div className={cn("grid gap-0.5", collapsed && "justify-items-center gap-1.5")}>
-          {NAV_FOOTER.map((item) => (
+          {NAV_FOOTER.filter((item) => isOwner || item.label !== "Team").map((item) => (
             <NavEntry key={item.label} item={item} collapsed={collapsed} onNavigate={onNavigate} />
           ))}
         </div>
