@@ -33,12 +33,19 @@ test("content studio: plan preview, generate, live run, reopen from recent", asy
   await page.getByRole("button", { name: "Calm & minimal" }).click();
   await expect(page.getByLabel(/^Tone/)).toHaveValue("Calm & minimal");
 
-  // Generate: the run opens on the right and is kept in the URL.
-  await generate.click();
+  // The empty canvas previews the same pipeline.
+  await expect(page.getByText("Your content will appear here")).toBeVisible();
+
+  // Generate (⌘/Ctrl+Enter from the composer): the run opens on the right
+  // and is kept in the URL.
+  await page.getByLabel("What's it about?").press("Control+Enter");
   await expect(page).toHaveURL(/\/studio\?run=/);
   await expect(page.getByRole("heading", { name: topic })).toBeVisible();
   await expect(page.getByText(/of 5 done/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Short video" })).toBeVisible();
+  // Caption and visual are shown together as the post will look.
+  await expect(page.getByRole("heading", { name: "Post preview" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Run details" })).toHaveAttribute("href", /\/template-runs\/[0-9a-f-]{36}$/);
   const runUrl = page.url();
 
   // The draft survives a reload; "New" returns to the empty results pane.

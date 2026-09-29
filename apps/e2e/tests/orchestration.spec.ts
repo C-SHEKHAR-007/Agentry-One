@@ -125,14 +125,24 @@ test("dashboard updates live when a run starts (pushed, not polled)", async ({ p
   await expect(page.getByText("AI control center")).toBeVisible();
   await page.waitForTimeout(1000); // let the activity stream connect
 
+  // Nothing happening: no polling for a few seconds. (A busy worker records
+  // real events, which correctly trigger refreshes -- only assert silence
+  // when no event was recorded in the window.)
+  const latestEvent = async () => ((await (await page.request.get("/api/events?limit=1")).json()) as Array<{ id: string }>)[0]?.id;
+  const before = await latestEvent();
   const requests: string[] = [];
-  page.on("request", (r) => r.url().includes("/api/") && requests.push(new URL(r.url()).pathname));
-  // Nothing happening: no polling for a few seconds.
+  const onRequest = (r: { url(): string }) => r.url().includes("/api/") && requests.push(new URL(r.url()).pathname);
+  page.on("request", onRequest);
   await page.waitForTimeout(4000);
-  expect(requests.filter((p) => !p.endsWith("/stream"))).toEqual([]);
+  page.off("request", onRequest);
+  if ((await latestEvent()) === before) expect(requests.filter((p) => !p.endsWith("/stream"))).toEqual([]);
 
-  // A run started elsewhere shows up without a reload. Polling fallbacks are
-  // minutes long, so this can only come from the pushed signal.
+  // A run started elsewhere makes the page refetch within seconds. Polling
+  // fallbacks are minutes long, so this can only come from the pushed signal.
+  // (Checked by request, not by the row: with a live worker a two-step echo
+  // run can finish before the panel redraws.)
+  const refetched = page.waitForRequest((r) => r.url().includes("/api/template-runs?status=active"), { timeout: 5000 });
   const { name } = await startWorkflowRun(page);
-  await expect(page.getByRole("link", { name }).first()).toBeVisible({ timeout: 5000 });
+  await refetched;
+  await expect(page.getByText(name).or(page.getByText("Run queued")).first()).toBeVisible({ timeout: 5000 });
 });
