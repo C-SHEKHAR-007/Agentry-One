@@ -74,9 +74,11 @@ test("workflow run page: live graph, inspector, logs, inputs", async ({ page }) 
 
   // Selecting a step opens it in the inspector with its telemetry and logs.
   await graph.getByText("Step 1", { exact: true }).click();
-  const inspector = page.locator("div", { has: page.getByRole("heading", { level: 2 }) }).filter({ hasText: "Latency" }).last();
+  // "Latency" once finished, "Elapsed" while running (no worker picks it up).
+  const inspector = page.locator("div", { has: page.getByRole("heading", { level: 2 }) }).filter({ hasText: /Latency|Elapsed/ }).last();
   await expect(inspector.getByText("Step 1", { exact: true })).toBeVisible();
-  for (const label of ["Model", "Latency", "Attempts", "Input", "Output"]) await expect(inspector.getByText(label, { exact: true })).toBeVisible();
+  for (const label of ["Model", "Attempts", "Input", "Output"]) await expect(inspector.getByText(label, { exact: true })).toBeVisible();
+  await expect(inspector.getByText(/^(Latency|Elapsed)$/)).toBeVisible();
   await expect(inspector.getByText("Logs", { exact: true })).toBeVisible();
 
   // Inputs view shows what the run was started with; the URL keeps the view.
