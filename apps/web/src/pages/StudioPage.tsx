@@ -10,7 +10,9 @@ import { PageHeader } from "../components/PageHeader";
 import { Composer, type ComposerState, type SocialAccount } from "../components/studio/Composer";
 import { RecentCreations, type LibraryWorkflow } from "../components/studio/RecentCreations";
 import { RunView, type TemplateRun } from "../components/studio/RunView";
-import { LIVE_RUN_STATUSES, ROLES } from "../components/studio/roles";
+import { PipelineStrip } from "../components/studio/PipelineStrip";
+import { LIVE_RUN_STATUSES } from "../components/studio/roles";
+import { OrchestrationScene } from "../components/three/OrchestrationScene";
 import { buttonVariants } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import { EmptyState } from "../components/ui/empty-state";
@@ -27,6 +29,43 @@ function loadDraft(): ComposerState {
   } catch {
     return fallback;
   }
+}
+
+/** The results pane before anything is generated: the pipeline the current
+ * brief will run (it updates as outputs are picked), over the orchestration
+ * core. */
+function EmptyCanvas({ plan, topic }: { plan: ReturnType<typeof planBrief>; topic: string }) {
+  return (
+    <Card glass className="glow-border relative flex min-h-[440px] flex-col items-center justify-center overflow-hidden border-transparent p-8 text-center">
+      {/* The core sits low and dim so the text above it stays readable. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-[-18%] top-[30%] opacity-40">
+        <OrchestrationScene activity={plan.steps.length} nodes={Math.max(plan.steps.length, 4)} className="h-full w-full" />
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_50%_45%,hsl(var(--card)/0.85),transparent_75%)]" />
+      <div className="relative flex flex-col items-center gap-5">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/40 bg-primary/10 text-primary shadow-[0_0_30px_hsl(var(--primary)/0.35)]">
+          <Wand2 className="h-6 w-6" />
+        </span>
+        <div>
+          <h2 className="text-base font-semibold">Your content will appear here</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            {topic.trim()
+              ? "Ready when you are — these agents will take it from research to a finished post."
+              : "Describe an idea, pick what you want made, and the agents take it from research to a finished post."}
+          </p>
+        </div>
+        {plan.steps.length > 0 && (
+          <div className="rounded-xl border border-border/60 bg-background/60 px-5 py-4 backdrop-blur">
+            <PipelineStrip size="lg" steps={plan.steps.map((s) => ({ role: s.role, auto: s.reason.kind === "required" }))} />
+          </div>
+        )}
+        <div className="flex flex-wrap justify-center gap-2 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]" /> you picked</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-dashed border-muted-foreground" /> added because another output needs it</span>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 export function StudioPage() {
@@ -103,7 +142,9 @@ export function StudioPage() {
     queryKey: ["template-run", runId],
     queryFn: () => api.get<TemplateRun>(`/template-runs/${runId}`),
     enabled: Boolean(runId),
-    refetchInterval: (q) => (LIVE_RUN_STATUSES.includes(q.state.data?.status ?? "running") ? 2000 : false),
+    // Step starts/finishes are pushed (useLiveActivity); this short poll only
+    // runs while generating, for in-step progress messages.
+    refetchInterval: (q) => (LIVE_RUN_STATUSES.includes(q.state.data?.status ?? "running") ? 3000 : false),
   });
 
   // When a run finishes, refresh the library so "Recent creations" is current.
@@ -134,8 +175,8 @@ export function StudioPage() {
     <div>
       <PageHeader title="Content Studio" description="Turn one idea into a caption, visual, voiceover and video — then publish it." />
 
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-4 lg:sticky lg:top-0">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
+        <div className="min-w-0 lg:sticky lg:top-0">
           {projectsLoading ? (
             <Skeleton className="h-[560px] rounded-xl" />
           ) : (
@@ -150,9 +191,6 @@ export function StudioPage() {
               generating={generate.isPending}
             />
           )}
-          <div className="hidden lg:block">
-            <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} />
-          </div>
         </div>
 
         {/* On phones an open creation comes first; the composer follows it. */}
@@ -177,34 +215,16 @@ export function StudioPage() {
               </div>
             </div>
           ) : run ? (
-            <RunView run={run} projectId={activeProjectId} accounts={accounts} onNew={() => setRun(null)} />
+            <>
+              <RunView run={run} projectId={activeProjectId} accounts={accounts} onNew={() => setRun(null)} onOpen={setRun} />
+              <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} />
+            </>
           ) : (
-            <Card glass className="flex min-h-[420px] flex-col items-center justify-center gap-4 p-8 text-center">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Wand2 className="h-6 w-6" />
-              </span>
-              <div>
-                <h2 className="text-base font-semibold">Your content will appear here</h2>
-                <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-                  Describe an idea, pick what you want made, and the agents take it from research to a finished post.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                {(["search", "text", "image", "voice", "video"] as const).map((r) => {
-                  const Icon = ROLES[r].icon;
-                  return (
-                    <span key={r} className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
-                      <Icon className="h-3 w-3" /> {ROLES[r].short}
-                    </span>
-                  );
-                })}
-              </div>
-            </Card>
+            <>
+              <EmptyCanvas plan={planBrief(draft.roles, Boolean(draft.socialAccountId))} topic={draft.topic} />
+              <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} layout="grid" />
+            </>
           )}
-
-          <div className="lg:hidden">
-            <RecentCreations items={recent} activeRunId={runId} onOpen={setRun} />
-          </div>
         </div>
       </div>
     </div>
