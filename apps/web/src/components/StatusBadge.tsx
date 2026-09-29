@@ -19,7 +19,7 @@ const MAP: Record<string, { variant: BadgeProps["variant"]; icon: React.ElementT
   completed: { variant: "success", icon: CheckCircle2 },
   failed: { variant: "destructive", icon: XCircle },
   cancelled: { variant: "outline", icon: Ban },
-  awaiting_review: { variant: "warning", icon: Eye, label: "awaiting review" },
+  awaiting_review: { variant: "warning", icon: Eye, label: "Awaiting review" },
   draft: { variant: "secondary", icon: FileEdit },
   published: { variant: "success", icon: Rocket },
   active: { variant: "success", icon: CheckCircle2 },
@@ -31,7 +31,12 @@ export function StatusBadge({ status, className }: { status: string; className?:
   return (
     <Badge variant={entry.variant} className={className}>
       <Icon className={`h-3 w-3 ${entry.spin ? "animate-spin" : ""}`} />
-      {entry.label ?? status}
+      {entry.label ?? humanize(status)}
     </Badge>
   );
+}
+
+function humanize(status: string) {
+  const text = status.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

@@ -45,7 +45,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
     <div className="w-full overflow-x-auto min-w-0">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border/60 text-muted-foreground">
+          <tr className="border-b border-border/60 text-[11px] uppercase tracking-wider text-muted-foreground">
             <th className="py-3 pr-4 pl-1 font-medium">Execution</th>
             <th className="py-3 pr-3 font-medium hidden sm:table-cell">Agent</th>
             <th className="py-3 pr-3 font-medium">Status</th>
@@ -56,7 +56,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
         </thead>
         <tbody>
           {workflows.map((w) => (
-            <tr key={w.id} className="group border-b border-border/40 last:border-0 hover:bg-white/3 transition-colors">
+            <tr key={w.id} className="group border-b border-border/40 last:border-0 hover:bg-muted/40 transition-colors">
               <td className="py-2.5 pr-4 pl-1">
                 <Link to={`/workflows/${w.id}`} className="flex items-center gap-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/60 bg-secondary">
@@ -70,7 +70,7 @@ export function ExecutionsTable({ workflows }: { workflows: RecentWorkflow[] }) 
                     <span className="block truncate text-xs font-semibold group-hover:text-primary transition-colors">
                       {w.id.slice(0, 8)}
                     </span>
-                    <span className="block truncate text-[10px] text-muted-foreground">
+                    <span className="block truncate text-[11px] text-muted-foreground">
                       {w.project.name}
                     </span>
                   </span>
