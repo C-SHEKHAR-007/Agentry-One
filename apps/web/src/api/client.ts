@@ -1,45 +1,27 @@
-const BASE_URL = "/api";
+/**
+ * Legacy call-style wrapper (v2.2 migration). It now sends every request
+ * through the shared axios client (services/http/client.ts), so headers,
+ * credentials, the 401 redirect and error normalisation are already
+ * centralised for code not yet moved to RTK Query endpoints. Removed once
+ * every page uses features/*.api.ts.
+ */
+import { http } from "../services/http/client";
+import { routes } from "../services/api/routes";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const hasBody = init?.body !== undefined && init?.body !== null;
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (res.status === 401 && !path.startsWith("/auth/")) {
-    // Session expired or revoked -- bounce to login (unless already there).
-    if (!["/login", "/setup"].includes(window.location.pathname)) {
-      window.location.assign("/login");
-    }
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    // Validation/central errors carry a human-readable `message`; older
-    // route errors put the message in `error`.
-    const err = new Error(body.message ?? body.error ?? `Request failed: ${res.status}`) as Error & { status?: number };
-    err.status = res.status;
-    throw err;
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
+import type { AxiosResponse } from "axios";
+
+const body = (b: unknown) => (b !== undefined && b !== null ? b : {});
+// 204 No Content -> undefined (axios would give "").
+const data = <T,>(res: AxiosResponse<T>) => (res.status === 204 ? (undefined as T) : res.data);
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body: JSON.stringify(body !== undefined && body !== null ? body : {}) }),
-  put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body: JSON.stringify(body !== undefined && body !== null ? body : {}) }),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body: body !== undefined && body !== null ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  get: async <T>(path: string) => data(await http.get<T>(path)),
+  post: async <T>(path: string, b?: unknown) => data(await http.post<T>(path, body(b))),
+  put: async <T>(path: string, b?: unknown) => data(await http.put<T>(path, body(b))),
+  patch: async <T>(path: string, b?: unknown) => data(await http.patch<T>(path, b ?? undefined)),
+  delete: async <T>(path: string) => data(await http.delete<T>(path)),
 };
 
 // Same-origin <img>/EventSource requests send the session cookie by themselves.
-export function downloadUrl(artifactId: string): string {
-  return `${BASE_URL}/artifacts/${artifactId}/download`;
-}
-
-export function sseUrl(jobId: string): string {
-  return `${BASE_URL}/jobs/${jobId}/events`;
-}
+export const downloadUrl = routes.files.download;
+export const sseUrl = routes.streams.job;

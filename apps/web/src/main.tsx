@@ -3,7 +3,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "sonner";
+import { Provider as ReduxProvider } from "react-redux";
 import App from "./App.js";
+import { store } from "./app/store";
 import { AuthProvider } from "./auth/AuthContext.js";
 import { ThemeProvider } from "./lib/theme.js";
 import "@fontsource-variable/inter";
@@ -25,6 +27,7 @@ const queryClient = new QueryClient({
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <ReduxProvider store={store}>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
@@ -35,5 +38,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </ReduxProvider>
   </React.StrictMode>,
 );

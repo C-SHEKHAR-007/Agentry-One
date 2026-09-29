@@ -6,6 +6,7 @@
 //   E2E_BASE_URL=http://localhost:5175 E2E_EMAIL=... E2E_PASSWORD=... \
 //     node tools/request-audit.mjs out.json
 //   node tools/request-audit.mjs --diff before.json after.json
+// ONLY=/agents,/runs limits the run to those routes.
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 
@@ -58,7 +59,7 @@ const routes = [
   tpls[0] && `/templates/${tpls[0].id}/run`, runs[0] && `/template-runs/${runs[0].id}`, "/runs", "/runs?type=agents",
   wfs[0] && `/workflows/${wfs[0].id}`, "/artifacts", "/prompts", "/integrations", "/analytics", "/costs", "/team",
   "/providers", "/settings", "/profile",
-].filter(Boolean);
+].filter(Boolean).filter((r) => !process.env.ONLY || process.env.ONLY.split(",").some((o) => r === o));
 
 const out = {};
 let bucket = null;
