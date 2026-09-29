@@ -259,7 +259,13 @@ body {
   .react-flow__edge.edge-live .react-flow__edge-path,
   .animate-status-glow,
   .animate-sweep,
-  .animate-float {
+  .animate-float,
+  .animate-dialog-in,
+  .animate-dialog-out,
+  .animate-overlay-in,
+  .animate-overlay-out,
+  .animate-drawer-in,
+  .animate-drawer-out {
     animation: none !important;
   }
 }

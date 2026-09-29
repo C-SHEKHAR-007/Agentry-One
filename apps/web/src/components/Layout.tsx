@@ -113,7 +113,7 @@ export function Layout() {
         <DialogPortal>
           <DialogOverlay className="md:hidden" />
           <DialogPrimitive.Content
-            className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card shadow-xl focus:outline-none data-[state=open]:animate-fade-in md:hidden"
+            className="fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card shadow-xl focus:outline-none data-[state=open]:animate-drawer-in data-[state=closed]:animate-drawer-out md:hidden"
             aria-describedby={undefined}
           >
             <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>

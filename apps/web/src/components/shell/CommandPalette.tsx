@@ -146,7 +146,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="top-[18%] max-w-xl translate-y-0 overflow-hidden p-0">
+      <DialogContent hideClose className="bottom-auto top-[18%] max-w-xl overflow-hidden p-0">
         <DialogTitle className="sr-only">Command palette</DialogTitle>
         <div className="flex items-center gap-2 border-b border-border px-4">
           <Search className="h-4 w-4 text-muted-foreground" />
