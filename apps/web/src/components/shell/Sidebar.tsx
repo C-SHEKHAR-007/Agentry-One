@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Sparkles, ChevronsLeft, ChevronsRight, Zap } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Sparkles, Zap } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Badge } from "../ui/badge";
 import { Tooltip } from "../ui/tooltip";
@@ -102,9 +102,12 @@ function NavEntry({
 export function SidebarContent({
   collapsed = false,
   onNavigate,
+  onToggle,
 }: {
   collapsed?: boolean;
   onNavigate?: () => void;
+  /** Collapse/expand; omitted in the mobile drawer (it closes instead). */
+  onToggle?: () => void;
 }) {
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
@@ -116,18 +119,50 @@ export function SidebarContent({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Logo */}
+      {/* Logo + collapse toggle. Collapsed: the logo turns into the expand
+          button while the pointer is over the sidebar (or it has focus).
+          Expanded: the collapse button sits right of the app name. */}
       <div
         className={cn(
           "flex items-center gap-3 py-4",
           collapsed ? "justify-center px-0" : "px-3",
         )}
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30 shrink-0">
-          <Sparkles className="h-4 w-4" />
-        </span>
+        {collapsed && onToggle ? (
+          <Tooltip label="Expand sidebar">
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Expand sidebar"
+              className="group/toggle relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="absolute inset-0 inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition-all duration-200 group-hover/sidebar:scale-75 group-hover/sidebar:opacity-0 group-focus-visible/toggle:scale-75 group-focus-visible/toggle:opacity-0">
+                <Sparkles className="h-4 w-4" />
+              </span>
+              <span className="absolute inset-0 inline-flex scale-75 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-200 hover:bg-muted hover:text-foreground group-hover/sidebar:scale-100 group-hover/sidebar:opacity-100 group-focus-visible/toggle:scale-100 group-focus-visible/toggle:opacity-100">
+                <PanelLeftOpen className="h-[18px] w-[18px]" />
+              </span>
+            </button>
+          </Tooltip>
+        ) : (
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30 shrink-0">
+            <Sparkles className="h-4 w-4" />
+          </span>
+        )}
         {!collapsed && (
           <span className="text-base font-bold tracking-tight">Agentry</span>
+        )}
+        {!collapsed && onToggle && (
+          <Tooltip label="Collapse sidebar" side="bottom" className="ml-auto">
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-label="Collapse sidebar"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <PanelLeftClose className="h-[18px] w-[18px]" />
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -252,16 +287,8 @@ export function Sidebar({
         isDragging ? "transition-none select-none" : "transition-[width] duration-200",
       )}
     >
-      <SidebarContent collapsed={collapsed} />
+      <SidebarContent collapsed={collapsed} onToggle={onToggle} />
 
-      {/* Collapse / Expand Toggle Button */}
-      <button
-        onClick={onToggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute -right-3 top-16 z-30 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-all duration-150 hover:text-foreground hover:bg-secondary hover:scale-105 active:scale-95"
-      >
-        {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
-      </button>
 
       {/* Resizable edge handle (pick & move) */}
       <div
