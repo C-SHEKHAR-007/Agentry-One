@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
-import { useAuth } from "../../auth/AuthContext";
-import { useSystemHealth } from "../../api/queries";
-import { cn } from "../../lib/utils";
-import { Button } from "../ui/button";
+import { useAuth } from "../../auth/useAuth";
+import { useSystemHealth } from "../../../api/queries";
+import { cn } from "../../../lib/utils";
+import { Button } from "../../../components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
-import { NotificationDropdown } from "./NotificationDropdown";
+import { NotificationDropdown } from "../../notifications/components/NotificationDropdown";
 
 export function Topbar({
   onOpenMobileNav,

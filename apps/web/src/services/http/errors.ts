@@ -53,3 +53,21 @@ export function toApiError(err: unknown): ApiError {
   }
   return new ApiError(err instanceof Error ? err.message : String(err), 0, "unknown");
 }
+
+/** The plain (serialisable) form of an ApiError, as stored in the Redux
+ * cache and returned as `error` by RTK Query hooks. */
+export interface ApiErrorShape {
+  status: number;
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+export const toErrorShape = (e: ApiError): ApiErrorShape => ({ status: e.status, code: e.code, message: e.message, details: e.details });
+
+/** The message of whatever a hook or thunk failed with. */
+export function errorMessage(err: unknown, fallback = "Something went wrong"): string {
+  if (!err) return fallback;
+  if (typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") return (err as { message: string }).message;
+  return fallback;
+}

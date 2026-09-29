@@ -1,9 +1,8 @@
 import { lazy } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import { useAuth } from "./auth/AuthContext.js";
-import { Layout } from "./components/Layout.js";
+import { useAuth } from "./features/auth/useAuth";
+import { Layout } from "./features/shell/components/Layout.js";
 import { Spinner } from "./components/ui/spinner.js";
-import { NotificationProvider } from "./contexts/NotificationContext.js";
 import { LoginPage } from "./pages/LoginPage.js";
 import { SetupPage } from "./pages/SetupPage.js";
 import { NotFoundPage } from "./pages/NotFoundPage.js";
@@ -71,9 +70,7 @@ export default function App() {
       <Route
         element={
           <RequireAuth>
-            <NotificationProvider>
-              <Layout />
-            </NotificationProvider>
+            <Layout />
           </RequireAuth>
         }
       >

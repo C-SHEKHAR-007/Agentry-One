@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
+import { useSystemHealthQuery } from "../features/stats/stats.api";
 import type {
   AgentStats,
   ArtifactListItem,
@@ -8,7 +9,6 @@ import type {
   RecentWorkflow,
   RunSummary,
   StatsOverview,
-  SystemHealth,
 } from "./types";
 
 // Freshness comes from the live activity stream (hooks/useLiveActivity): these
@@ -31,13 +31,11 @@ export function useAgentStats() {
   });
 }
 
+/** System health on RTK Query (v2.2): one cache for the top bar, dashboard
+ * and agents page, checked once a minute (worker liveness isn't an event). */
 export function useSystemHealth() {
-  return useQuery<SystemHealth>({
-    queryKey: ["stats", "system"],
-    queryFn: () => api.get("/stats/system"),
-    // Worker liveness isn't an event; check it once a minute.
-    refetchInterval: 60_000,
-  });
+  const result = useSystemHealthQuery(undefined, { pollingInterval: 60_000 });
+  return { ...result, dataUpdatedAt: result.fulfilledTimeStamp ?? 0 };
 }
 
 export function useEvents(limit = 15, refetchInterval = FALLBACK) {

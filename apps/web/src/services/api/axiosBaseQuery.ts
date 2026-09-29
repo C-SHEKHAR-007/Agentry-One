@@ -1,7 +1,7 @@
 import type { BaseQueryFn } from "@reduxjs/toolkit/query";
 import type { AxiosRequestConfig } from "axios";
 import { http } from "../http/client";
-import { ApiError, toApiError } from "../http/errors";
+import { toApiError, toErrorShape, type ApiErrorShape } from "../http/errors";
 
 export interface RequestArgs {
   url: string;
@@ -14,10 +14,11 @@ export interface RequestArgs {
 }
 
 /** RTK Query transport over the shared axios instance. Accepts a bare path
- * for GETs. Errors come back as ApiError (message/status/code), and the
+ * for GETs. Errors come back as a plain ApiErrorShape (message/status/code;
+ * plain so the Redux store stays serialisable), and the
  * request is cancelled when RTK Query aborts it (unmount, re-fetch). */
 export const axiosBaseQuery =
-  (): BaseQueryFn<string | RequestArgs, unknown, ApiError> =>
+  (): BaseQueryFn<string | RequestArgs, unknown, ApiErrorShape> =>
   async (args, { signal }) => {
     const req: RequestArgs = typeof args === "string" ? { url: args } : args;
     const method = (req.method ?? "GET").toUpperCase();
@@ -35,6 +36,6 @@ export const axiosBaseQuery =
       // 204 No Content -> undefined, like the previous client.
       return { data: res.status === 204 ? undefined : res.data };
     } catch (err) {
-      return { error: toApiError(err) };
+      return { error: toErrorShape(toApiError(err)) };
     }
   };

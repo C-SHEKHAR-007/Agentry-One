@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { PanelLeftClose, PanelLeftOpen, Sparkles, Zap } from "lucide-react";
-import { cn } from "../../lib/utils";
-import { Badge } from "../ui/badge";
-import { Tooltip } from "../ui/tooltip";
-import { NAV_SECTIONS, NAV_FOOTER, type NavItem } from "./nav";
-import { useAuth } from "../../auth/AuthContext";
+import { cn } from "../../../lib/utils";
+import { Badge } from "../../../components/ui/badge";
+import { Tooltip } from "../../../components/ui/tooltip";
+import { NAV_SECTIONS, NAV_FOOTER, type NavItem } from "../nav";
+import { useAuth } from "../../auth/useAuth";
 
 function NavEntry({
   item,

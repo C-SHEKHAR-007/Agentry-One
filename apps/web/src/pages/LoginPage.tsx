@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
 import { api } from "../api/client";
-import { useAuth } from "../auth/AuthContext";
+import { useAuth } from "../features/auth/useAuth";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../components/ui/button";
 import { AuthShell } from "../components/AuthShell";

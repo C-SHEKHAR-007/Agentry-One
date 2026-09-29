@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Monitor, Moon, Plus, Sun } from "lucide-react";
 import { api } from "../api/client";
 import { useSystemHealth } from "../api/queries";
-import { useTheme } from "../lib/theme";
+import { useTheme } from "../features/shell/theme";
 import { cn } from "../lib/utils";
 import { PageHeader } from "../components/PageHeader";
 import { PricingEditor } from "../components/PricingEditor";

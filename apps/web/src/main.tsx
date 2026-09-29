@@ -6,8 +6,8 @@ import { Toaster } from "sonner";
 import { Provider as ReduxProvider } from "react-redux";
 import App from "./App.js";
 import { store } from "./app/store";
-import { AuthProvider } from "./auth/AuthContext.js";
-import { ThemeProvider } from "./lib/theme.js";
+import { SessionBootstrap } from "./features/auth/SessionBootstrap";
+import { ThemeSync } from "./features/shell/theme";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/geist-mono";
 import "./index.css";
@@ -29,14 +29,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ReduxProvider store={store}>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <BrowserRouter>
-            <App />
-            <Toaster richColors position="bottom-right" />
-          </BrowserRouter>
-        </AuthProvider>
-      </ThemeProvider>
+      <ThemeSync />
+      <SessionBootstrap />
+      <BrowserRouter>
+        <App />
+        <Toaster richColors position="bottom-right" />
+      </BrowserRouter>
     </QueryClientProvider>
     </ReduxProvider>
   </React.StrictMode>,

@@ -34,7 +34,7 @@ import {
   useWorkflowRuns,
 } from "../api/queries";
 import { formatDuration, formatPercent, formatTokens, formatUsd, timeAgo } from "../lib/format";
-import { useAuth } from "../auth/AuthContext.js";
+import { useAuth } from "../features/auth/useAuth";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ExecutionsTable } from "../components/ExecutionsTable";
 import { StatCard } from "../components/StatCard";

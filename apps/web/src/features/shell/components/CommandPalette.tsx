@@ -15,13 +15,13 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
-import { api } from "../../api/client";
-import type { RecentWorkflow, RunSummary } from "../../api/types";
-import { runCode, timeAgo } from "../../lib/format";
-import { cn } from "../../lib/utils";
-import { StatusDot } from "../StatusBadge";
-import { NAV_FOOTER, NAV_SECTIONS } from "./nav";
+import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
+import { api } from "../../../api/client";
+import type { RecentWorkflow, RunSummary } from "../../../api/types";
+import { runCode, timeAgo } from "../../../lib/format";
+import { cn } from "../../../lib/utils";
+import { StatusDot } from "../../../components/StatusBadge";
+import { NAV_FOOTER, NAV_SECTIONS } from "../nav";
 
 interface Entry {
   id: string;

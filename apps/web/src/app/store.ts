@@ -1,6 +1,9 @@
 import { combineReducers, configureStore, createListenerMiddleware } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import { baseApi } from "../services/api/baseApi";
+import { setUnauthorizedHandler } from "../services/http/client";
+import { authReducer, sessionExpired } from "../features/auth/auth.slice";
+import { persistUi, uiReducer } from "../features/shell/ui.slice";
 
 /** Side effects that react to actions (persistence, session handling);
  * slices register theirs with `listener.startListening`. */
@@ -8,6 +11,14 @@ export const listener = createListenerMiddleware();
 
 const rootReducer = combineReducers({
   [baseApi.reducerPath]: baseApi.reducer,
+  auth: authReducer,
+  ui: uiReducer,
+});
+
+// Persist UI preferences (theme, sidebar) whenever they change.
+listener.startListening({
+  predicate: (_action, current, previous) => (current as RootState).ui !== (previous as RootState).ui,
+  effect: (_action, api) => persistUi((api.getState() as RootState).ui),
 });
 
 export function makeStore(preloadedState?: Partial<ReturnType<typeof rootReducer>>) {
@@ -18,6 +29,8 @@ export function makeStore(preloadedState?: Partial<ReturnType<typeof rootReducer
     devTools: import.meta.env.DEV,
   });
   setupListeners(store.dispatch); // refetchOnFocus / refetchOnReconnect
+  // A 401 on any request ends the session in the store.
+  setUnauthorizedHandler(() => store.dispatch(sessionExpired()));
   return store;
 }
 

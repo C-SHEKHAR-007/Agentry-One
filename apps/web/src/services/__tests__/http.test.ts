@@ -88,10 +88,9 @@ describe("axiosBaseQuery", () => {
     expect(lastConfig?.data).toBe("{}");
   });
 
-  it("returns ApiError on failure", async () => {
+  it("returns a plain, serialisable error on failure", async () => {
     respond(409, { message: "already running" });
     const res = await axiosBaseQuery()({ url: "/x", method: "POST", body: { a: 1 } }, api, {});
-    expect(res.error).toBeInstanceOf(ApiError);
-    expect(res.error).toMatchObject({ status: 409, message: "already running" });
+    expect(res.error).toEqual({ status: 409, code: "http_409", message: "already running", details: undefined });
   });
 });
