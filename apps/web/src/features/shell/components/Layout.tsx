@@ -1,7 +1,7 @@
 import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Spinner } from "../../../components/ui/spinner";
-import { ErrorBoundary } from "../../../components/ErrorBoundary";
+import { ErrorBoundary } from "../../../components/common/ErrorBoundary";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Sidebar, SidebarContent } from "./Sidebar";
 import { Topbar } from "./Topbar";

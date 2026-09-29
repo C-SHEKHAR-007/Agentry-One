@@ -24,18 +24,16 @@ const SETTLED = /completed|failed|cancelled/;
  * signal whenever a run starts, finishes, fails or waits for review, and the
  * affected cache entries are refreshed. Bursts (a workflow finishing several
  * steps at once) coalesce into one refresh after `coalesceMs`.
- * `onFlush` lets not-yet-migrated TanStack Query pages refresh too.
  */
 export function startActivityStream(
   dispatch: AppDispatch,
-  { coalesceMs = 750, onFlush }: { coalesceMs?: number; onFlush?: (settled: boolean) => void } = {},
+  { coalesceMs = 750 }: { coalesceMs?: number } = {},
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let settled = false;
   const flush = () => {
     timer = null;
     dispatch(baseApi.util.invalidateTags(settled ? [...ACTIVITY_TAGS, { type: "Stats", id: "agents" }] : ACTIVITY_TAGS));
-    onFlush?.(settled);
     settled = false;
   };
   const close = openStream<{ type?: string }>(routes.streams.activity, ({ type }) => {

@@ -22,7 +22,7 @@ import { useWorkflowRunsQuery } from "../../runs/runs.api";
 import { useWorkflowLibraryQuery } from "../../workflows/templates.api";
 import { runCode, timeAgo } from "../../../lib/format";
 import { cn } from "../../../lib/utils";
-import { StatusDot } from "../../../components/StatusBadge";
+import { StatusDot } from "../../../components/common/StatusBadge";
 import { NAV_FOOTER, NAV_SECTIONS } from "../nav";
 
 interface Entry {

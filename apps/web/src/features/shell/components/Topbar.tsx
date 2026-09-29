@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
+import { LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
-import { useSystemHealth } from "../../../api/queries";
+import { useSystemHealth } from "../../stats/stats.api";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../../components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";

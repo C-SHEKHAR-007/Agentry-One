@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { makeStore } from "../../../app/store";
-import { BridgedQueryClient } from "../../../api/legacyQueryClient";
-import { projectsApi } from "../../projects/projects.api";
 import { fakeApi, tick } from "../../../test/fakeApi";
 import { agentRunsApi } from "../agentRuns.api";
 import { runsApi } from "../runs.api";
@@ -48,19 +46,5 @@ describe("runs cache", () => {
     expect(count(api.calls, "GET /workflows/w1")).toBe(1);
     a.unsubscribe();
     b.unsubscribe();
-  });
-
-  it("the legacy TanStack bridge forwards invalidations to cache tags", async () => {
-    const api = fakeApi({ "/projects": [200, []] });
-    restore = api.restore;
-    const store = makeStore();
-    const qc = new BridgedQueryClient();
-    qc.bindStore(store.dispatch);
-    const sub = store.dispatch(projectsApi.endpoints.projects.initiate());
-    await sub;
-    await qc.invalidateQueries({ queryKey: ["projects"] });
-    await tick(20);
-    expect(count(api.calls, "GET /projects")).toBe(2);
-    sub.unsubscribe();
   });
 });

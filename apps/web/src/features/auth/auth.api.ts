@@ -17,7 +17,8 @@ export interface ProfileBody {
   lastName?: string | null;
   avatarUrl?: string | null;
   currentPassword?: string;
-  newPassword?: string;
+  /** A new password; needs `currentPassword` when one is already set. */
+  password?: string;
 }
 
 export const authApi = baseApi.injectEndpoints({

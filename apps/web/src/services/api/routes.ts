@@ -141,6 +141,10 @@ export const routes = {
     download: (artifactId: string) => `${API_BASE}/artifacts/${id(artifactId)}/download`,
     attachment: (artifactId: string) => `${API_BASE}/artifacts/${id(artifactId)}/download?disposition=attachment`,
   },
+  /** Absolute URLs the browser navigates to (full-page redirects). */
+  pages: {
+    googleSignIn: `${API_BASE}/auth/google`,
+  },
   /** Absolute URLs for server-sent-event streams (EventSource). */
   streams: {
     activity: `${API_BASE}/events/stream`,

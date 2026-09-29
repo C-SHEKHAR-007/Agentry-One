@@ -16,7 +16,7 @@ import { describeCron } from "../../../lib/cron";
 import { timeAgo } from "../../../lib/format";
 import { runInputsOf } from "../../../lib/workflowGraph";
 import { cn } from "../../../lib/utils";
-import { stepIcon } from "../../../components/builder/stepVisuals";
+import { stepIcon } from "../../../components/common/graph/stepVisuals";
 import { Button, buttonVariants } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 
