@@ -52,6 +52,14 @@ class AgentJob:
     async def report_progress(self, percent: int, message: str) -> None:
         await self._raw.updateProgress({"percent": percent, "message": message})
 
+    async def log(self, message: str, level: str = "info") -> None:
+        """Adds a line to this attempt's log on the run page (levels: debug,
+        info, warn, error). Progress messages are logged automatically."""
+        await self._raw.updateProgress({"log": {"level": level, "message": str(message)}})
+
+    async def report_usage(self, usage: dict) -> None:
+        await self._raw.updateProgress({"usage": usage})
+
 
 def _fetch_job_secrets(job_id: str) -> dict:
     api_url = os.environ.get("AGENTRY_API_URL", "http://localhost:4000").rstrip("/")

@@ -15,6 +15,7 @@ from typing import Awaitable, Callable
 
 from bullmq import Worker
 
+from . import telemetry
 from .agent_job import AgentJob
 from .log import get_logger
 
@@ -34,6 +35,27 @@ def _own_manifest() -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def attach_usage(result, summary: dict | None):
+    """Adds the job's model usage to a result envelope as metrics.usage
+    (docs/03-agent-sdk-contract.md), without overriding a handler's own."""
+    if not summary or not isinstance(result, dict):
+        return result
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    return {**result, "metrics": {**metrics, "usage": metrics.get("usage") or summary}}
+
+
+async def _report_usage(job: AgentJob, usage: telemetry.JobTelemetry) -> None:
+    """A failed job returns no result, so send what it used over the
+    progress channel before the failure is recorded. Best effort."""
+    summary = usage.summary()
+    if not summary:
+        return
+    try:
+        await job.report_usage(summary)
+    except Exception:  # noqa: BLE001 -- telemetry must never mask the real error
+        pass
 
 
 def run_agent(step_handlers: dict[str, StepHandler], queue_name: str) -> None:
@@ -57,17 +79,22 @@ def run_agent(step_handlers: dict[str, StepHandler], queue_name: str) -> None:
         timeout = float((job.agent_manifest or {}).get("timeoutSec") or default_timeout)
         started = time.monotonic()
         log.info("job started", extra=ctx)
+        usage, token = telemetry.begin()
         try:
             await job.load_secrets()
             result = await asyncio.wait_for(handler(job), timeout=timeout)
         except asyncio.TimeoutError:
             log.error("job timed out", extra={**ctx, "duration_ms": int((time.monotonic() - started) * 1000)})
+            await _report_usage(job, usage)
             raise RuntimeError(f"step '{job.step_key}' exceeded its {int(timeout)}s timeout") from None
         except Exception:
             log.exception("job failed", extra={**ctx, "duration_ms": int((time.monotonic() - started) * 1000)})
+            await _report_usage(job, usage)
             raise
+        finally:
+            telemetry.end(token)
         log.info("job completed", extra={**ctx, "duration_ms": int((time.monotonic() - started) * 1000)})
-        return result
+        return attach_usage(result, usage.summary())
 
     async def main():
         # bullmq's Worker schedules its run loop via asyncio.ensure_future in

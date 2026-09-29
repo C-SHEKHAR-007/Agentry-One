@@ -133,6 +133,10 @@ On failure, `status` is `"failed"`, `artifacts` is empty, and `error` carries a 
 
 **Progress**, reported continuously during execution (not just at the end): the Python worker calls `job.updateProgress(percent, message)` using the official Python port of BullMQ (`pip install bullmq` — see ADR-0003 for why this specific package, not a hand-rolled bridge). The Node API subscribes to BullMQ's `QueueEvents` for that queue and relays `progress` events to the browser over Server-Sent Events. This is also how VSplitter's existing plain-string `progress_cb` gets adapted — see [08-agent-video.md](08-agent-video.md) for the concrete stage-to-percentage mapping table.
 
+**Usage (model, tokens)** is recorded automatically. The runner opens a per-job usage record, `CapabilityClient` adds every model call to it (the model name and, for text models, the input/output token counts the provider returned), and the runner returns the total as `metrics.usage` — `{ "model": "qwen3:8b", "inputTokens": 1284, "outputTokens": 342, "calls": 1 }`. If a job fails, the same summary is sent over the progress channel as `{ "usage": {...} }` before the failure is recorded. The API stores it on the attempt (`job_runs.model`, `input_tokens`, `output_tokens`), prices the attempt with the per-job pricing setting (`job_runs.cost_usd`), and shows it on the run pages, the dashboard and Analytics. A handler that knows better can set `metrics.usage` itself; the runner never overrides it.
+
+**Logs.** Every progress message also becomes a line in the attempt's log, next to the API's own lines (attempt started, completion summary, failure reason). A handler can add more with `await job.log("fetched 12 sources", level="info")` (`debug`, `info`, `warn`, `error`); these travel as `{ "log": { "level", "message" } }` on the progress channel, are stored in the `logs` table, and stream to the run page.
+
 ## Minimal Python-side SDK
 
 `python/sdk` is intentionally thin — a standardizing wrapper, not a framework an agent author has to learn deeply:
