@@ -5,7 +5,6 @@ import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ExternalLink,
-  Layers,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -84,18 +83,18 @@ function StepRowCard({ step, onStepUpdated }: { step: TemplateRunStep; onStepUpd
   const allArtifacts = workflow?.steps?.flatMap((s) => s.artifacts || []) || [];
 
   return (
-    <Card className="overflow-hidden transition-all border-border/70 hover:border-primary/40 bg-card/60 backdrop-blur-sm">
+    <Card glass className="overflow-hidden transition-all hover:border-primary/40">
       <div className="p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 font-mono text-xs font-semibold text-primary">
-            {step.templateStep.stepOrder}
+            {step.templateStep.stepOrder + 1}
           </span>
           <div>
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-foreground capitalize">
                 {step.templateStep.agentId.replace(/-/g, " ")}
               </p>
-              <Badge variant="outline" className="text-[10px] font-mono">
+              <Badge variant="outline" className="text-[11px] font-mono">
                 {step.templateStep.agentId}
               </Badge>
             </div>
@@ -203,16 +202,15 @@ export function TemplateRunViewPage() {
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            <Layers className="h-6 w-6 text-primary" />
-            Template Pipeline Run
+            Workflow run
             <StatusBadge status={run.status} />
           </span>
         }
-        description={`Run ID: ${run.id} — Steps execute sequentially with automated artifact chaining and human review gates.`}
+        description={`Run ${run.id.slice(0, 8)} · steps run in order, each one feeding the next.`}
       />
 
       {isCompleted && (
-        <Card className="border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-400 flex items-center justify-between">
+        <Card className="border-success/30 bg-success/10 p-4 text-success flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium">
             <CheckCircle2 className="h-5 w-5 shrink-0" />
             <span>All pipeline steps completed successfully! Artifacts have been generated and published.</span>

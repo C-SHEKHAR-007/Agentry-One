@@ -55,7 +55,7 @@ export function ResponsiveTabs({
             {ActiveIcon && <ActiveIcon className={cn("h-4 w-4 shrink-0", activeOption.iconColor)} />}
             <span className="font-medium truncate">{activeOption?.label}</span>
             {activeOption?.count !== undefined && (
-              <span className="text-[10px] text-muted-foreground shrink-0">({activeOption.count})</span>
+              <span className="text-[11px] text-muted-foreground shrink-0">({activeOption.count})</span>
             )}
           </div>
           <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-2" />
@@ -81,7 +81,7 @@ export function ResponsiveTabs({
                     {Icon && <Icon className={cn("h-4 w-4 shrink-0", tab.iconColor)} />}
                     <span className="truncate">{tab.label}</span>
                     {tab.count !== undefined && (
-                      <span className="ml-auto text-[10px] text-muted-foreground shrink-0">({tab.count})</span>
+                      <span className="ml-auto text-[11px] text-muted-foreground shrink-0">({tab.count})</span>
                     )}
                   </button>
                 );
@@ -109,7 +109,7 @@ export function ResponsiveTabs({
               {Icon && <Icon className={cn("h-3.5 w-3.5", tab.iconColor)} />}
               {tab.label}
               {tab.count !== undefined && (
-                <span className="ml-1 text-[10px] text-muted-foreground">({tab.count})</span>
+                <span className="ml-1 text-[11px] text-muted-foreground">({tab.count})</span>
               )}
             </button>
           );

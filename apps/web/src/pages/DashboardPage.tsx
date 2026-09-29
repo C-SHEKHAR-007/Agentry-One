@@ -78,12 +78,11 @@ function ProjectCard({ project }: { project: Project }) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary">
-            <span className="text-4xl font-black text-white/20">{initial}</span>
+          <div className="flex h-full w-full items-center justify-center bg-primary/5">
+            <span className="text-3xl font-semibold text-muted-foreground/40">{initial}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-      </div>
+              </div>
 
       {/* Footer */}
       <div className="bg-card/80 px-4 py-3">
@@ -97,13 +96,13 @@ function ProjectCard({ project }: { project: Project }) {
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-card/80 bg-primary/20 text-[9px] font-bold text-primary"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-card/80 bg-primary/20 text-[11px] font-semibold text-primary"
               >
                 {String.fromCharCode(65 + ((project.name.charCodeAt(i % project.name.length) ?? 65) % 26))}
               </span>
             ))}
           </div>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             {project.lastActivityAt ? `Updated ${timeAgo(project.lastActivityAt)}` : "No activity"}
           </span>
         </div>
@@ -129,7 +128,7 @@ function SectionCard({
   return (
     <Card glass className={cn("min-w-0 overflow-hidden", className)}>
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 pb-3 min-w-0">
-        <CardTitle className="text-sm font-semibold truncate pr-2">{title}</CardTitle>
+        <CardTitle className="truncate pr-2">{title}</CardTitle>
         {action}
       </CardHeader>
       <CardContent className={cn("min-w-0", contentClassName)}>{children}</CardContent>
@@ -190,14 +189,8 @@ export function DashboardPage() {
     <div className="space-y-6">
       {/* Page heading */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="text-center sm:text-left">
-        <h1 className="text-2xl font-bold tracking-tight">
-          {greeting()},{" "}
-          <span className="inline-block whitespace-nowrap">
-            <span className="bg-gradient-to-r from-primary via-violet-400 to-chart-3 bg-clip-text text-transparent">
-              {displayName}
-            </span>{" "}
-            👋
-          </span>
+        <h1 className="text-xl font-semibold tracking-tight">
+          {greeting()}, <span className="text-primary">{displayName}</span>
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Here's what's happening with your AI agents today.
@@ -223,7 +216,7 @@ export function DashboardPage() {
               value={overview.jobs.completedToday}
               sub={
                 overview.jobs.completedYesterday > 0 ? (
-                  <span className="flex items-center gap-1 text-emerald-400">
+                  <span className="flex items-center gap-1 text-success">
                     <TrendingUp className="h-3 w-3" />
                     {overview.jobs.completedYesterday} yesterday
                   </span>
@@ -251,7 +244,7 @@ export function DashboardPage() {
               label="API Cost Saved"
               value={`$${overview.costSavedEstUsd}`}
               sub={
-                <span className="flex items-center gap-1 text-emerald-400">
+                <span className="flex items-center gap-1 text-success">
                   <TrendingUp className="h-3 w-3" />
                   Est. vs paid APIs
                 </span>
@@ -273,9 +266,9 @@ export function DashboardPage() {
         <div className="space-y-6 xl:col-span-2">
 
           {/* Recent Executions + Usage Overview side by side */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5 items-stretch">
+          <div className="grid grid-cols-1 gap-6 2xl:grid-cols-5 items-stretch">
             <SectionCard
-              className="lg:col-span-3 flex flex-col h-full"
+              className="2xl:col-span-3 flex flex-col h-full"
               contentClassName="flex-1 flex flex-col justify-between overflow-x-auto"
               title="Recent Executions"
               action={<ViewAll to="/executions" />}
@@ -284,19 +277,19 @@ export function DashboardPage() {
             </SectionCard>
 
             <SectionCard
-              className="lg:col-span-2 flex flex-col h-full"
+              className="2xl:col-span-2 flex flex-col h-full"
               contentClassName="flex-1 flex flex-col justify-between"
               title="Usage Overview"
             >
-              <div className="flex flex-col items-center justify-between h-full gap-4">
+              <div className="flex h-full flex-col items-center justify-between gap-6 sm:flex-row 2xl:flex-col 2xl:gap-4">
                 <Donut
                   segments={agents.map((a, i) => ({
                     value: a.runs,
                     color: CHART_COLORS[i % CHART_COLORS.length],
                   }))}
                 >
-                  <p className="text-2xl font-bold">{totalJobs}</p>
-                  <p className="text-[10px] text-muted-foreground">Total Jobs</p>
+                  <p className="text-2xl font-semibold">{totalJobs}</p>
+                  <p className="text-[11px] text-muted-foreground">Total Jobs</p>
                 </Donut>
 
                 <div className="w-full flex-1 flex flex-col justify-between min-h-0">
@@ -325,11 +318,11 @@ export function DashboardPage() {
                   {/* Summary Metrics */}
                   <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/60 pt-3 shrink-0">
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Success Rate</p>
+                      <p className="text-[11px] text-muted-foreground">Success Rate</p>
                       <p className="text-sm font-semibold">{formatPercent(overview?.successRate)}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Avg. Duration</p>
+                      <p className="text-[11px] text-muted-foreground">Avg. Duration</p>
                       <p className="text-sm font-semibold">{formatDuration(overview?.avgDurationMs)}</p>
                     </div>
                   </div>
@@ -399,36 +392,36 @@ export function DashboardPage() {
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Total Runs</span>
-                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
+                <p className="mt-1 text-lg font-semibold tracking-tight text-foreground truncate">
                   {trendTotalRuns}
                 </p>
-                <span className="text-[10px] text-muted-foreground">Past {trendDays} days</span>
+                <span className="text-[11px] text-muted-foreground">Past {trendDays} days</span>
               </div>
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Success Rate</span>
-                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-emerald-400 truncate">
+                <p className="mt-1 text-lg font-semibold tracking-tight text-success truncate">
                   {trendSuccessRate !== null ? formatPercent(trendSuccessRate) : "—"}
                 </p>
-                <span className="text-[10px] text-muted-foreground truncate block">
+                <span className="text-[11px] text-muted-foreground truncate block">
                   {trendTotalFailed === 0 ? "100% reliable" : `${trendTotalFailed} failed`}
                 </span>
               </div>
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Daily Peak</span>
-                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
+                <p className="mt-1 text-lg font-semibold tracking-tight text-foreground truncate">
                   {trendPeakDay} <span className="text-xs font-normal text-muted-foreground">runs</span>
                 </p>
-                <span className="text-[10px] text-muted-foreground truncate block">Highest day</span>
+                <span className="text-[11px] text-muted-foreground truncate block">Highest day</span>
               </div>
 
               <div className="rounded-lg border border-border/50 bg-secondary/20 p-2.5">
                 <span className="text-[11px] font-medium text-muted-foreground">Avg Duration</span>
-                <p className="mt-1 text-base sm:text-lg font-bold tracking-tight text-foreground truncate">
+                <p className="mt-1 text-lg font-semibold tracking-tight text-foreground truncate">
                   {trendAvgDuration !== null ? formatDuration(trendAvgDuration) : "—"}
                 </p>
-                <span className="text-[10px] text-muted-foreground truncate block">Per execution</span>
+                <span className="text-[11px] text-muted-foreground truncate block">Per execution</span>
               </div>
             </div>
 
@@ -498,7 +491,7 @@ export function DashboardPage() {
               health ? (
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
                     health.api && health.db && health.redis
                       ? "bg-success/15 text-success"
                       : "bg-warning/15 text-warning",

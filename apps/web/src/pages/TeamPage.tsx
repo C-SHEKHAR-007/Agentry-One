@@ -124,7 +124,7 @@ export function TeamPage() {
                   </span>
                 )}
                 <div className="min-w-0">
-                  <p className="truncate font-medium">
+                  <p className="truncate text-sm font-medium">
                     {displayName}
                     {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                   </p>
@@ -135,7 +135,7 @@ export function TeamPage() {
               </div>
               <div className="flex items-center gap-2">
                 {isStub ? (
-                  <Badge variant="outline">system</Badge>
+                  <Badge variant="outline">System</Badge>
                 ) : isOwner && !isSelf ? (
                   <>
                     <Select
@@ -143,8 +143,8 @@ export function TeamPage() {
                       onChange={(e) => patchRole.mutate({ id: u.id, role: e.target.value })}
                       className="h-8 w-28"
                     >
-                      <option value="member">member</option>
-                      <option value="owner">owner</option>
+                      <option value="member">Member</option>
+                      <option value="owner">Owner</option>
                     </Select>
                     <Button
                       size="icon"
@@ -157,7 +157,7 @@ export function TeamPage() {
                     </Button>
                   </>
                 ) : (
-                  <Badge variant={u.role === "owner" ? "default" : "secondary"}>{u.role}</Badge>
+                  <Badge variant={u.role === "owner" ? "default" : "secondary"} className="capitalize">{u.role}</Badge>
                 )}
               </div>
             </Card>
@@ -209,8 +209,8 @@ export function TeamPage() {
             <div>
               <Label>Role</Label>
               <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                <option value="member">member</option>
-                <option value="owner">owner</option>
+                <option value="member">Member</option>
+                <option value="owner">Owner</option>
               </Select>
             </div>
             <div className="flex justify-end gap-2">

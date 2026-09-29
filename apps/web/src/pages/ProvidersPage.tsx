@@ -28,9 +28,11 @@ import {
   Radio,
   SlidersHorizontal,
   Compass,
+  Server,
 } from "lucide-react";
 import { api } from "../api/client.js";
 import { PageHeader } from "../components/PageHeader";
+import { StatCard } from "../components/StatCard";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -398,13 +400,13 @@ export function ProvidersPage() {
   }, [providers, searchQuery, selectedModality]);
 
   const getProviderIcon = (providerType: string, capKey?: string) => {
-    if (providerType.includes("ollama")) return <Cpu className="h-5 w-5 text-indigo-500" />;
-    if (providerType.includes("openai") || providerType.includes("groq")) return <Sparkles className="h-5 w-5 text-emerald-500" />;
-    if (providerType.includes("gemini")) return <Zap className="h-5 w-5 text-blue-500" />;
-    if (providerType.includes("anthropic")) return <Bot className="h-5 w-5 text-amber-500" />;
-    if (providerType.includes("stability") || capKey === "image-generation") return <ImageIcon className="h-5 w-5 text-pink-500" />;
-    if (capKey === "audio-generation") return <Volume2 className="h-5 w-5 text-purple-500" />;
-    if (capKey === "web-search") return <Compass className="h-5 w-5 text-orange-500" />;
+    if (providerType.includes("ollama")) return <Cpu className="h-5 w-5 text-primary" />;
+    if (providerType.includes("openai") || providerType.includes("groq")) return <Sparkles className="h-5 w-5 text-success" />;
+    if (providerType.includes("gemini")) return <Zap className="h-5 w-5 text-chart-3" />;
+    if (providerType.includes("anthropic")) return <Bot className="h-5 w-5 text-warning" />;
+    if (providerType.includes("stability") || capKey === "image-generation") return <ImageIcon className="h-5 w-5 text-primary" />;
+    if (capKey === "audio-generation") return <Volume2 className="h-5 w-5 text-primary" />;
+    if (capKey === "web-search") return <Compass className="h-5 w-5 text-warning" />;
     return <Layers className="h-5 w-5 text-primary" />;
   };
 
@@ -412,19 +414,12 @@ export function ProvidersPage() {
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* Top Header */}
       <PageHeader
-        title={
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
-              <Cpu className="h-5 w-5" />
-            </div>
-            <span>Providers &amp; Dynamic Models</span>
-          </div>
-        }
-        description="Manage AI providers, local inference engines (Ollama, vLLM), and discover available models. Set your active default model for each capability."
+        title="AI Providers"
+        description="Connect hosted and local AI providers, discover their models, and pick the default for each capability."
         actions={
           <Button
             onClick={openAddModal}
-            className="gap-2 shadow-sm font-medium bg-primary hover:bg-primary/90 text-primary-foreground"
+            className="gap-2"
           >
             <Plus className="h-4 w-4" />
             Register AI Provider
@@ -433,48 +428,17 @@ export function ProvidersPage() {
       />
 
       {/* Metrics Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <Card className="border border-border/60 bg-card/60 backdrop-blur-sm p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Configured Providers</span>
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1.5">{totalProviders}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">Active AI endpoints &amp; engines</div>
-        </Card>
-
-        <Card className="border border-border/60 bg-card/60 backdrop-blur-sm p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Available Models</span>
-            <Layers className="h-4 w-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1.5">{totalDiscoveredModels}</div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">Synced across all endpoints</div>
-        </Card>
-
-        <Card className="border border-border/60 bg-card/60 backdrop-blur-sm p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Primary Text Model</span>
-            <Bot className="h-4 w-4 text-emerald-500" />
-          </div>
-          <div className="text-sm font-semibold tracking-tight text-foreground mt-2 truncate font-mono" title={defaultTextModel}>
-            {defaultTextModel}
-          </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
-            Provider: {defaultTextProvider?.name || "None set"}
-          </div>
-        </Card>
-
-        <Card className="border border-border/60 bg-card/60 backdrop-blur-sm p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Capabilities Covered</span>
-            <Sparkles className="h-4 w-4 text-purple-500" />
-          </div>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1.5">
-            {capabilities?.length || 4}
-          </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">Text, Image, Audio &amp; Search</div>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Server} label="Configured Providers" value={totalProviders} sub="Active AI endpoints & engines" />
+        <StatCard icon={Layers} label="Available Models" value={totalDiscoveredModels} sub="Synced across all endpoints" color="hsl(var(--chart-3))" />
+        <StatCard
+          icon={Bot}
+          label="Primary Text Model"
+          value={<span className="block truncate font-mono text-base" title={defaultTextModel}>{defaultTextModel}</span>}
+          sub={`Provider: ${defaultTextProvider?.name || "None set"}`}
+          color="hsl(var(--chart-2))"
+        />
+        <StatCard icon={Sparkles} label="Capabilities Covered" value={capabilities?.length || 4} sub="Text, image, audio & search" color="hsl(var(--chart-4))" />
       </div>
 
       {/* Search & Modality Filter Bar */}
@@ -513,8 +477,8 @@ export function ProvidersPage() {
 
       {isLoading && (
         <div className="space-y-4">
-          <Skeleton className="h-36 w-full rounded-2xl" />
-          <Skeleton className="h-36 w-full rounded-2xl" />
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="h-36 w-full rounded-xl" />
         </div>
       )}
 
@@ -544,7 +508,7 @@ export function ProvidersPage() {
           return (
             <div
               key={p.id}
-              className="rounded-2xl border border-border/70 bg-card/90 overflow-hidden shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-200"
+              className="rounded-lg border border-border/70 bg-card overflow-hidden hover:border-primary/40 transition-all duration-200"
             >
               {/* Top Card Row */}
               <div className="p-5">
@@ -557,10 +521,10 @@ export function ProvidersPage() {
 
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-foreground text-base tracking-tight truncate">{p.name}</h3>
+                        <h3 className="text-sm font-semibold text-foreground tracking-tight truncate">{p.name}</h3>
                         
                         {hasMultipleInCap && p.isDefault && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-warning bg-warning/10 px-2 py-0.5 rounded-full border border-warning/20">
                             <Star className="h-3 w-3 fill-current" /> Active {p.capability?.label || "Default"}
                           </span>
                         )}
@@ -570,11 +534,11 @@ export function ProvidersPage() {
                         </Badge>
 
                         {p.hasSecret ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success bg-success/10 px-2 py-0.5 rounded-full border border-success/20">
                             <KeyRound className="h-2.5 w-2.5" /> Key Configured
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-chart-3 bg-chart-3/10 px-2 py-0.5 rounded-full border border-chart-3/20">
                             <ShieldCheck className="h-2.5 w-2.5" /> Local / Public
                           </span>
                         )}
@@ -628,7 +592,7 @@ export function ProvidersPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 text-xs text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                        className="h-8 text-xs text-muted-foreground hover:text-warning hover:bg-warning/10"
                         onClick={() => setDefaultProvider.mutate(p.id)}
                         disabled={setDefaultProvider.isPending}
                         title={`Set as default provider for ${p.capability?.label || "this capability"}`}
@@ -790,7 +754,7 @@ export function ProvidersPage() {
                                 {isDefault ? (
                                   <span
                                     title="Active Default Model"
-                                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/15 dark:text-emerald-400 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30"
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-success bg-success/15 px-2 py-0.5 rounded-full border border-success/30"
                                   >
                                     <Check className="h-2.5 w-2.5" /> Default
                                   </span>
@@ -800,7 +764,7 @@ export function ProvidersPage() {
                                     title="Set as active default model"
                                     onClick={() => setDefaultModel.mutate({ providerId: p.id, modelId: m.modelId })}
                                     disabled={setDefaultModel.isPending}
-                                    className="px-2 py-0.5 rounded text-[11px] font-medium text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors border border-border/40 hover:border-amber-500/30 flex items-center gap-1"
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors border border-border/40 hover:border-warning/30 flex items-center gap-1"
                                   >
                                     <Star className="h-3 w-3" />
                                     <span>Set</span>
@@ -824,10 +788,10 @@ export function ProvidersPage() {
                             </div>
 
                             {/* Specs Strip (Context window, Speed, Params, Pricing) */}
-                            <div className="flex items-center gap-1.5 flex-wrap text-[10px] pt-1">
+                            <div className="flex items-center gap-1.5 flex-wrap text-[11px] pt-1">
                               {m.contextLength ? (
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/80 text-foreground font-mono text-[10px] border border-border/40"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary/80 text-foreground font-mono text-[11px] border border-border/40"
                                   title={`Context Window: ${m.contextLength.toLocaleString()} tokens`}
                                 >
                                   <Layers className="h-2.5 w-2.5 text-primary" />
@@ -839,7 +803,7 @@ export function ProvidersPage() {
 
                               {speedText ? (
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium text-[10px] border border-amber-500/20"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-warning/10 text-warning font-medium text-[11px] border border-warning/20"
                                   title="Inference Throughput"
                                 >
                                   <Zap className="h-2.5 w-2.5 fill-current" />
@@ -849,7 +813,7 @@ export function ProvidersPage() {
 
                               {paramText ? (
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-medium text-[10px] border border-indigo-500/20"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium text-[11px] border border-primary/20"
                                   title="Model Parameters"
                                 >
                                   <Cpu className="h-2.5 w-2.5" />
@@ -859,7 +823,7 @@ export function ProvidersPage() {
 
                               {quantText ? (
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-muted-foreground font-mono text-[10px] border border-border/30"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-muted-foreground font-mono text-[11px] border border-border/30"
                                   title="Format & Quantization"
                                 >
                                   {quantText}
@@ -868,7 +832,7 @@ export function ProvidersPage() {
 
                               {pricingText ? (
                                 <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] border border-emerald-500/20"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-success/10 text-success font-mono text-[11px] border border-success/20"
                                   title="Cost Tier"
                                 >
                                   {pricingText}
@@ -877,7 +841,7 @@ export function ProvidersPage() {
                             </div>
 
                             {/* Modalities & Context Footer */}
-                            <div className="space-y-1.5 pt-2 border-t border-border/30 text-[10px]">
+                            <div className="space-y-1.5 pt-2 border-t border-border/30 text-[11px]">
                               {m.inputTypes && m.inputTypes.length > 0 && (
                                 <div className="flex items-center justify-between gap-1">
                                   <span className="text-muted-foreground font-medium">Input:</span>
@@ -885,7 +849,7 @@ export function ProvidersPage() {
                                     {m.inputTypes.map((t) => (
                                       <span
                                         key={t}
-                                        className="px-1.5 py-0.5 rounded bg-secondary/80 text-foreground font-medium capitalize text-[10px] border border-border/40"
+                                        className="px-1.5 py-0.5 rounded bg-secondary/80 text-foreground font-medium capitalize text-[11px] border border-border/40"
                                       >
                                         {t}
                                       </span>
@@ -901,7 +865,7 @@ export function ProvidersPage() {
                                     {m.outputTypes.map((t) => (
                                       <span
                                         key={t}
-                                        className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium capitalize text-[10px] border border-primary/20"
+                                        className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium capitalize text-[11px] border border-primary/20"
                                       >
                                         {t}
                                       </span>
@@ -942,8 +906,8 @@ export function ProvidersPage() {
         })}
 
         {(!filteredProviders || filteredProviders.length === 0) && (
-          <div className="p-12 text-center border border-dashed rounded-2xl bg-card/30 space-y-3.5">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20">
+          <div className="p-12 text-center border border-dashed rounded-xl bg-card/30 space-y-3.5">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
               <Cpu className="h-6 w-6" />
             </span>
             <div>
@@ -964,10 +928,10 @@ export function ProvidersPage() {
       {/* REGISTER PROVIDER MODAL DIALOG */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
-          <Card className="w-full max-w-2xl border-primary/30 shadow-2xl bg-card/95 backdrop-blur-md rounded-2xl overflow-hidden">
+          <Card className="w-full max-w-2xl border-primary/30 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
                   <Cpu className="h-5 w-5 text-primary" /> Register AI Provider
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -1143,10 +1107,10 @@ export function ProvidersPage() {
       {/* EDIT PROVIDER MODAL DIALOG */}
       {editingProvider && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
-          <Card className="w-full max-w-xl border-primary/40 shadow-2xl bg-card/95 backdrop-blur-md rounded-2xl overflow-hidden">
+          <Card className="w-full max-w-xl border-primary/40 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
                   <Pencil className="h-4 w-4 text-primary" /> Edit Provider: {editingProvider.name}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -1186,7 +1150,7 @@ export function ProvidersPage() {
                       <button
                         type="button"
                         onClick={() => setIsCustomModelMode(!isCustomModelMode)}
-                        className="text-[10px] text-primary hover:underline"
+                        className="text-[11px] text-primary hover:underline"
                       >
                         {isCustomModelMode ? "Choose from list" : "Enter custom model ID"}
                       </button>
@@ -1240,7 +1204,7 @@ export function ProvidersPage() {
                   <div className="flex items-center justify-between mb-1">
                     <Label className="text-xs">API Key / Secret</Label>
                     {editingProvider.hasSecret && (
-                      <span className="text-[10px] text-muted-foreground">A key is saved</span>
+                      <span className="text-[11px] text-muted-foreground">A key is saved</span>
                     )}
                   </div>
                   <div className="relative">
@@ -1298,10 +1262,10 @@ export function ProvidersPage() {
       {/* ADD CUSTOM MODEL MODAL DIALOG */}
       {addModelForProvider && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
-          <Card className="w-full max-w-lg border-primary/30 shadow-2xl bg-card/95 backdrop-blur-md rounded-2xl overflow-hidden">
+          <Card className="w-full max-w-lg border-primary/30 shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border/50 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
                   <Cpu className="h-5 w-5 text-primary" /> Register Custom Model
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">

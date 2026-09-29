@@ -3,7 +3,7 @@ import { prisma } from "../../db/client.js";
 import { createTemplate, handleWorkflowSettled, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
 import { addSchedule, removeSchedule, ScheduleError } from "./scheduler.js";
 import type { TemplateStepInput } from "./types.js";
-import { authorize } from "../../auth/access.js";
+import { authorize, viaProject } from "../../auth/access.js";
 import { WorkflowError } from "../workflows/service.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
 
@@ -33,6 +33,24 @@ interface TemplateBody {
 }
 
 export async function templatesRoutes(app: FastifyInstance) {
+  // Cross-project workflow library (scoped to what the caller may see), with
+  // enough summary to render the list in one request: steps, project, recent
+  // runs and active schedules.
+  app.get<{ Querystring: { projectId?: string } }>("/templates", async (req) => {
+    const templates = await prisma.template.findMany({
+      where: { ...viaProject(req), ...(req.query.projectId ? { projectId: req.query.projectId } : {}) },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        project: { select: { id: true, name: true } },
+        steps: { orderBy: { stepOrder: "asc" }, select: { stepOrder: true, agentId: true, inputMapping: true } },
+        runs: { orderBy: { createdAt: "desc" }, take: 8, select: { id: true, status: true, createdAt: true, updatedAt: true } },
+        schedules: { where: { isActive: true }, select: { id: true, cronExpr: true } },
+        _count: { select: { runs: true } },
+      },
+    });
+    return templates.map(({ _count, ...t }) => ({ ...t, runCount: _count.runs }));
+  });
+
   app.get<{ Params: { id: string } }>("/projects/:id/templates", async (req, reply) => {
     if (!(await authorize(req, reply, "project", req.params.id))) return;
     return prisma.template.findMany({ where: { projectId: req.params.id }, orderBy: { createdAt: "desc" } });

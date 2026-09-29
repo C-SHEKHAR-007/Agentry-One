@@ -10,11 +10,11 @@ export function NotificationDropdown() {
 
   const getIconForType = (type: NotificationType) => {
     switch (type) {
-      case "success": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "error": return <XCircle className="h-4 w-4 text-red-500" />;
-      case "warning": return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+      case "success": return <CheckCircle2 className="h-4 w-4 text-success" />;
+      case "error": return <XCircle className="h-4 w-4 text-destructive" />;
+      case "warning": return <AlertTriangle className="h-4 w-4 text-warning" />;
       case "info":
-      default: return <Info className="h-4 w-4 text-blue-500" />;
+      default: return <Info className="h-4 w-4 text-chart-3" />;
     }
   };
 
@@ -34,13 +34,13 @@ export function NotificationDropdown() {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         aria-label="Notifications"
         aria-expanded={open}
       >
         <Bell className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute right-1.5 top-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+          <span className="absolute right-1.5 top-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
@@ -79,7 +79,7 @@ export function NotificationDropdown() {
                       if (notification.link) setOpen(false);
                     }}
                     className={`flex items-start gap-3 px-3 py-2.5 rounded-lg transition-colors cursor-pointer ${
-                      notification.read ? "opacity-75 hover:bg-white/5" : "bg-primary/5 hover:bg-primary/10"
+                      notification.read ? "opacity-75 hover:bg-muted/60" : "bg-primary/5 hover:bg-primary/10"
                     }`}
                   >
                     <div className="mt-0.5">{getIconForType(notification.type)}</div>
@@ -88,7 +88,7 @@ export function NotificationDropdown() {
                         <span className={`text-sm truncate ${!notification.read ? "font-semibold" : "font-medium"}`}>
                           {notification.title}
                         </span>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                           {formatTime(notification.createdAt)}
                         </span>
                       </div>

@@ -153,7 +153,7 @@ export function TemplateRunPage() {
                     ))}
                   </Select>
                   {(!socialAccounts || socialAccounts.length === 0) && (
-                    <p className="text-xs text-amber-500">
+                    <p className="text-xs text-warning">
                       No social accounts connected in this project.{" "}
                       <Link to="/integrations" className="underline font-semibold">
                         Connect one in Integrations

@@ -11,7 +11,6 @@ import {
   Play,
   Plug,
   Sparkles,
-  Star,
   Video as VideoIcon,
 } from "lucide-react";
 import { api } from "../api/client.js";
@@ -83,7 +82,7 @@ function RecentOutputItem({
             <Headphones className="h-6 w-6" />
           </span>
           <span className="text-xs font-medium truncate capitalize">{kind}</span>
-          <span className="text-[10px] text-muted-foreground">Audio Track</span>
+          <span className="text-[11px] text-muted-foreground">Audio Track</span>
         </div>
       ) : isText ? (
         <div className="aspect-square w-full p-3.5 bg-secondary/15 flex flex-col justify-between overflow-hidden">
@@ -94,7 +93,7 @@ function RecentOutputItem({
           <p className="font-mono text-[11px] text-foreground/80 line-clamp-4 leading-snug bg-background/60 p-2 rounded border border-border/40">
             {metadata?.preview || "Generated text response..."}
           </p>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Document</span>
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Document</span>
         </div>
       ) : isVideo ? (
         <div className="aspect-square w-full p-4 bg-secondary/20 flex flex-col items-center justify-center gap-2 text-center">
@@ -102,12 +101,12 @@ function RecentOutputItem({
             <VideoIcon className="h-6 w-6" />
           </span>
           <span className="text-xs font-medium truncate capitalize">{kind}</span>
-          <span className="text-[10px] text-muted-foreground">Video MP4</span>
+          <span className="text-[11px] text-muted-foreground">Video MP4</span>
         </div>
       ) : (
         <div className="aspect-square w-full p-4 bg-secondary/20 flex flex-col items-center justify-center gap-2 text-center">
           <span className="text-xs font-medium truncate capitalize">{kind}</span>
-          <span className="text-[10px] text-muted-foreground">{mimeType}</span>
+          <span className="text-[11px] text-muted-foreground">{mimeType}</span>
         </div>
       )}
     </Link>
@@ -153,27 +152,18 @@ export function AgentDetailPage() {
     <div className="space-y-6">
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-        <Card glass className="relative overflow-hidden p-6 sm:p-8">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/15 via-transparent to-chart-3/10" />
+        <Card glass className="relative overflow-hidden p-5">
           <div className="relative flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-start gap-4">
-              <span className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                <Sparkles className="h-7 w-7" />
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <Sparkles className="h-5 w-5" />
               </span>
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-2xl font-semibold tracking-tight">{agent.name}</h1>
+                  <h1 className="text-lg font-semibold tracking-tight">{agent.name}</h1>
                   <Badge variant="success">Installed</Badge>
-                  <span className="flex items-center gap-0.5">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-3.5 w-3.5 ${i < 4 ? "fill-warning text-warning" : "text-muted-foreground/40"}`}
-                      />
-                    ))}
-                  </span>
                 </div>
-                <p className="mt-1 max-w-xl text-muted-foreground">{agent.description}</p>
+                <p className="mt-1 max-w-xl text-sm text-muted-foreground">{agent.description}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   v{agent.version}
                   {stats?.lastRunAt ? ` · last run ${timeAgo(stats.lastRunAt)}` : ""}
@@ -181,7 +171,7 @@ export function AgentDetailPage() {
               </div>
             </div>
             <Link to={`/agents/${agent.id}/submit`}>
-              <Button size="lg">
+              <Button>
                 <Play className="h-4 w-4" /> Run this agent
               </Button>
             </Link>
@@ -218,7 +208,7 @@ export function AgentDetailPage() {
         {capability && (
           <Card glass>
             <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Providers · {capability}</CardTitle>
+              <CardTitle>Providers · {capability}</CardTitle>
               <Link to="/providers" className="text-xs text-muted-foreground hover:text-primary">
                 Manage
               </Link>
@@ -242,7 +232,7 @@ export function AgentDetailPage() {
                   <span className="flex items-center gap-2">
                     {p.isDefault && <Badge>default</Badge>}
                     {p.hasSecret && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[11px]">
                         key set
                       </Badge>
                     )}
@@ -256,7 +246,7 @@ export function AgentDetailPage() {
         {/* Steps */}
         <Card glass>
           <CardHeader>
-            <CardTitle className="text-base">Workflow Steps</CardTitle>
+            <CardTitle>Workflow Steps</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {agent.manifest.steps.map((step) => (
@@ -284,7 +274,7 @@ export function AgentDetailPage() {
       {recentOutputs.length > 0 && (
         <Card glass>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Recent Outputs</CardTitle>
+            <CardTitle>Recent Outputs</CardTitle>
             <Link to="/artifacts" className="text-xs text-muted-foreground hover:text-primary">
               View all
             </Link>

@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { E2E_EMAIL } from "./env";
 
 test("dashboard loads for a signed-in user", async ({ page }) => {
   const errors: string[] = [];
@@ -7,8 +6,8 @@ test("dashboard loads for a signed-in user", async ({ page }) => {
 
   await page.goto("/");
   await expect(page).toHaveTitle(/Agentry/i);
-  // The user menu shows who is signed in.
-  await expect(page.getByRole("button", { name: new RegExp(E2E_EMAIL.split("@")[0], "i") })).toBeVisible();
+  // The account menu is present once signed in.
+  await expect(page.getByRole("button", { name: /^Account menu/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -19,5 +18,5 @@ test("unknown routes show a not-found page instead of an empty layout", async ({
 
 test("a missing workflow shows not-found instead of loading forever", async ({ page }) => {
   await page.goto("/workflows/00000000-0000-0000-0000-000000000000");
-  await expect(page.getByText("This workflow doesn't exist")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("This run doesn't exist")).toBeVisible({ timeout: 10_000 });
 });

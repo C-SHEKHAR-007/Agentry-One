@@ -101,7 +101,7 @@ export function ProjectPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Templates</CardTitle>
+          <CardTitle>Templates</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {templates?.length === 0 && (
@@ -114,7 +114,7 @@ export function ProjectPage() {
               key={t.id}
               className="flex items-center justify-between rounded-md border border-border px-4 py-3 transition-colors hover:border-primary/40"
             >
-              <Link to={`/templates/${t.id}/edit`} className="min-w-0 flex-1 truncate font-medium hover:text-primary">
+              <Link to={`/templates/${t.id}/edit`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-primary">
                 {t.name}
               </Link>
               <div className="flex items-center gap-3">
@@ -133,7 +133,7 @@ export function ProjectPage() {
       {recentArtifacts.length > 0 && (
         <Card glass>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Recent Artifacts</CardTitle>
+            <CardTitle>Recent Artifacts</CardTitle>
             <Link to="/artifacts" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary">
               <FileStack className="h-3.5 w-3.5" /> View all
             </Link>
@@ -161,18 +161,18 @@ export function ProjectPage() {
                     ) : isAudio ? (
                       <div className="aspect-square w-full p-2 bg-secondary/20 flex flex-col items-center justify-center text-center gap-1">
                         <Headphones className="h-5 w-5 text-primary" />
-                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
+                        <span className="text-[11px] font-medium truncate capitalize">{a.kind}</span>
                       </div>
                     ) : isText ? (
                       <div className="aspect-square w-full p-2.5 bg-secondary/15 flex flex-col justify-between overflow-hidden">
                         <FileText className="h-4 w-4 text-primary" />
-                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
-                        <span className="text-[9px] text-muted-foreground uppercase">Doc</span>
+                        <span className="text-[11px] font-medium truncate capitalize">{a.kind}</span>
+                        <span className="text-[11px] text-muted-foreground uppercase">Doc</span>
                       </div>
                     ) : (
                       <div className="aspect-square w-full p-2 bg-secondary/20 flex flex-col items-center justify-center text-center gap-1">
                         <FileStack className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-[10px] font-medium truncate capitalize">{a.kind}</span>
+                        <span className="text-[11px] font-medium truncate capitalize">{a.kind}</span>
                       </div>
                     )}
                   </Link>

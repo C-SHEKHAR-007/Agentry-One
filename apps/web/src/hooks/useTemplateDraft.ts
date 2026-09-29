@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../api/client";
@@ -16,16 +16,33 @@ export interface StepDraft {
 interface AgentSummary {
   id: string;
   name: string;
+  description?: string;
+}
+
+/** The subset of JSON Schema the editor renders fields from. */
+export interface FieldSchema {
+  type?: string;
+  title?: string;
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
 }
 
 export interface AgentManifestDetail {
   id: string;
   name: string;
+  description?: string;
   manifest: {
     steps: Array<{
       key: string;
+      name?: string;
+      requiresCapability?: string;
+      requiresSocialAccount?: boolean;
       producesArtifactKinds: string[];
-      inputSchema: { properties?: Record<string, unknown> };
+      consumesArtifactKinds?: string[];
+      inputSchema: { properties?: Record<string, FieldSchema>; required?: string[] };
     }>;
   };
 }
@@ -45,13 +62,14 @@ export function emptyStep(order: number): StepDraft {
  * the canvas view bind to this hook's state and helpers. */
 export function useTemplateDraft(templateId: string | undefined, projectIdFromQuery: string) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isNew = templateId === undefined;
 
   const { data: agents } = useQuery({
     queryKey: ["agents"],
     queryFn: () => api.get<AgentSummary[]>("/agents"),
   });
-  const { data: existing } = useQuery({
+  const { data: existing, isError: loadFailed } = useQuery({
     queryKey: ["template", templateId],
     queryFn: () => api.get<TemplateDetail>(`/templates/${templateId}`),
     enabled: !isNew,
@@ -61,12 +79,28 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
   const [steps, setSteps] = useState<StepDraft[]>([emptyStep(0)]);
   const [serverErrors, setServerErrors] = useState<string[]>([]);
 
+  // What's on the server -- the draft is "dirty" when it differs.
+  const [baseline, setBaseline] = useState(() => JSON.stringify({ name: "", steps: [emptyStep(0)] }));
+
   useEffect(() => {
     if (existing) {
       setName(existing.name);
       setSteps(existing.steps.map((s) => ({ ...s })));
+      setBaseline(JSON.stringify({ name: existing.name, steps: existing.steps }));
     }
   }, [existing]);
+
+  const isDirty = JSON.stringify({ name, steps }) !== baseline;
+
+  // Warn before closing the tab or reloading with unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
   // Manifest cache for every agent referenced by any step -- powers field
   // lists, producesArtifactKinds, and live validation.
@@ -116,8 +150,11 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
     },
     onSuccess: (template) => {
       setServerErrors([]);
-      toast.success("Template saved");
-      navigate(`/templates/${template.id}/edit`);
+      setBaseline(JSON.stringify({ name, steps }));
+      // Workflow lists (library, project page) show names and steps.
+      queryClient.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Workflow saved");
+      if (isNew) navigate(`/templates/${template.id}/edit`, { replace: true });
     },
     onError: (err: Error) => setServerErrors(err.message.split("; ")),
   });
@@ -134,12 +171,17 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
     );
   }
 
-  function addStep() {
+  /** Appends a step and returns its stepOrder. */
+  function addStep(): number {
+    const order = steps.length;
     setSteps((prev) => [...prev, emptyStep(prev.length)]);
+    return order;
   }
 
   /** Remove a step and renumber; fromStep refs to later steps follow their
-   * target, refs to the removed step go dangling and surface as live errors. */
+   * target. Refs to the removed step are pointed at -1 (no such step) so they
+   * surface as errors -- keeping the old number would silently rewire them to
+   * whichever step now has that number. */
   function removeStep(index: number) {
     setSteps((prev) => {
       const removedOrder = prev[index]?.stepOrder;
@@ -151,7 +193,7 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
         inputMapping: Object.fromEntries(
           Object.entries(s.inputMapping).map(([field, v]) => {
             if (v.kind !== "fromStep") return [field, v];
-            if (v.stepOrder === removedOrder) return [field, v]; // dangling -> flagged
+            if (v.stepOrder === removedOrder) return [field, { ...v, stepOrder: -1 }]; // dangling -> flagged
             return [field, { ...v, stepOrder: orderMap.get(v.stepOrder) ?? v.stepOrder }];
           }),
         ),
@@ -172,6 +214,9 @@ export function useTemplateDraft(templateId: string | undefined, projectIdFromQu
     removeStep,
     liveErrors,
     serverErrors,
+    isDirty,
+    existingLoaded: isNew || Boolean(existing),
+    loadFailed,
     save,
     targetProjectId,
     templateId,

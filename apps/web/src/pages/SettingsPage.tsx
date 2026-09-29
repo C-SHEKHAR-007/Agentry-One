@@ -63,7 +63,7 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Platform</CardTitle>
+          <CardTitle>Platform</CardTitle>
           <CardDescription>
             {version ? `${version.name} v${version.version}` : "…"}
           </CardDescription>
@@ -75,7 +75,7 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Appearance</CardTitle>
+          <CardTitle>Appearance</CardTitle>
           <CardDescription>Theme preference is stored in this browser.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,7 +106,7 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Pricing</CardTitle>
+          <CardTitle>Pricing</CardTitle>
           <CardDescription>Per-job prices used by the Cost Monitor.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -116,7 +116,7 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Billing & Workspaces</CardTitle>
+          <CardTitle>Billing & Workspaces</CardTitle>
           <CardDescription>Manage your subscription and Stripe payment methods.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -126,7 +126,7 @@ export function SettingsPage() {
                 <p className="font-semibold text-sm">Current Plan: Pro (Agency)</p>
                 <p className="text-xs text-muted-foreground mt-1">10,000 AI Executions / mo</p>
               </div>
-              <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Active</Badge>
+              <Badge className="bg-success/10 text-success border-success/20">Active</Badge>
             </div>
             
             <div className="flex items-center gap-3">
@@ -143,7 +143,7 @@ export function SettingsPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Global settings</CardTitle>
+          <CardTitle>Global settings</CardTitle>
           <CardDescription>
             Raw key/value store (scoped global). Values are JSON — strings can be entered directly.
           </CardDescription>

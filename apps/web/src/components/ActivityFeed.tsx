@@ -101,7 +101,7 @@ export function ActivityFeed({ events }: { events: EventItem[] }) {
         const subtitle = [e.agentId, e.projectName].filter(Boolean).join(" · ") || "—";
 
         const body = (
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-white/5">
+          <div className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60">
             {/* Colored indicator dot */}
             <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
             {/* Icon square */}
@@ -111,10 +111,10 @@ export function ActivityFeed({ events }: { events: EventItem[] }) {
             {/* Text */}
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium leading-snug">{meta.label}</p>
-              <p className="truncate text-[10px] text-muted-foreground leading-snug">{subtitle}</p>
+              <p className="truncate text-[11px] text-muted-foreground leading-snug">{subtitle}</p>
             </div>
             {/* Time */}
-            <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
+            <span className="shrink-0 text-[11px] text-muted-foreground whitespace-nowrap">
               {timeAgo(e.createdAt)}
             </span>
           </div>

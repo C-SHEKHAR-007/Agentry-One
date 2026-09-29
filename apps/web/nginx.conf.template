@@ -1,5 +1,5 @@
 server {
-    listen 8080;
+    listen ${WEB_LISTEN_PORT};
     server_tokens off;
 
     root /usr/share/nginx/html;

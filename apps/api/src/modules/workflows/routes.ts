@@ -107,9 +107,27 @@ export async function workflowsRoutes(app: FastifyInstance) {
     if (!(await authorize(req, reply, "workflow", req.params.id))) return;
     const workflow = await prisma.workflow.findUnique({
       where: { id: req.params.id },
-      include: { steps: { orderBy: { sequence: "asc" }, include: { job: true, artifacts: true } } },
+      include: {
+        project: { select: { id: true, name: true } },
+        agent: { select: { id: true, name: true, description: true } },
+        steps: {
+          orderBy: { sequence: "asc" },
+          include: {
+            // Attempts carry timings and the failure reason, so the page can
+            // say *why* a run failed rather than just that it did.
+            job: { include: { runs: { orderBy: { attemptNumber: "asc" } } } },
+            artifacts: true,
+          },
+        },
+      },
     });
     if (!workflow) return reply.code(404).send({ error: "workflow_not_found" });
+
+    // Runs started by a multi-step workflow link back to it.
+    const parent = await prisma.templateRunStep.findFirst({
+      where: { workflowId: workflow.id },
+      select: { templateRun: { select: { id: true, template: { select: { id: true, name: true } } } } },
+    });
 
     const stepsWithUrls = await Promise.all(
       workflow.steps.map(async (step) => ({
@@ -117,7 +135,11 @@ export async function workflowsRoutes(app: FastifyInstance) {
         artifacts: await Promise.all(step.artifacts.map(withArtifactUrls)),
       })),
     );
-    return { ...workflow, steps: stepsWithUrls };
+    return {
+      ...workflow,
+      steps: stepsWithUrls,
+      templateRun: parent ? { id: parent.templateRun.id, templateId: parent.templateRun.template.id, templateName: parent.templateRun.template.name } : null,
+    };
   });
 
   app.get<{ Params: { id: string } }>("/workflows/:id/steps", async (req, reply) => {

@@ -128,39 +128,33 @@ export function AgentsPage() {
     <div className="space-y-6">
       <PageHeader
         title="AI Agents"
-        description="Discover, orchestrate, and create custom AI agents & skills. Configure prompts, modalities, models, and execution human review gates."
+        description="The agents your workflows run, plus custom agents you create."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {activeTab === "workers" ? (
               <Button
                 variant="secondary"
-                size="sm"
                 onClick={() => rescan.mutate()}
                 disabled={rescan.isPending}
-                className="text-xs"
               >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${rescan.isPending ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-4 w-4 ${rescan.isPending ? "animate-spin" : ""}`} />
                 Rescan Registry
               </Button>
             ) : (
               <Button
                 variant="outline"
-                size="sm"
                 onClick={() => setScaffoldOpen(true)}
-                className="text-xs text-muted-foreground hover:text-foreground"
                 title="Generate boilerplate Python agent files in the repo"
               >
-                <Code2 className="h-3.5 w-3.5 mr-1.5" />
+                <Code2 className="h-4 w-4" />
                 Scaffold Code
               </Button>
             )}
 
             <Button
-              size="sm"
               onClick={() => navigate("/agents/create-skill")}
-              className="bg-primary hover:bg-primary/90 text-xs shadow-sm"
             >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              <Plus className="h-4 w-4" />
               Create Agent
             </Button>
           </div>
@@ -175,8 +169,8 @@ export function AgentsPage() {
           tabs={[
             { id: "all", label: "All Agents", icon: Layers, count: (agents?.length ?? 0) + comingSoonAgents.length },
             { id: "installed", label: "Installed", icon: Bot, count: agents?.length ?? 0 },
-            { id: "custom", label: "Custom", icon: Sparkles, iconColor: "text-purple-400", count: agents?.filter((a) => a.id.startsWith("custom-")).length ?? 0 },
-            { id: "workers", label: "Worker Diagnostics", icon: Activity, iconColor: "text-emerald-400" }
+            { id: "custom", label: "Custom", icon: Sparkles, iconColor: "text-primary", count: agents?.filter((a) => a.id.startsWith("custom-")).length ?? 0 },
+            { id: "workers", label: "Worker Diagnostics", icon: Activity, iconColor: "text-success" }
           ]}
         />
 
@@ -201,7 +195,7 @@ export function AgentsPage() {
             <Card className="glass-panel">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-emerald-400" /> System &amp; Worker Health
+                  <Activity className="h-4 w-4 text-success" /> System &amp; Worker Health
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Heartbeat state of supervised worker runner processes connected to Redis queues.
@@ -289,7 +283,7 @@ export function AgentsPage() {
       <Dialog open={scaffoldOpen} onOpenChange={setScaffoldOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2">
               <Code2 className="h-4 w-4 text-primary" /> Scaffold Python Worker on Disk
             </DialogTitle>
           </DialogHeader>
@@ -433,7 +427,7 @@ export function AgentsPage() {
       <Dialog open={scaffoldResult != null} onOpenChange={(open) => !open && setScaffoldResult(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-base">Agent files created!</DialogTitle>
+            <DialogTitle>Agent files created!</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 text-xs">
             <p>Boilerplate files were written into the repository:</p>

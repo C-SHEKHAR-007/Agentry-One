@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { prisma } from "../db/client.js";
-import { getQueueEvents } from "./queues.js";
+import { getQueue, getQueueEvents } from "./queues.js";
 import { publishJobEvent } from "./sse.js";
 import { resolveArtifactPath } from "../modules/artifacts/storage.js";
 import { jobOutcomes, trackQueue } from "../http/metrics.js";
@@ -38,10 +38,24 @@ const wiredQueues = new Set<string>();
 /** QueueEvents is an EventEmitter: a rejected async listener becomes an
  * unhandled rejection, which terminates the Node process (and every open
  * request/SSE stream with it). Every handler goes through this. */
+// Events for one job must be applied in the order Redis delivered them
+// (active -> progress -> active (retry) -> failed). Handlers are async, so
+// without this a job's final "failed" could be written before its retry's
+// "active" -- leaving a phantom "running" attempt. Chain per job id.
+const jobChains = new Map<string, Promise<void>>();
+
 function safe<T extends { jobId: string }>(name: string, handler: (arg: T) => Promise<void>): (arg: T) => void {
   return (arg: T) => {
-    handler(arg).catch((err) => {
-      console.error(`[queue-listener] ${name} handler failed`, { jobId: arg.jobId, err });
+    const prev = jobChains.get(arg.jobId) ?? Promise.resolve();
+    const next = prev
+      .then(() => handler(arg))
+      .catch((err) => {
+        console.error(`[queue-listener] ${name} handler failed`, { jobId: arg.jobId, err });
+      });
+    jobChains.set(arg.jobId, next);
+    // Drop finished chains so the map doesn't grow with every job ever run.
+    void next.finally(() => {
+      if (jobChains.get(arg.jobId) === next) jobChains.delete(arg.jobId);
     });
   };
 }
@@ -78,7 +92,22 @@ async function claimTerminal(jobId: string, status: "completed" | "failed"): Pro
   return count === 1;
 }
 
-async function markJobFailed(jobId: string, failedReason: string, queueName: string): Promise<void> {
+/** Some BullMQ clients JSON-encode the failure reason ('"boom"'); unwrap it. */
+function cleanReason(reason: string | null | undefined): string {
+  const r = (reason ?? "").trim();
+  if (r.length >= 2 && r.startsWith('"') && r.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(r);
+      if (typeof parsed === "string") return parsed;
+    } catch {
+      /* not JSON -- keep as is */
+    }
+  }
+  return r;
+}
+
+async function markJobFailed(jobId: string, rawReason: string, queueName: string): Promise<void> {
+  const failedReason = cleanReason(rawReason) || "The job failed without a reason";
   const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { include: { workflow: { include: { project: true } } } } } });
   if (!job) return;
   if (!(await claimTerminal(jobId, "failed"))) return;
@@ -128,15 +157,36 @@ export function wireQueueListeners(queueName: string): void {
 
   const events = getQueueEvents(queueName);
 
-  events.on("active", safe("active", async ({ jobId }: { jobId: string }) => {
+  const onActive = safe("active", async ({ jobId, previousReason }: { jobId: string; previousReason: Promise<string | null> }) => {
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job) return;
+    // A new attempt starting means any earlier attempt still marked running
+    // was retried (QueueEvents emits no per-attempt "failed" event). Close it
+    // with the reason BullMQ recorded, so history never shows an attempt
+    // "running" forever.
+    const open = await prisma.jobRun.count({ where: { jobId, status: "running" } });
+    if (open > 0) {
+      await prisma.jobRun.updateMany({
+        where: { jobId, status: "running" },
+        data: { status: "failed", finishedAt: new Date(), error: { message: cleanReason(await previousReason) || "Attempt failed and was retried" } },
+      });
+    }
     const attemptNumber = (await prisma.jobRun.count({ where: { jobId } })) + 1;
     await prisma.jobRun.create({
       data: { jobId, attemptNumber, status: "running", startedAt: new Date() },
     });
     await prisma.workflowStep.update({ where: { id: job.workflowStepId }, data: { status: "running" } });
-  }));
+  });
+  events.on("active", ({ jobId }: { jobId: string }) => {
+    // Read the previous attempt's failure reason *now*, as the event arrives:
+    // by the time this job's queued handlers get to it, the job may already
+    // have failed again and been removed from Redis.
+    const previousReason = getQueue(queueName)
+      .getJob(jobId)
+      .then((j) => j?.failedReason || null)
+      .catch(() => null);
+    onActive({ jobId, previousReason });
+  });
 
   events.on("progress", safe("progress", async ({ jobId, data }: { jobId: string; data: unknown }) => {
     const progress = data as { percent?: number; message?: string };

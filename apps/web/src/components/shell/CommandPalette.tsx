@@ -109,7 +109,7 @@ export function CommandPalette({
             placeholder="Search pages, agents, projects..."
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
           />
-          <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+          <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground sm:block">
             ESC
           </kbd>
         </div>
@@ -123,7 +123,7 @@ export function CommandPalette({
             return (
               <div key={entry.to + entry.label}>
                 {showGroup && (
-                  <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                     {entry.group}
                   </p>
                 )}

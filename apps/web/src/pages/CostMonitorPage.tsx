@@ -87,7 +87,7 @@ export function CostMonitorPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <Card glass className="xl:col-span-2">
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Spend & savings per day</CardTitle>
+            <CardTitle>Spend & savings per day</CardTitle>
             <ChartLegend
               items={[
                 { label: "Spent (USD)", color: CHART.categorical[0] },
@@ -147,7 +147,7 @@ export function CostMonitorPage() {
 
         <Card glass>
           <CardHeader>
-            <CardTitle className="text-base">Jobs by provider</CardTitle>
+            <CardTitle>Jobs by provider</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-5">
             {data && data.perProvider.length === 0 && (
@@ -189,7 +189,7 @@ export function CostMonitorPage() {
 
       <Card glass>
         <CardHeader>
-          <CardTitle className="text-base">Pricing</CardTitle>
+          <CardTitle>Pricing</CardTitle>
         </CardHeader>
         <CardContent>
           <PricingEditor />
