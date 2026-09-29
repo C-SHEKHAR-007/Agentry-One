@@ -28,11 +28,11 @@ export function Topbar({
       {/* Search */}
       <button
         onClick={onOpenPalette}
-        className="hidden h-9 w-full max-w-sm items-center gap-2 rounded-lg border border-border/60 bg-white/5 px-3 text-sm text-muted-foreground transition-colors hover:bg-white/8 hover:border-border sm:flex"
+        className="hidden h-9 w-full max-w-sm items-center gap-2 rounded-lg border border-border/60 bg-muted/50 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:border-border sm:flex"
       >
         <Search className="h-4 w-4" />
         <span>Search anything...</span>
-        <kbd className="ml-auto flex items-center gap-0.5 rounded border border-border/60 bg-background/60 px-1.5 py-0.5 text-[10px]">
+        <kbd className="ml-auto flex items-center gap-0.5 rounded border border-border/60 bg-background/60 px-1.5 py-0.5 text-[11px]">
           ⌘K
         </kbd>
       </button>
@@ -74,7 +74,7 @@ function UserMenu() {
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2.5 transition-colors hover:bg-white/8"
+        className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2.5 transition-colors hover:bg-muted"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Account menu for ${displayName}`}
@@ -87,7 +87,7 @@ function UserMenu() {
             referrerPolicy="no-referrer"
           />
         ) : (
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary/70 to-primary text-xs font-bold text-primary-foreground shadow-md">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-md">
             {initials}
           </span>
         )}
@@ -109,7 +109,7 @@ function UserMenu() {
             <Link
               to="/profile"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <UserCircle className="h-4 w-4" /> Profile
             </Link>
@@ -117,7 +117,7 @@ function UserMenu() {
               <Link
                 to="/team"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+                className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Users className="h-4 w-4" /> Team
               </Link>
@@ -125,13 +125,13 @@ function UserMenu() {
             <Link
               to="/settings"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+              className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <Settings className="h-4 w-4" /> Settings
             </Link>
             <button
               onClick={() => { setOpen(false); void logout(); }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-white/8 hover:text-foreground"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <LogOut className="h-4 w-4" /> Sign out
             </button>

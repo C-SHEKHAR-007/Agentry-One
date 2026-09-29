@@ -60,7 +60,7 @@ export function StepFields({ draft, index, compact = false }: { draft: TemplateD
         <Label htmlFor={`agent-${index}`} className={cn(compact && "text-xs")}>Agent</Label>
         <Select
           id={`agent-${index}`}
-          className={cn(compact && "h-8 py-1 text-[13px]")}
+          className={cn(compact && "h-8 py-1 text-sm")}
           value={step.agentId}
           onChange={(e) => draft.updateStep(index, { agentId: e.target.value, inputMapping: {} })}
         >
@@ -111,7 +111,7 @@ export function StepFields({ draft, index, compact = false }: { draft: TemplateD
       ) : (
         <>
           <section className={compact ? "space-y-2" : "space-y-3"}>
-            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[10px]" : "text-xs")}>
+            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[11px]" : "text-xs")}>
               Inputs <span className="font-normal normal-case tracking-normal">· {fields.length}</span>
             </h4>
             {fields.length === 0 && <p className="text-sm text-muted-foreground">This agent takes no inputs.</p>}
@@ -130,7 +130,7 @@ export function StepFields({ draft, index, compact = false }: { draft: TemplateD
           </section>
 
           <section className="space-y-2">
-            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[10px]" : "text-xs")}>Outputs</h4>
+            <h4 className={cn("font-semibold uppercase tracking-wider text-muted-foreground", compact ? "text-[11px]" : "text-xs")}>Outputs</h4>
             <div className="flex flex-wrap gap-1.5">
               {produces.length ? produces.map((k) => <KindChip key={k} kind={k} />) : <span className="text-sm text-muted-foreground">None</span>}
             </div>
@@ -202,7 +202,7 @@ function FieldMapping({
           {label}
           {required && <span className="ml-0.5 text-destructive">*</span>}
         </label>
-        {schema.title && <code className={cn("shrink-0 text-muted-foreground", compact ? "text-[10px]" : "text-[11px]")}>{field}</code>}
+        {schema.title && <code className={cn("shrink-0 text-muted-foreground", compact ? "text-[11px]" : "text-[11px]")}>{field}</code>}
       </div>
       <div className={compact ? "mb-2" : "mb-2.5"}>
         <div role="radiogroup" aria-label={`Source for ${label}`} className="grid grid-cols-3 rounded-md border border-border/70 p-0.5">

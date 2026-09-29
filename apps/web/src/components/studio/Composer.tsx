@@ -81,7 +81,7 @@ export function Composer({
             <Label htmlFor="studio-project" className="text-xs">
               Project
             </Label>
-            <Select id="studio-project" value={projectId} onChange={(e) => onProjectChange(e.target.value)} className="h-8 py-1 text-[13px]">
+            <Select id="studio-project" value={projectId} onChange={(e) => onProjectChange(e.target.value)} className="h-8 py-1 text-sm">
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -186,7 +186,7 @@ export function Composer({
                       <Icon className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-medium">{meta.label}</span>
+                      <span className="block text-sm font-medium">{meta.label}</span>
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {neededBy ? `Included — needed for ${neededBy.map((r) => ROLES[r].short.toLowerCase()).join(" and ")}` : meta.description}
                       </span>
@@ -235,7 +235,7 @@ export function Composer({
             <p className="text-[11px] text-muted-foreground">Pick at least one output.</p>
           ) : (
             <>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 {plan.steps.length} {plan.steps.length === 1 ? "agent runs" : "agents run"} in order
               </p>
               <div className="flex flex-wrap items-center gap-1 text-[11px]">

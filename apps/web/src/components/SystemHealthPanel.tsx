@@ -43,10 +43,10 @@ export function SystemHealthPanel({ health }: { health: SystemHealth }) {
     <div className="space-y-3">
       {/* Core Services */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">
           Core Services
         </p>
-        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5">
+        <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-0.5">
           <Row icon={Globe} label="API Server" ok={health.api} />
           <Row icon={Database} label="PostgreSQL Database" ok={health.db} />
           <Row icon={Layers} label="Redis Queue Broker" ok={health.redis} />
@@ -56,15 +56,15 @@ export function SystemHealthPanel({ health }: { health: SystemHealth }) {
       {/* Agent Workers (Scrollable) */}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
             Agent Workers
           </p>
-          <span className="text-[10px] text-muted-foreground font-mono">
+          <span className="text-[11px] text-muted-foreground font-mono">
             {onlineCount}/{health.workers.length} running
           </span>
         </div>
 
-        <div className="rounded-lg border border-border/50 bg-white/[0.02] px-3 py-0.5 max-h-[190px] overflow-y-auto pr-2 scrollbar-thin">
+        <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-0.5 max-h-[190px] overflow-y-auto pr-2 scrollbar-thin">
           {health.workers.map((w) => {
             const prettyName = w.agentId
               .replace(/^custom-/, "")

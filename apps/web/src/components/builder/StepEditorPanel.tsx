@@ -50,7 +50,7 @@ export function StepEditorPanel({
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Step {index + 1} of {total}
           </p>
           <h3 className="truncate text-sm font-semibold">{agent?.name ?? (step.agentId || "New step")}</h3>

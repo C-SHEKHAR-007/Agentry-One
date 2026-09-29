@@ -304,7 +304,7 @@ function TextOutput({ artifactId, collapsible }: { artifactId: string; collapsib
     <div className="relative">
       <pre
         className={cn(
-          "whitespace-pre-wrap break-words rounded-lg border border-border/70 bg-muted/40 p-3 pr-10 font-sans text-[13px] leading-relaxed text-foreground",
+          "whitespace-pre-wrap break-words rounded-lg border border-border/70 bg-muted/40 p-3 pr-10 font-sans text-sm leading-relaxed text-foreground",
           !expanded && "max-h-40 overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)]",
         )}
       >
@@ -426,7 +426,7 @@ function PublishPanel({
                 setCaption(e.target.value);
               }}
               rows={4}
-              className="text-[13px] leading-relaxed"
+              className="text-sm leading-relaxed"
             />
           </div>
           {imageArtifact && (

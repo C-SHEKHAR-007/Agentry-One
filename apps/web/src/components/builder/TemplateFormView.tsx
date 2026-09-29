@@ -45,7 +45,7 @@ export function TemplateFormView({ draft }: { draft: TemplateDraft }) {
                       <Icon className="h-[18px] w-[18px]" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Step {index + 1}</span>
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step {index + 1}</span>
                       <span className={cn("block truncate font-semibold", !step.agentId && "text-muted-foreground")}>
                         {agent?.name ?? (step.agentId || "Choose an agent")}
                       </span>

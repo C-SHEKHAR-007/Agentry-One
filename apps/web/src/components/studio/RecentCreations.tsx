@@ -34,7 +34,7 @@ export function RecentCreations({
   if (items.length === 0) return null;
   return (
     <Card glass className="p-4">
-      <h3 className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <History className="h-3.5 w-3.5" /> Recent creations
       </h3>
       <ul className="space-y-0.5">
@@ -51,7 +51,7 @@ export function RecentCreations({
               >
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", dot(run?.status ?? ""))} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px]">{briefTopic(w.name)}</span>
+                  <span className="block truncate text-sm">{briefTopic(w.name)}</span>
                   <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     {w.steps
                       .map((s) => AGENT_TO_ROLE[s.agentId])

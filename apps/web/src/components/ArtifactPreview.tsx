@@ -168,7 +168,7 @@ export function ArtifactPreview({ artifact, className = "", compact = false }: A
         {/* Action / Meta Footer */}
         <div className="flex items-center justify-between border-t border-border/60 bg-card/40 px-3 py-2 text-xs">
           <div className="flex items-center gap-2 truncate">
-            <Badge variant="outline" className="text-[10px] capitalize shrink-0 font-normal">
+            <Badge variant="outline" className="text-[11px] capitalize shrink-0 font-normal">
               {artifact.kind}
             </Badge>
             {artifact.sizeBytes ? (

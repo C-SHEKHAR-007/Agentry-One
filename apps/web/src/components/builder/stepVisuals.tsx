@@ -25,7 +25,7 @@ const KIND_STYLES: Record<string, string> = {
 export function KindChip({ kind, className = "" }: { kind: string; className?: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
         KIND_STYLES[kind] ?? "bg-secondary text-secondary-foreground"
       } ${className}`}
     >

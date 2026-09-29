@@ -50,13 +50,13 @@ export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>
           <Icon className="h-[18px] w-[18px]" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Step {data.number}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step {data.number}</p>
           <p className={cn("truncate text-sm font-semibold", !data.agentName && "text-muted-foreground")}>
             {data.agentName ?? "Choose an agent"}
           </p>
         </div>
         {data.issueCount > 0 && (
-          <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+          <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
             <AlertTriangle className="h-3 w-3" /> {data.issueCount}
           </span>
         )}
@@ -81,7 +81,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>
       </div>
       {data.produces.length > 0 && (
         <div className="flex items-center gap-1.5 border-t border-border/60 px-4 py-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Outputs</span>
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Outputs</span>
           {data.produces.map((k) => (
             <KindChip key={k} kind={k} />
           ))}
@@ -100,7 +100,7 @@ export interface InputsNodeData {
 export const InputsNode = memo(function InputsNode({ data }: NodeProps<InputsNodeData>) {
   return (
     <div className="w-44 rounded-xl border border-dashed border-border bg-card/70 p-4 shadow-sm">
-      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <Keyboard className="h-3 w-3" /> Run inputs
       </p>
       {data.inputs.length === 0 ? (
