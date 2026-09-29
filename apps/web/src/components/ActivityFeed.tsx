@@ -1,133 +1,114 @@
 import { Link } from "react-router-dom";
-import {
-  CheckCircle2,
-  XCircle,
-  Eye,
-  Ban,
-  AlertTriangle,
-  Play,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
+import { Activity, AlertTriangle, Ban, CheckCircle2, CircleDot, Eye, Play, type LucideIcon } from "lucide-react";
 import type { EventItem } from "../api/types";
-import { timeAgo } from "../lib/format";
-import { EmptyState } from "./ui/empty-state";
-import { Activity } from "lucide-react";
+import { formatClock, formatDuration, formatTokens, timeAgo } from "../lib/format";
 import { cn } from "../lib/utils";
+import { TONE, type StatusStyle } from "../lib/status";
+import { EmptyState } from "./ui/empty-state";
 
 interface EventMeta {
   icon: LucideIcon;
-  bg: string;
-  iconColor: string;
+  tone: StatusStyle["tone"];
   label: string;
-  dot: string;
 }
 
 const EVENT_META: Record<string, EventMeta> = {
-  "workflow.completed": {
-    icon: CheckCircle2,
-    bg: "bg-success/15",
-    iconColor: "text-success",
-    label: "Workflow completed",
-    dot: "bg-success",
-  },
-  "workflow.failed": {
-    icon: XCircle,
-    bg: "bg-destructive/15",
-    iconColor: "text-destructive",
-    label: "Job failed",
-    dot: "bg-destructive",
-  },
-  "workflow.awaiting_review": {
-    icon: Eye,
-    bg: "bg-warning/15",
-    iconColor: "text-warning",
-    label: "Awaiting review",
-    dot: "bg-warning",
-  },
-  "workflow.cancelled": {
-    icon: Ban,
-    bg: "bg-muted",
-    iconColor: "text-muted-foreground",
-    label: "Workflow cancelled",
-    dot: "bg-muted-foreground",
-  },
-  "job.failed": {
-    icon: AlertTriangle,
-    bg: "bg-destructive/15",
-    iconColor: "text-destructive",
-    label: "Job failed",
-    dot: "bg-destructive",
-  },
-  "workflow.started": {
-    icon: Play,
-    bg: "bg-primary/15",
-    iconColor: "text-primary",
-    label: "Workflow started",
-    dot: "bg-primary",
-  },
-  "provider.changed": {
-    icon: Settings,
-    bg: "bg-chart-3/15",
-    iconColor: "text-chart-3",
-    label: "Provider changed",
-    dot: "bg-chart-3",
-  },
+  "job.started": { icon: Play, tone: "primary", label: "Agent started" },
+  "job.completed": { icon: CheckCircle2, tone: "success", label: "Agent completed" },
+  "job.failed": { icon: AlertTriangle, tone: "destructive", label: "Attempt failed" },
+  "workflow.completed": { icon: CheckCircle2, tone: "success", label: "Run completed" },
+  "workflow.failed": { icon: AlertTriangle, tone: "destructive", label: "Run failed" },
+  "workflow.awaiting_review": { icon: Eye, tone: "warning", label: "Waiting for review" },
+  "workflow.cancelled": { icon: Ban, tone: "muted", label: "Run cancelled" },
 };
 
+/** The detail line under an event: what it cost, how long, or why it failed. */
+function detail(e: EventItem): string | null {
+  const p = e.payload;
+  if (!p) return null;
+  if (e.type === "job.failed") return p.failedReason ?? null;
+  if (e.type === "job.completed") {
+    const tokens = (p.inputTokens ?? 0) + (p.outputTokens ?? 0);
+    return [tokens > 0 ? `${formatTokens(tokens)} tokens` : null, p.durationMs != null ? formatDuration(p.durationMs) : null, p.model ?? null]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (e.type === "job.started") {
+    return [p.attemptNumber && p.attemptNumber > 1 ? `attempt ${p.attemptNumber}` : null, p.model ?? null].filter(Boolean).join(" · ") || null;
+  }
+  return null;
+}
+
+/** Observability-style event stream: time, what happened, which agent, and
+ * the numbers that matter (tokens, duration, model, failure reason). */
 export function ActivityFeed({ events }: { events: EventItem[] }) {
   if (events.length === 0) {
     return (
       <EmptyState
         icon={Activity}
         title="No activity yet"
-        description="Run an agent and its progress will show up here."
+        description="Run an agent and every step it takes will stream in here."
         className="py-6"
       />
     );
   }
 
   return (
-    <ol className="space-y-1">
-      {events.map((e) => {
-        const meta: EventMeta = EVENT_META[e.type] ?? {
-          icon: Activity,
-          bg: "bg-muted",
-          iconColor: "text-muted-foreground",
-          label: e.type,
-          dot: "bg-muted-foreground",
-        };
+    <ol className="relative">
+      {/* timeline spine */}
+      <span className="absolute bottom-3 left-[5.1rem] top-3 w-px bg-border/70" aria-hidden="true" />
+      {events.map((e, i) => {
+        const meta = EVENT_META[e.type] ?? { icon: CircleDot, tone: "muted" as const, label: e.type };
+        const tone = TONE[meta.tone];
         const Icon = meta.icon;
-        const subtitle = [e.agentId, e.projectName].filter(Boolean).join(" · ") || "—";
-
+        const line = detail(e);
         const body = (
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-muted/60">
-            {/* Colored indicator dot */}
-            <span className={cn("h-2 w-2 shrink-0 rounded-full", meta.dot)} />
-            {/* Icon square */}
-            <span className={cn("inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", meta.bg)}>
-              <Icon className={cn("h-3.5 w-3.5", meta.iconColor)} />
+          <>
+            <time
+              dateTime={e.createdAt}
+              title={timeAgo(e.createdAt)}
+              className="w-[4.1rem] shrink-0 pt-0.5 text-right font-mono text-[11px] tabular text-muted-foreground"
+            >
+              {formatClock(e.createdAt)}
+            </time>
+            <span
+              className={cn(
+                "relative z-10 mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-4 ring-card",
+                tone.bg,
+                tone.text,
+                i === 0 && meta.tone === "primary" && "animate-status-glow",
+              )}
+            >
+              <Icon className="h-3 w-3" />
             </span>
-            {/* Text */}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium leading-snug">{meta.label}</p>
-              <p className="truncate text-[11px] text-muted-foreground leading-snug">{subtitle}</p>
-            </div>
-            {/* Time */}
-            <span className="shrink-0 text-[11px] text-muted-foreground whitespace-nowrap">
-              {timeAgo(e.createdAt)}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-medium text-foreground">{meta.label}</span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {e.agentName ?? e.agentId ?? "—"}
+                {e.projectName ? ` · ${e.projectName}` : ""}
+              </span>
+              {line && (
+                <span
+                  className={cn(
+                    "mt-0.5 block truncate font-mono text-[11px]",
+                    e.type === "job.failed" ? "text-destructive/90" : "text-muted-foreground/90",
+                  )}
+                  title={line}
+                >
+                  {line}
+                </span>
+              )}
             </span>
-          </div>
+          </>
         );
-
         return (
-          <li key={e.id}>
+          <li key={e.id} className="animate-fade-in">
             {e.workflowId ? (
-              <Link to={`/workflows/${e.workflowId}`} className="block">
+              <Link to={`/workflows/${e.workflowId}`} className="flex gap-3 rounded-md px-1 py-2 transition-colors hover:bg-muted/50">
                 {body}
               </Link>
             ) : (
-              <div>{body}</div>
+              <div className="flex gap-3 px-1 py-2">{body}</div>
             )}
           </li>
         );
