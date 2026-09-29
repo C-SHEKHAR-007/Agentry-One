@@ -54,7 +54,7 @@ const PLATFORMS = [
     id: "instagram",
     name: "Instagram",
     icon: Camera,
-    color: "from-purple-500 to-pink-500",
+    color: "from-primary to-primary",
     description: "Direct Login (Username & Password via mobile emulation) or Meta Graph API. Publishes posts and Reels.",
     supportsDirectLogin: true,
     directFields: ["username", "password"],
@@ -64,7 +64,7 @@ const PLATFORMS = [
     id: "twitter",
     name: "X / Twitter",
     icon: MessageCircle,
-    color: "from-blue-400 to-blue-600",
+    color: "from-chart-3 to-chart-3",
     description: "Publish tweets, threads, and media via Direct API Keys (Consumer Key/Secret) or Bearer Token.",
     supportsDirectLogin: true,
     directFields: ["twitter_keys", "bearer_token"],
@@ -74,7 +74,7 @@ const PLATFORMS = [
     id: "telegram",
     name: "Telegram Channel / Group",
     icon: Send,
-    color: "from-sky-400 to-blue-500",
+    color: "from-chart-3 to-chart-3",
     description: "Instantly publish messages, high-res photos, and videos to any public or private channel via Bot Token.",
     supportsDirectLogin: true,
     directFields: ["telegram_bot"],
@@ -84,7 +84,7 @@ const PLATFORMS = [
     id: "discord",
     name: "Discord Server",
     icon: Radio,
-    color: "from-indigo-500 to-purple-600",
+    color: "from-primary to-primary",
     description: "Broadcast rich announcements, images, and videos to any Discord channel via Webhook URL or Bot Token.",
     supportsDirectLogin: true,
     directFields: ["discord_webhook"],
@@ -94,7 +94,7 @@ const PLATFORMS = [
     id: "linkedin",
     name: "LinkedIn",
     icon: Briefcase,
-    color: "from-blue-600 to-blue-800",
+    color: "from-chart-3 to-chart-3",
     description: "Publish professional posts and company updates to LinkedIn Profiles and Pages via Access Token or OAuth.",
     supportsDirectLogin: true,
     directFields: ["token_only"],
@@ -104,7 +104,7 @@ const PLATFORMS = [
     id: "facebook",
     name: "Facebook Pages",
     icon: Globe,
-    color: "from-blue-500 to-indigo-600",
+    color: "from-chart-3 to-primary",
     description: "Publish posts, photos, and video reels to Facebook Pages via Page Access Token and Page ID.",
     supportsDirectLogin: true,
     directFields: ["facebook_page"],
@@ -114,7 +114,7 @@ const PLATFORMS = [
     id: "youtube",
     name: "YouTube Shorts",
     icon: Video,
-    color: "from-red-500 to-rose-600",
+    color: "from-destructive to-destructive",
     description: "Publish vertical video shorts and video content via YouTube Data API v3 token or OAuth.",
     supportsDirectLogin: true,
     directFields: ["token_only"],
@@ -124,7 +124,7 @@ const PLATFORMS = [
     id: "tiktok",
     name: "TikTok",
     icon: Tv,
-    color: "from-zinc-800 to-black",
+    color: "from-muted to-muted",
     description: "Publish vertical short-form reels and videos via TikTok Open API credentials.",
     supportsDirectLogin: true,
     directFields: ["token_only"],
@@ -334,10 +334,10 @@ export function IntegrationsPage() {
   const currentPlatformMeta = PLATFORMS.find((p) => p.id === selectedPlatform) || PLATFORMS[0];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
-        title="Social Media Accounts & Direct Connectors"
-        description="Connect Instagram, X/Twitter, Telegram, Discord, LinkedIn, Facebook, and YouTube with Direct Login (Username/Password, Bot Tokens, API Keys, or Webhooks) or OAuth 2.0. Stored with enterprise AES-256 encryption."
+        title="Integrations"
+        description="Connect social accounts so workflows can publish for you. Credentials are stored encrypted."
       />
 
       {projects && projects.length > 1 && (
@@ -358,7 +358,7 @@ export function IntegrationsPage() {
       {/* Connected Accounts Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+          <h2 className="text-base font-semibold tracking-tight flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" /> Connected Accounts ({accounts?.length || 0})
           </h2>
 
@@ -442,7 +442,7 @@ export function IntegrationsPage() {
 
       {/* Available Social Platforms Cards */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Available Social Platforms</h2>
+        <h2 className="text-base font-semibold tracking-tight">Available Social Platforms</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {PLATFORMS.map((p) => {
             const Icon = p.icon;
@@ -462,7 +462,7 @@ export function IntegrationsPage() {
                       {p.badge}
                     </Badge>
                   </div>
-                  <h3 className="font-semibold text-foreground text-base pt-1">{p.name}</h3>
+                  <h3 className="pt-1 text-sm font-semibold text-foreground">{p.name}</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{p.description}</p>
                 </div>
 
@@ -487,7 +487,7 @@ export function IntegrationsPage() {
                     <currentPlatformMeta.icon className="h-5 w-5" />
                   </span>
                   <div>
-                    <CardTitle className="text-base font-semibold">
+                    <CardTitle>
                       Connect {currentPlatformMeta.name}
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
@@ -557,19 +557,19 @@ export function IntegrationsPage() {
                 {selectedPlatform === "instagram" && authMode === "direct" && (
                   <div className="space-y-4">
                     {/* Automated Browser Login (No manual copy-paste) */}
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-purple-500/15 via-pink-500/10 to-orange-500/15 border border-purple-500/30 space-y-3">
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/30 space-y-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-purple-300">
-                          <Globe className="h-4 w-4 text-purple-400" />
+                        <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                          <Globe className="h-4 w-4 text-primary" />
                           1-Click Automated Browser Login
                         </div>
-                        <Badge className="bg-purple-500/20 text-purple-300 text-[10px]">Zero Copy-Paste</Badge>
+                        <Badge className="bg-primary/20 text-primary text-[11px]">Zero Copy-Paste</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground leading-relaxed">
                         Opens a real Google Chrome window on your screen to log into Instagram. Once logged in, Agentry automatically captures your session cookie and connects your account without touching DevTools.
                       </p>
                       {helperOnline === false && (
-                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300 flex items-start gap-2">
+                        <div className="p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-[11px] text-warning flex items-start gap-2">
                           <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                           <div>
                             <span>Local browser helper daemon is currently offline.</span>
@@ -582,8 +582,8 @@ export function IntegrationsPage() {
 
                       {browserLoggingIn ? (
                         <div className="space-y-2">
-                          <div className="flex items-center justify-center gap-2.5 p-3 rounded-lg bg-purple-950/40 border border-purple-500/40 text-xs text-purple-200">
-                            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-purple-400" />
+                          <div className="flex items-center justify-center gap-2.5 p-3 rounded-lg bg-primary/10 border border-primary/40 text-xs text-primary">
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0 text-primary" />
                             <span className="font-medium">{browserLoginStatus || "Waiting for Instagram login in Chrome..."}</span>
                           </div>
                           <Button
@@ -600,7 +600,7 @@ export function IntegrationsPage() {
                         <Button
                           type="button"
                           onClick={handleBrowserLogin}
-                          className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 hover:from-purple-500 hover:to-orange-400 text-white font-medium text-xs h-9 shadow-md flex items-center justify-center gap-2"
+                          className="w-full gap-2"
                         >
                           <ExternalLink className="h-4 w-4" />
                           Open Instagram in Browser &amp; Auto-Connect
@@ -614,8 +614,8 @@ export function IntegrationsPage() {
                       <div className="flex-grow border-t border-border/60"></div>
                     </div>
 
-                    <div className="space-y-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-purple-400">
+                    <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                         <Camera className="h-4 w-4" /> Manual Credentials / Session Cookie
                       </div>
                       <div>
@@ -657,8 +657,8 @@ export function IntegrationsPage() {
 
                 {/* 2. TWITTER / X DIRECT LOGIN */}
                 {(selectedPlatform === "twitter" || selectedPlatform === "x") && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
+                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
                       <MessageCircle className="h-4 w-4" /> Direct Twitter API Credentials
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -721,8 +721,8 @@ export function IntegrationsPage() {
 
                 {/* 3. TELEGRAM BOT DIRECT LOGIN */}
                 {selectedPlatform === "telegram" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-sky-500/5 border border-sky-500/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-sky-400">
+                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
                       <Send className="h-4 w-4" /> Telegram Bot Credentials
                     </div>
                     <div>
@@ -754,8 +754,8 @@ export function IntegrationsPage() {
 
                 {/* 4. DISCORD WEBHOOK / BOT */}
                 {selectedPlatform === "discord" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400">
+                  <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                       <Radio className="h-4 w-4" /> Discord Webhook or Bot Token
                     </div>
                     <div>
@@ -797,8 +797,8 @@ export function IntegrationsPage() {
 
                 {/* 5. FACEBOOK PAGE */}
                 {selectedPlatform === "facebook" && authMode === "direct" && (
-                  <div className="space-y-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-blue-400">
+                  <div className="space-y-3 p-4 rounded-xl bg-chart-3/5 border border-chart-3/20">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-chart-3">
                       <Globe className="h-4 w-4" /> Facebook Page Credentials
                     </div>
                     <div>
@@ -861,7 +861,7 @@ export function IntegrationsPage() {
                 {/* Footer buttons */}
                 <div className="flex items-center justify-between pt-3 border-t border-border/40">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Lock className="h-3.5 w-3.5 text-emerald-500" />
+                    <Lock className="h-3.5 w-3.5 text-success" />
                     <span>AES-256 Encrypted</span>
                   </div>
 
