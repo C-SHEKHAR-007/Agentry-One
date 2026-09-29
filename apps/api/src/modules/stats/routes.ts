@@ -95,7 +95,7 @@ export async function statsRoutes(app: FastifyInstance) {
   app.get("/stats/agents", async () => {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [groups, agents, runRows] = await Promise.all([
+    const [groups, agents, runRows, usageRows] = await Promise.all([
       prisma.workflow.groupBy({
         by: ["agentId", "status"],
         _count: { _all: true },
@@ -117,7 +117,19 @@ export async function statsRoutes(app: FastifyInstance) {
         orderBy: { finishedAt: "desc" },
         take: 1000,
       }),
+      // Tokens and spend per agent over the same window (null-safe sums).
+      prisma.$queryRaw<{ agent_id: string; tokens: bigint | null; cost_usd: number | null }[]>`
+        SELECT w.agent_id,
+               SUM(COALESCE(jr.input_tokens, 0) + COALESCE(jr.output_tokens, 0))::bigint AS tokens,
+               SUM(jr.cost_usd) AS cost_usd
+        FROM job_runs jr
+        JOIN jobs j ON j.id = jr.job_id
+        JOIN workflow_steps ws ON ws.id = j.workflow_step_id
+        JOIN workflows w ON w.id = ws.workflow_id
+        WHERE jr.finished_at >= ${thirtyDaysAgo}
+        GROUP BY w.agent_id`,
     ]);
+    const usageByAgent = new Map(usageRows.map((u) => [u.agent_id, { tokens: Number(u.tokens ?? 0), costUsd: Math.round((u.cost_usd ?? 0) * 10000) / 10000 }]));
 
     const groupRows: AgentGroupRow[] = groups.map((g) => ({
       agentId: g.agentId,
@@ -137,6 +149,8 @@ export async function statsRoutes(app: FastifyInstance) {
       agents: buildAgentStats(groupRows, samples).map((s) => ({
         ...s,
         name: nameById.get(s.agentId) ?? s.agentId,
+        tokens: usageByAgent.get(s.agentId)?.tokens ?? 0,
+        costUsd: usageByAgent.get(s.agentId)?.costUsd ?? 0,
       })),
     };
   });

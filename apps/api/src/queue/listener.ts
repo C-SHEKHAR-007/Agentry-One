@@ -8,6 +8,7 @@ import { resolveArtifactPath } from "../modules/artifacts/storage.js";
 import { jobOutcomes, trackQueue } from "../http/metrics.js";
 import { handleWorkflowSettled } from "../modules/templates/service.js";
 import { advanceOrCompleteWorkflow } from "../modules/workflows/service.js";
+import { classifyProgress, completionLine, parseUsage, perJobPrice, type LogLevel } from "./telemetry.js";
 
 async function fileStats(storageKey: string): Promise<{ sizeBytes: bigint; checksum: string } | null> {
   if (storageKey.startsWith("azure://")) return null;
@@ -34,6 +35,13 @@ interface ResultEnvelope {
 }
 
 const wiredQueues = new Set<string>();
+
+/** Appends a line to an attempt's log and relays it to live subscribers. */
+async function writeLog(jobRunId: string, jobId: string, level: LogLevel, message: string): Promise<void> {
+  if (!message.trim()) return;
+  const row = await prisma.log.create({ data: { jobRunId, level, message } });
+  publishJobEvent(jobId, { type: "log", jobRunId, level, message, createdAt: row.createdAt.toISOString() });
+}
 
 /** QueueEvents is an EventEmitter: a rejected async listener becomes an
  * unhandled rejection, which terminates the Node process (and every open
@@ -117,8 +125,9 @@ async function markJobFailed(jobId: string, rawReason: string, queueName: string
   if (latestRun) {
     await prisma.jobRun.update({
       where: { id: latestRun.id },
-      data: { status: "failed", finishedAt: new Date(), error: { message: failedReason } },
+      data: { status: "failed", finishedAt: new Date(), error: { message: failedReason }, model: latestRun.model ?? job.providerModel },
     });
+    await writeLog(latestRun.id, jobId, "error", failedReason);
   }
 
   await prisma.workflowStep.update({ where: { id: job.workflowStepId }, data: { status: "failed" } });
@@ -127,7 +136,14 @@ async function markJobFailed(jobId: string, rawReason: string, queueName: string
     data: { status: "failed" },
   });
 
-  await prisma.event.create({ data: { jobId, type: "job.failed", payload: { failedReason } } });
+  await prisma.event.create({
+    data: {
+      jobId,
+      workflowId: job.workflowStep.workflowId,
+      type: "job.failed",
+      payload: { failedReason, attemptNumber: latestRun?.attemptNumber ?? null },
+    },
+  });
   publishJobEvent(jobId, { type: "failed", error: failedReason });
 
   if (job.workflowStep.workflow.project.userId) {
@@ -158,24 +174,36 @@ export function wireQueueListeners(queueName: string): void {
   const events = getQueueEvents(queueName);
 
   const onActive = safe("active", async ({ jobId, previousReason }: { jobId: string; previousReason: Promise<string | null> }) => {
-    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    const job = await prisma.job.findUnique({ where: { id: jobId }, include: { workflowStep: { select: { workflowId: true } } } });
     if (!job) return;
     // A new attempt starting means any earlier attempt still marked running
     // was retried (QueueEvents emits no per-attempt "failed" event). Close it
     // with the reason BullMQ recorded, so history never shows an attempt
     // "running" forever.
-    const open = await prisma.jobRun.count({ where: { jobId, status: "running" } });
-    if (open > 0) {
+    const open = await prisma.jobRun.findMany({ where: { jobId, status: "running" }, select: { id: true } });
+    if (open.length > 0) {
+      const reason = cleanReason(await previousReason) || "Attempt failed and was retried";
       await prisma.jobRun.updateMany({
         where: { jobId, status: "running" },
-        data: { status: "failed", finishedAt: new Date(), error: { message: cleanReason(await previousReason) || "Attempt failed and was retried" } },
+        data: { status: "failed", finishedAt: new Date(), error: { message: reason }, model: job.providerModel },
       });
+      for (const run of open) await writeLog(run.id, jobId, "error", reason);
     }
     const attemptNumber = (await prisma.jobRun.count({ where: { jobId } })) + 1;
-    await prisma.jobRun.create({
-      data: { jobId, attemptNumber, status: "running", startedAt: new Date() },
+    const run = await prisma.jobRun.create({
+      data: { jobId, attemptNumber, status: "running", startedAt: new Date(), model: job.providerModel },
     });
     await prisma.workflowStep.update({ where: { id: job.workflowStepId }, data: { status: "running" } });
+    await prisma.event.create({
+      data: { jobId, workflowId: job.workflowStep.workflowId, type: "job.started", payload: { attemptNumber, model: job.providerModel } },
+    });
+    publishJobEvent(jobId, { type: "started", attemptNumber });
+    await writeLog(
+      run.id,
+      jobId,
+      "info",
+      `Attempt ${attemptNumber} started${attemptNumber > 1 ? " (retry)" : ""}${job.providerModel ? ` on ${job.providerModel}` : ""}`,
+    );
   });
   events.on("active", ({ jobId }: { jobId: string }) => {
     // Read the previous attempt's failure reason *now*, as the event arrives:
@@ -189,13 +217,31 @@ export function wireQueueListeners(queueName: string): void {
   });
 
   events.on("progress", safe("progress", async ({ jobId, data }: { jobId: string; data: unknown }) => {
-    const progress = data as { percent?: number; message?: string };
+    const update = classifyProgress(data);
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
+    if (update.kind === "log") {
+      if (latestRun) await writeLog(latestRun.id, jobId, update.level, update.message);
+      return;
+    }
+    if (update.kind === "usage") {
+      if (latestRun) {
+        await prisma.jobRun.update({
+          where: { id: latestRun.id },
+          data: { model: update.usage.model ?? latestRun.model, inputTokens: update.usage.inputTokens, outputTokens: update.usage.outputTokens },
+        });
+      }
+      return;
+    }
+    const progress = { percent: update.percent, message: update.message };
     if (latestRun) {
       await prisma.jobRun.update({
         where: { id: latestRun.id },
         data: { progressPercent: progress.percent, progressMessage: progress.message },
       });
+      // Progress messages double as the attempt's log ("Encoding with ffmpeg...").
+      if (progress.message && progress.message !== latestRun.progressMessage) {
+        await writeLog(latestRun.id, jobId, "info", progress.message);
+      }
     }
     await prisma.event.create({ data: { jobId, type: "job.progress", payload: progress as object } });
     publishJobEvent(jobId, { type: "progress", percent: progress.percent, message: progress.message });
@@ -220,10 +266,43 @@ export function wireQueueListeners(queueName: string): void {
     if (!(await claimTerminal(jobId, "completed"))) return;
     jobOutcomes.inc({ queue: queueName, outcome: "completed" });
 
+    const usage = parseUsage((result.metrics as { usage?: unknown } | undefined)?.usage);
+    const model = usage?.model ?? job.providerModel;
+    const costUsd = await perJobPrice(job.providerType);
+    const finishedAt = new Date();
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
+    const durationMs = latestRun?.startedAt ? finishedAt.getTime() - latestRun.startedAt.getTime() : null;
     if (latestRun) {
-      await prisma.jobRun.update({ where: { id: latestRun.id }, data: { status: "completed", finishedAt: new Date(), progressPercent: 100 } });
+      await prisma.jobRun.update({
+        where: { id: latestRun.id },
+        data: {
+          status: "completed",
+          finishedAt,
+          progressPercent: 100,
+          model,
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          costUsd,
+        },
+      });
+      await writeLog(latestRun.id, jobId, "info", completionLine(durationMs, usage ? { ...usage, model } : model ? { model, inputTokens: null, outputTokens: null } : null, result.artifacts.length));
     }
+    await prisma.event.create({
+      data: {
+        jobId,
+        workflowId: job.workflowStep.workflowId,
+        type: "job.completed",
+        payload: {
+          attemptNumber: latestRun?.attemptNumber ?? null,
+          durationMs,
+          model,
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          costUsd,
+          artifacts: result.artifacts.length,
+        },
+      },
+    });
 
     for (const artifact of result.artifacts) {
       const stats = await fileStats(artifact.path);

@@ -66,6 +66,7 @@ async function enqueueStepJob(params: {
       status: "queued",
       providerConfigId: providerContext?.providerConfigId ?? null,
       providerType: providerContext?.providerType ?? null,
+      providerModel: typeof providerContext?.config?.model === "string" ? providerContext.config.model : null,
     },
   });
 

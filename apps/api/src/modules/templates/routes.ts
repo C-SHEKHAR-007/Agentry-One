@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
-import { createTemplate, handleWorkflowSettled, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
+import { createTemplate, dependenciesOf, handleWorkflowSettled, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
 import { addSchedule, removeSchedule, ScheduleError } from "./scheduler.js";
 import type { TemplateStepInput } from "./types.js";
 import { authorize, viaProject } from "../../auth/access.js";
 import { WorkflowError } from "../workflows/service.js";
+import { RUN_DETAIL_INCLUDE, withRunUsage } from "./runUsage.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
 
 const TemplateBodySchema = z.object({
@@ -31,6 +32,8 @@ interface TemplateBody {
   description?: string;
   steps: TemplateStepInput[];
 }
+
+const ACTIVE_RUN_STATUSES = ["pending", "running", "awaiting_review", "cancelling"];
 
 export async function templatesRoutes(app: FastifyInstance) {
   // Cross-project workflow library (scoped to what the caller may see), with
@@ -125,12 +128,7 @@ export async function templatesRoutes(app: FastifyInstance) {
     if (!(await authorize(req, reply, "templateRun", req.params.id))) return;
     let run = await prisma.templateRun.findUnique({
       where: { id: req.params.id },
-      include: {
-        steps: {
-          include: { templateStep: true, workflow: true },
-          orderBy: { createdAt: "asc" },
-        },
-      },
+      include: RUN_DETAIL_INCLUDE,
     });
     if (!run) return reply.code(404).send({ error: "template_run_not_found" });
 
@@ -151,16 +149,59 @@ export async function templatesRoutes(app: FastifyInstance) {
     if (didSync) {
       run = await prisma.templateRun.findUnique({
         where: { id: req.params.id },
-        include: {
-          steps: {
-            include: { templateStep: true, workflow: true },
-            orderBy: { createdAt: "asc" },
-          },
-        },
+        include: RUN_DETAIL_INCLUDE,
       });
     }
 
-    return run;
+    return run ? withRunUsage(run) : run;
+  });
+
+  // Workflow runs, newest first, with enough per-step state to draw each
+  // run's step chain. ?status=active (default: in flight or waiting on a
+  // person, for the dashboard), all, or one status.
+  app.get<{ Querystring: { limit?: string; status?: string } }>("/template-runs", async (req) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 6) || 6, 1), 100);
+    const status = req.query.status ?? "active";
+    const statusFilter =
+      status === "all" ? {} : status === "active" ? { status: { in: ACTIVE_RUN_STATUSES } } : { status };
+    const runs = await prisma.templateRun.findMany({
+      where: {
+        ...statusFilter,
+        template: viaProject(req),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        template: { select: { id: true, name: true, project: { select: { id: true, name: true } } } },
+        steps: {
+          select: {
+            id: true,
+            status: true,
+            workflowId: true,
+            templateStep: { select: { stepOrder: true, agentId: true, inputMapping: true } },
+          },
+        },
+      },
+    });
+    const agentNames = new Map((await prisma.agent.findMany({ select: { id: true, name: true } })).map((a) => [a.id, a.name]));
+    return runs.map((r) => ({
+      id: r.id,
+      status: r.status,
+      createdAt: r.createdAt,
+      template: { id: r.template.id, name: r.template.name },
+      project: r.template.project,
+      steps: r.steps
+        .sort((a, b) => a.templateStep.stepOrder - b.templateStep.stepOrder)
+        .map((s) => ({
+          id: s.id,
+          status: s.status,
+          workflowId: s.workflowId,
+          stepOrder: s.templateStep.stepOrder,
+          agentId: s.templateStep.agentId,
+          agentName: agentNames.get(s.templateStep.agentId) ?? s.templateStep.agentId,
+          dependsOn: [...dependenciesOf(s.templateStep)],
+        })),
+    }));
   });
 
   app.post<{ Params: { id: string } }>("/template-runs/:id/cancel", async (req, reply) => {
