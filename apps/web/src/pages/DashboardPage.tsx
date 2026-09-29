@@ -152,7 +152,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   const { data: overview } = useStatsOverview();
   const { data: agentStats } = useAgentStats();
-  const { data: events } = useEvents(14, 5_000);
+  const { data: events } = useEvents(14);
   const { data: recent } = useRecentWorkflows(6);
   const { data: health, dataUpdatedAt: healthUpdatedAt } = useSystemHealth();
   const { data: projects } = useProjects();

@@ -13,6 +13,7 @@ interface EventMeta {
 }
 
 const EVENT_META: Record<string, EventMeta> = {
+  "workflow.started": { icon: CircleDot, tone: "muted", label: "Run queued" },
   "job.started": { icon: Play, tone: "primary", label: "Agent started" },
   "job.completed": { icon: CheckCircle2, tone: "success", label: "Agent completed" },
   "job.failed": { icon: AlertTriangle, tone: "destructive", label: "Attempt failed" },

@@ -7,6 +7,7 @@ import { Sidebar, SidebarContent } from "./shell/Sidebar";
 import { Topbar } from "./shell/Topbar";
 import { CommandPalette } from "./shell/CommandPalette";
 import { DialogOverlay, DialogPortal } from "./ui/dialog";
+import { useLiveActivity } from "../hooks/useLiveActivity";
 
 const SIDEBAR_COLLAPSED_KEY = "agentry-sidebar-collapsed";
 const SIDEBAR_WIDTH_KEY = "agentry-sidebar-width";
@@ -37,6 +38,8 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
+  // Layout only renders for signed-in users (routes are behind RequireAuth).
+  useLiveActivity(true);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));

@@ -119,3 +119,20 @@ test("command palette: actions, workflows and runs by id", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`/template-runs/${run.id}$`));
 });
+
+test("dashboard updates live when a run starts (pushed, not polled)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("AI control center")).toBeVisible();
+  await page.waitForTimeout(1000); // let the activity stream connect
+
+  const requests: string[] = [];
+  page.on("request", (r) => r.url().includes("/api/") && requests.push(new URL(r.url()).pathname));
+  // Nothing happening: no polling for a few seconds.
+  await page.waitForTimeout(4000);
+  expect(requests.filter((p) => !p.endsWith("/stream"))).toEqual([]);
+
+  // A run started elsewhere shows up without a reload. Polling fallbacks are
+  // minutes long, so this can only come from the pushed signal.
+  const { name } = await startWorkflowRun(page);
+  await expect(page.getByRole("link", { name }).first()).toBeVisible({ timeout: 5000 });
+});
