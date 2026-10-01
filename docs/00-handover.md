@@ -22,7 +22,7 @@ Agentry is a self-hosted **AI Agent Platform**: one system for running self-cont
 
 ```mermaid
 flowchart TD
-    WEB["React SPA (Vite)<br>apps/web — port 5173<br>TanStack Query, rjsf, Tailwind"]
+    WEB["React SPA (Vite)<br>apps/web — port 5173<br>Redux Toolkit + RTK Query, axios, rjsf, Tailwind"]
     API["Fastify API (Node/TS)<br>apps/api — port 4000<br>agents, providers, workflows, templates, artifacts"]
     PG["PostgreSQL<br>19 tables"]
     REDIS["Redis<br>Job queues"]
@@ -65,10 +65,13 @@ Agentry/
       src/queue/                <- BullMQ setup, event listener, SSE relay
       src/auth/                  <- static API-key middleware
       tests/                      <- vitest unit tests
-    web/                        <- React SPA (src/pages/*, src/api/{client,types,queries}.ts)
-                                   Design system: src/components/ui/* (token-based, shadcn-style),
-                                   app shell: src/components/shell/* (sidebar/topbar/⌘K palette),
-                                   theming: CSS variables in src/index.css + src/lib/theme.tsx
+    web/                        <- React SPA; structure and rules in apps/web/README.md
+                                   src/features/<area>/{<area>.api.ts,pages,components}: one folder per area
+                                   src/services/{http,api,realtime}: axios client, RTK Query base, routes.ts, live streams
+                                   src/models/*: every API type; src/app/*: store, routes
+                                   Design system: src/components/ui/* (primitives), src/components/common/*
+                                   app shell: src/features/shell/* (sidebar/topbar/⌘K palette, theme)
+                                   theming: CSS variables in src/styles/index.css
                                    (dark default, light toggle, ?theme= URL override)
   agents/
     sketch/                     <- manifest.json, schemas/, worker.py, Dockerfile, tests/
