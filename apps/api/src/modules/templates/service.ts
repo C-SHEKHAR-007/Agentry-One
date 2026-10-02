@@ -175,7 +175,24 @@ export async function runTemplate(templateId: string, runInputs: Record<string, 
 
   // Run-time version-drift check (narrower than save-time validation): an
   // agent may have been upgraded since this template was saved.
-  for (const step of template.steps) {
+  await assertNoVersionDrift(template.steps);
+
+  if (!template.steps.some((s) => dependenciesOf(s).size === 0)) {
+    throw new TemplateError("template has no step without a fromStep dependency -- nothing can start", 422);
+  }
+
+  const run = await prisma.templateRun.create({ data: { templateId, status: "running", runInputs: runInputs as object } });
+  await Promise.all(
+    template.steps.map((s) => prisma.templateRunStep.create({ data: { templateRunId: run.id, templateStepId: s.id, status: "pending" } })),
+  );
+  await advanceTemplateRun(run.id);
+  return run;
+}
+
+/** Fails if an agent a template uses has been upgraded since it was saved
+ * (narrower than save-time validation). */
+async function assertNoVersionDrift(steps: { stepOrder: number; agentId: string; agentVersion: string }[]) {
+  for (const step of steps) {
     const agent = await prisma.agent.findUnique({ where: { id: step.agentId } });
     if (!agent || agent.version !== step.agentVersion) {
       throw new TemplateError(
@@ -184,33 +201,95 @@ export async function runTemplate(templateId: string, runInputs: Record<string, 
       );
     }
   }
+}
 
-  const run = await prisma.templateRun.create({ data: { templateId, status: "running", runInputs: runInputs as object } });
-  await Promise.all(
-    template.steps.map((s) => prisma.templateRunStep.create({ data: { templateRunId: run.id, templateStepId: s.id, status: "pending" } })),
+/** Which steps a retry runs again and which it reuses. `fromStepOrder`
+ * reruns that step and everything downstream of it; without it, every step
+ * that didn't complete (and everything downstream) runs again. A step is
+ * only reused if it completed. */
+export function planRetry(
+  steps: { stepOrder: number; inputMapping: unknown }[],
+  completedOrders: Set<number>,
+  fromStepOrder?: number,
+): { rerun: Set<number>; reuse: Set<number> } {
+  const rerun = new Set<number>(
+    fromStepOrder === undefined ? steps.map((s) => s.stepOrder).filter((o) => !completedOrders.has(o)) : [fromStepOrder],
   );
-
-  const readySteps = template.steps.filter((s) => dependenciesOf(s).size === 0);
-  if (readySteps.length === 0) {
-    throw new TemplateError("template has no step without a fromStep dependency -- nothing can start", 422);
+  // Everything downstream of a rerun step reruns too (its inputs change).
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const s of steps) {
+      if (rerun.has(s.stepOrder)) continue;
+      if ([...dependenciesOf(s)].some((d) => rerun.has(d)) || !completedOrders.has(s.stepOrder)) {
+        rerun.add(s.stepOrder);
+        grew = true;
+      }
+    }
   }
+  const reuse = new Set(steps.map((s) => s.stepOrder).filter((o) => !rerun.has(o)));
+  return { rerun, reuse };
+}
+
+const SETTLED_RUN_STATUSES = ["completed", "failed", "cancelled"];
+
+/** Starts a new run of the same workflow with the same inputs, reusing the
+ * outputs of the steps that completed and running the rest. */
+export async function retryTemplateRun(runId: string, fromStepOrder?: number) {
+  const run = await prisma.templateRun.findUnique({
+    where: { id: runId },
+    include: {
+      template: { include: { steps: { orderBy: { stepOrder: "asc" } } } },
+      steps: { include: { templateStep: true } },
+    },
+  });
+  if (!run) throw new TemplateError("template_run_not_found", 404);
+  if (!SETTLED_RUN_STATUSES.includes(run.status) || run.steps.some((s) => s.status === "running")) {
+    throw new TemplateError("this run is still in progress -- wait for it to finish or cancel it first", 409);
+  }
+
+  // Editing a workflow replaces its steps (and with them this run's step
+  // records), so a run from before an edit can't be resumed.
+  const steps = run.template.steps;
+  const runStepByStepId = new Map(run.steps.map((rs) => [rs.templateStepId, rs]));
+  if (steps.length === 0 || steps.some((s) => !runStepByStepId.has(s.id))) {
+    throw new TemplateError("this workflow was edited after the run -- start a new run instead", 409);
+  }
+  if (fromStepOrder !== undefined && !steps.some((s) => s.stepOrder === fromStepOrder)) {
+    throw new TemplateError(`this workflow has no step ${fromStepOrder}`, 400);
+  }
+
+  const completedOrders = new Set(steps.filter((s) => runStepByStepId.get(s.id)!.status === "completed").map((s) => s.stepOrder));
+  const { rerun } = planRetry(steps, completedOrders, fromStepOrder);
+  if (rerun.size === 0) throw new TemplateError("every step of this run completed -- pick a step to run again", 409);
+
+  await assertNoVersionDrift(steps);
+
+  const retry = await prisma.templateRun.create({
+    data: { templateId: run.templateId, status: "running", runInputs: run.runInputs as object, retryOfId: run.id },
+  });
   await Promise.all(
-    readySteps.map(async (step) => {
-      const runStep = await prisma.templateRunStep.findFirstOrThrow({ where: { templateRunId: run.id, templateStepId: step.id } });
-      const params = resolveParams(step.inputMapping as unknown as InputMapping, runInputs, new Map());
-      await startTemplateRunStep(run.id, runStep.id, template.projectId, step.agentId, params);
+    steps.map((s) => {
+      const original = runStepByStepId.get(s.id)!;
+      return prisma.templateRunStep.create({
+        data: rerun.has(s.stepOrder)
+          ? { templateRunId: retry.id, templateStepId: s.id, status: "pending" }
+          : { templateRunId: retry.id, templateStepId: s.id, status: "completed", workflowId: original.workflowId, reusedFromStepId: original.id },
+      });
     }),
   );
-
-  return run;
+  await advanceTemplateRun(retry.id);
+  return retry;
 }
 
 /** Called by the queue listener whenever a workflow settles, so a template
  * run can progress to its next step (or finish/fail). No-ops for workflows
  * that aren't part of a template run. */
 export async function handleWorkflowSettled(workflowId: string, workflowStatus: "completed" | "failed" | "awaiting_review") {
+  // A retry's reused steps point at the same workflow; the step that actually
+  // ran it is the one without reusedFromStepId.
   const runStep = await prisma.templateRunStep.findFirst({
-    where: { workflowId },
+    where: { workflowId, reusedFromStepId: null },
     include: {
       templateRun: { include: { template: { include: { steps: { orderBy: { stepOrder: "asc" } } } } } },
       templateStep: true,
@@ -241,9 +320,19 @@ export async function handleWorkflowSettled(workflowId: string, workflowStatus: 
     return;
   }
 
-  const steps = runStep.templateRun.template.steps;
+  await advanceTemplateRun(runStep.templateRunId);
+}
+
+/** Starts every step whose prerequisites have completed, with their outputs
+ * as inputs, or marks the run completed when every step has. */
+async function advanceTemplateRun(templateRunId: string) {
+  const run = await prisma.templateRun.findUniqueOrThrow({
+    where: { id: templateRunId },
+    include: { template: { include: { steps: { orderBy: { stepOrder: "asc" } } } } },
+  });
+  const steps = run.template.steps;
   const allRunSteps = await prisma.templateRunStep.findMany({
-    where: { templateRunId: runStep.templateRunId },
+    where: { templateRunId },
     include: { workflow: { include: { steps: { include: { artifacts: true } } } } },
   });
 
@@ -254,7 +343,7 @@ export async function handleWorkflowSettled(workflowId: string, workflowStatus: 
   const startedStepIds = new Set(allRunSteps.filter((rs) => rs.status !== "pending").map((rs) => rs.templateStepId));
 
   if (completedOrders.size === steps.length) {
-    await prisma.templateRun.update({ where: { id: runStep.templateRunId }, data: { status: "completed" } });
+    await prisma.templateRun.update({ where: { id: templateRunId }, data: { status: "completed" } });
     return;
   }
 
@@ -272,14 +361,12 @@ export async function handleWorkflowSettled(workflowId: string, workflowStatus: 
     upstreamArtifactsByStep.set(stepOrder, artifacts);
   }
 
-  const runInputs = runStep.templateRun.runInputs as unknown as Record<string, unknown>;
+  const runInputs = run.runInputs as unknown as Record<string, unknown>;
+  const runStepByStepId = new Map(allRunSteps.map((rs) => [rs.templateStepId, rs]));
   await Promise.all(
     readySteps.map(async (step) => {
-      const nextRunStep = await prisma.templateRunStep.findFirstOrThrow({
-        where: { templateRunId: runStep.templateRunId, templateStepId: step.id },
-      });
       const params = resolveParams(step.inputMapping as unknown as InputMapping, runInputs, upstreamArtifactsByStep);
-      await startTemplateRunStep(runStep.templateRunId, nextRunStep.id, runStep.templateRun.template.projectId, step.agentId, params);
+      await startTemplateRunStep(templateRunId, runStepByStepId.get(step.id)!.id, run.template.projectId, step.agentId, params);
     }),
   );
 }

@@ -20,10 +20,16 @@ export const runsApi = baseApi.injectEndpoints({
       query: (id) => ({ url: routes.runs.cancel(id), method: "POST" }),
       invalidatesTags: (_res, _err, id) => [{ type: "Run", id }, { type: "Run", id: LIST }, "Workflow"],
     }),
+    /** A new run that reuses this run's completed steps: from the first step
+     * that didn't complete, or from `fromStepOrder`. */
+    retryWorkflowRun: build.mutation<{ id: string }, { runId: string; fromStepOrder?: number }>({
+      query: ({ runId, fromStepOrder }) => ({ url: routes.runs.retry(runId), method: "POST", body: { fromStepOrder } }),
+      invalidatesTags: [{ type: "Run", id: LIST }, { type: "Template", id: LIST }, { type: "Stats", id: "overview" }, { type: "Event", id: LIST }],
+    }),
   }),
 });
 
-export const { useWorkflowRunsQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation } = runsApi;
+export const { useWorkflowRunsQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation } = runsApi;
 
 /** Runs list ("active" for the dashboard, "all" or one status for Runs). */
 export const useWorkflowRuns = (status: string = "active", limit = 6) =>

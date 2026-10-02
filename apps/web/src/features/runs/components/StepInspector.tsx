@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Eye } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Eye, Recycle, RotateCcw } from "lucide-react";
 import { useAdvanceAgentRunMutation, useAgentRunArtifactsQuery, useAgentRunQuery } from "../agentRuns.api";
 import { errorMessage } from "../../../services/http/errors";
 import type { RunDetail } from "../../../models";
@@ -62,7 +62,19 @@ function ReviewGate({ workflowId }: { workflowId: string }) {
 
 /** Right-hand execution inspector for the selected step: model, tokens,
  * latency, cost, attempts, live logs and outputs. */
-export function StepInspector({ step, agentName }: { step: RunStep; agentName: string }) {
+export function StepInspector({
+  step,
+  agentName,
+  retryOfId = null,
+  retryFrom,
+}: {
+  step: RunStep;
+  agentName: string;
+  /** The run a retry reused this step's output from. */
+  retryOfId?: string | null;
+  /** Present when the run can be retried from this step. */
+  retryFrom?: { pending: boolean; run: () => void };
+}) {
   const u = step.usage;
   const live = ["running", "queued", "pending"].includes(step.status) && Boolean(step.workflowId);
   // currentData: selecting another step never shows the previous step's outputs.
@@ -89,6 +101,23 @@ export function StepInspector({ step, agentName }: { step: RunStep; agentName: s
           </Link>
         )}
       </div>
+
+      {step.reusedFromStepId && (
+        <p className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Recycle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Reused from{" "}
+            {retryOfId ? (
+              <Link to={`/template-runs/${retryOfId}`} className="font-mono text-foreground hover:text-primary">
+                {runCode(retryOfId)}
+              </Link>
+            ) : (
+              "the earlier run"
+            )}
+            : this step didn't run again, so its time and cost belong to that run.
+          </span>
+        </p>
+      )}
 
       <dl className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
@@ -125,6 +154,12 @@ export function StepInspector({ step, agentName }: { step: RunStep; agentName: s
       )}
 
       {step.status === "awaiting_review" && step.workflowId && <ReviewGate workflowId={step.workflowId} />}
+
+      {retryFrom && (
+        <Button size="sm" variant="secondary" className="w-full" onClick={retryFrom.run} disabled={retryFrom.pending}>
+          {retryFrom.pending ? <Spinner className="h-3.5 w-3.5" /> : <RotateCcw className="h-3.5 w-3.5" />} Run again from this step
+        </Button>
+      )}
 
       <RunLogs workflowId={step.workflowId} live={live} />
 

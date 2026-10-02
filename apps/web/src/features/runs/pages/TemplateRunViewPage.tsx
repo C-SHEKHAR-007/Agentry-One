@@ -5,156 +5,35 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   Ban,
-  CheckCircle2,
   Coins,
-  ExternalLink,
   Eye,
   Keyboard,
   Layers,
   ListTree,
   Network,
   Pencil,
+  RotateCcw,
   RotateCw,
   Timer,
   Wallet,
 } from "lucide-react";
-import type { RunStepWorkflow } from "../../../models";
 import { useAgentsQuery } from "../../agents/agents.api";
-import { useAdvanceAgentRunMutation, useAgentRunQuery } from "../agentRuns.api";
 import { useCancelWorkflowRunMutation, useWorkflowRunLive } from "../runs.api";
-import { poll, useLiveInterval } from "../../../services/api/polling";
 import { errorMessage } from "../../../services/http/errors";
 import { RunGraph } from "../components/RunGraph";
 import { StepInspector } from "../components/StepInspector";
+import { RetryBanner } from "../components/RetryBanner";
+import { useRetryRun } from "../hooks/useRetryRun";
+import { canRetry } from "../../../lib/retryPlan";
 import { useNow } from "../../../hooks/useNow";
 import { formatDuration, formatTokens, formatUsd, runCode, timeAgo } from "../../../lib/format";
 import { LIVE_STATUSES, statusStyle } from "../../../lib/status";
 import { cn } from "../../../lib/utils";
 import { StatusBadge } from "../../../components/common/StatusBadge";
-import { ArtifactPreview } from "../../../components/common/ArtifactPreview";
 import { Button, buttonVariants } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
-import { Textarea } from "../../../components/ui/textarea";
 import { Skeleton } from "../../../components/ui/skeleton";
-import { Spinner } from "../../../components/ui/spinner";
-import { Badge } from "../../../components/ui/badge";
-
-const AGENT_RUN_LIVE = ["running", "awaiting_review"] as const;
-
-function StepRowCard({ step, agentName }: { step: RunStepWorkflow; agentName: string }) {
-  const [reviewNotes, setReviewNotes] = useState("");
-
-  // The step's agent run, polled every 2s while running or awaiting review.
-  const cached = useAgentRunQuery(step.workflowId ?? "", { skip: !step.workflowId });
-  const interval = useLiveInterval(cached.data?.status, AGENT_RUN_LIVE, 2000);
-  const { data: workflow } = useAgentRunQuery(step.workflowId ?? "", { skip: !step.workflowId, ...poll(interval) });
-
-  const awaitingWfStep = workflow?.steps?.find((s) => s.status === "awaiting_review");
-
-  // Refreshes this agent run and the workflow run (tags).
-  const [advance, { isLoading: advancing }] = useAdvanceAgentRunMutation();
-  const advanceStepMutation = {
-    isPending: advancing,
-    mutate: () =>
-      step.workflowId &&
-      awaitingWfStep &&
-      advance({ workflowId: step.workflowId, stepKey: awaitingWfStep.stepKey, notes: reviewNotes })
-        .unwrap()
-        .then(() => {
-          toast.success(`Step approved! Pipeline continuing to next stage.`);
-          setReviewNotes("");
-        })
-        .catch((err) => toast.error(errorMessage(err))),
-  };
-
-  const allArtifacts = workflow?.steps?.flatMap((s) => s.artifacts || []) || [];
-
-  return (
-    <Card glass className="overflow-hidden transition-all hover:border-primary/40">
-      <div className="p-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 font-mono text-xs font-semibold text-primary">
-            {step.templateStep.stepOrder + 1}
-          </span>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-foreground">{agentName}</p>
-              <Badge variant="outline" className="text-[11px] font-mono">
-                {step.templateStep.agentId}
-              </Badge>
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <StatusBadge status={step.status} />
-              {workflow?.status && workflow.status !== step.status && (
-                <span className="text-xs text-muted-foreground">({workflow.status})</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {step.workflowId && (
-            <Link to={`/workflows/${step.workflowId}`}>
-              <Button size="sm" variant="ghost" className="h-8 text-xs gap-1">
-                <ExternalLink className="h-3.5 w-3.5" /> Details
-              </Button>
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/* Inline Human Review Banner & Action */}
-      {awaitingWfStep && (
-        <div className="border-t border-warning/30 bg-warning/10 p-4 space-y-3 animate-in fade-in duration-200">
-          <div className="flex items-center gap-2 text-warning font-semibold text-xs">
-            <Eye className="h-4 w-4" />
-            <span>Human Review Required — Review generated output below before continuing</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <Textarea
-              rows={2}
-              placeholder="Add optional reviewer feedback or guidance notes..."
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              className="text-xs bg-background/80"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              onClick={() => advanceStepMutation.mutate()}
-              disabled={advanceStepMutation.isPending}
-              className="bg-warning text-warning-foreground hover:bg-warning/90 text-xs h-8 px-4"
-            >
-              {advanceStepMutation.isPending ? (
-                <Spinner className="h-3.5 w-3.5 mr-1" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-              )}
-              Approve Step &amp; Continue Pipeline
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Artifact Previews */}
-      {allArtifacts.length > 0 && (
-        <div className="border-t border-border/40 p-4 bg-muted/10 space-y-2">
-          <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
-            <span>Produced Artifacts ({allArtifacts.length})</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {allArtifacts.map((art) => (
-              <ArtifactPreview key={art.id} artifact={art} compact />
-            ))}
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-}
+import { StepRowCard } from "../components/StepRowCard";
 
 type View = "graph" | "steps" | "inputs";
 
@@ -193,6 +72,8 @@ export function TemplateRunViewPage() {
         .then(() => toast.success("Cancelling — steps already running will finish, nothing new starts"))
         .catch((err) => toast.error(errorMessage(err))),
   };
+
+  const retry = useRetryRun(runId ?? "");
 
   const live = LIVE_STATUSES.includes(run?.status ?? "");
   const now = useNow(1000, live);
@@ -265,6 +146,11 @@ export function TemplateRunViewPage() {
             </button>
             <span>Started {timeAgo(run.createdAt)}</span>
             <span>{steps.length} steps</span>
+            {run.retryOfId && (
+              <Link to={`/template-runs/${run.retryOfId}`} className="inline-flex items-center gap-1 transition-colors hover:text-foreground">
+                <RotateCcw className="h-3 w-3" /> Retry of <span className="font-mono">{runCode(run.retryOfId)}</span>
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 pl-9 lg:pl-0">
@@ -276,7 +162,11 @@ export function TemplateRunViewPage() {
           <Link to={`/templates/${run.template.id}/edit`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             <Pencil className="h-3.5 w-3.5" /> Edit workflow
           </Link>
-          <Link to={`/templates/${run.template.id}/run`} className={buttonVariants({ size: "sm" })}>
+          {/* On a failed or cancelled run the retry banner holds the main action. */}
+          <Link
+            to={`/templates/${run.template.id}/run`}
+            className={buttonVariants({ size: "sm", variant: ["failed", "cancelled"].includes(run.status) ? "secondary" : "default" })}
+          >
             <RotateCw className="h-3.5 w-3.5" /> Run again
           </Link>
         </div>
@@ -294,6 +184,10 @@ export function TemplateRunViewPage() {
         />
         <Tile icon={Wallet} label="Cost" value={formatUsd(run.totals.costUsd)} sub="at configured per-job prices" />
       </div>
+
+      {["failed", "cancelled"].includes(run.status) && canRetry(run) && (
+        <RetryBanner run={run} nameOf={nameOf} pending={retry.isPending} onRetry={() => retry.retry()} />
+      )}
 
       {hasAwaiting && (
         <div className="flex items-center gap-2.5 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
@@ -337,7 +231,16 @@ export function TemplateRunViewPage() {
             </div>
           </Card>
           <Card glass className="p-4 xl:sticky xl:top-0">
-            {focused ? <StepInspector step={focused} agentName={nameOf(focused)} /> : <p className="text-sm text-muted-foreground">Select a step.</p>}
+            {focused ? (
+              <StepInspector
+                step={focused}
+                agentName={nameOf(focused)}
+                retryOfId={run.retryOfId ?? null}
+                retryFrom={canRetry(run) ? { pending: retry.isPending && retry.pendingFrom === focused.templateStep.stepOrder, run: () => retry.retry(focused.templateStep.stepOrder) } : undefined}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Select a step.</p>
+            )}
           </Card>
         </div>
       )}

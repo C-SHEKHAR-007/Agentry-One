@@ -55,6 +55,8 @@ export interface RunDetail {
   templateId: string;
   status: string;
   runInputs: Record<string, unknown>;
+  /** Set on a retry: the run whose completed steps it reuses. */
+  retryOfId?: string | null;
   createdAt: string;
   updatedAt: string;
   template: { id: string; name: string; projectId: string };
@@ -62,6 +64,8 @@ export interface RunDetail {
     id: string;
     status: string;
     workflowId: string | null;
+    /** Set when this step reused an earlier run's output instead of running. */
+    reusedFromStepId?: string | null;
     createdAt: string;
     updatedAt: string;
     templateStep: TemplateStep & { id: string; producesArtifactKindsSnapshot?: string[] };

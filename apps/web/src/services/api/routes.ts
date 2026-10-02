@@ -84,6 +84,7 @@ export const routes = {
     list: (p: { status?: string; limit?: number } = {}) => `/template-runs${q(p)}`,
     detail: (runId: string) => `/template-runs/${id(runId)}`,
     cancel: (runId: string) => `/template-runs/${id(runId)}/cancel`,
+    retry: (runId: string) => `/template-runs/${id(runId)}/retry`,
   },
   artifacts: {
     list: (p: { limit?: number; projectId?: string; kind?: string } = {}) => `/artifacts${q(p)}`,

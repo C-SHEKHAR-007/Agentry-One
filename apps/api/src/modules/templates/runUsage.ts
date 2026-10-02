@@ -45,6 +45,7 @@ export function withRunUsage(run: RunDetail) {
       id: s.id,
       status: s.status,
       workflowId: s.workflowId,
+      reusedFromStepId: s.reusedFromStepId,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       templateStep: s.templateStep,
@@ -67,22 +68,26 @@ export function withRunUsage(run: RunDetail) {
       },
     };
   });
-  const starts = steps.map((s) => s.usage.startedAt).filter((d): d is Date => d !== null);
-  const ends = steps.map((s) => s.usage.finishedAt).filter((d): d is Date => d !== null);
-  const settled = steps.every((s) => s.usage.finishedAt !== null || s.status === "pending");
+  // A retry's totals are the work it did: reused steps ran (and were paid
+  // for) in the original run.
+  const ran = steps.filter((s) => !s.reusedFromStepId);
+  const starts = ran.map((s) => s.usage.startedAt).filter((d): d is Date => d !== null);
+  const ends = ran.map((s) => s.usage.finishedAt).filter((d): d is Date => d !== null);
+  const settled = ran.every((s) => s.usage.finishedAt !== null || s.status === "pending");
   return {
     id: run.id,
     templateId: run.templateId,
     status: run.status,
     runInputs: run.runInputs,
+    retryOfId: run.retryOfId,
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
     template: run.template,
     steps,
     totals: {
-      inputTokens: steps.reduce((n, s) => n + s.usage.inputTokens, 0),
-      outputTokens: steps.reduce((n, s) => n + s.usage.outputTokens, 0),
-      costUsd: Math.round(steps.reduce((n, s) => n + s.usage.costUsd, 0) * 10000) / 10000,
+      inputTokens: ran.reduce((n, s) => n + s.usage.inputTokens, 0),
+      outputTokens: ran.reduce((n, s) => n + s.usage.outputTokens, 0),
+      costUsd: Math.round(ran.reduce((n, s) => n + s.usage.costUsd, 0) * 10000) / 10000,
       durationMs:
         settled && starts.length && ends.length
           ? Math.max(...ends.map((d) => d.getTime())) - Math.min(...starts.map((d) => d.getTime()))

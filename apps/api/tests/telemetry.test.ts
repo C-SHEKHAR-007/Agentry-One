@@ -128,6 +128,29 @@ describe("withRunUsage", () => {
     expect(out.totals).toEqual({ inputTokens: 105, outputTokens: 45, costUsd: 0.03, durationMs: 11000 });
   });
 
+  it("a retry's totals leave out the steps it reused", () => {
+    const reused = { ...runStep("a", "completed", 0, [attempt(1, "completed", 1, 5, { inputTokens: 100, outputTokens: 40, costUsd: 0.01 })]), reusedFromStepId: "orig-a" };
+    const run = {
+      id: "retry",
+      templateId: "tpl",
+      status: "completed",
+      runInputs: {},
+      retryOfId: "run",
+      createdAt: t(0),
+      updatedAt: t(0),
+      template: { id: "tpl", name: "Pipeline", projectId: "p" },
+      steps: [reused, runStep("b", "completed", 1, [attempt(1, "completed", 20, 23, { inputTokens: 5, outputTokens: 5, costUsd: 0.02 })])],
+    } as unknown as RunDetail;
+
+    const out = withRunUsage(run);
+    expect(out.retryOfId).toBe("run");
+    expect(out.steps[0].reusedFromStepId).toBe("orig-a");
+    // The reused step still shows its own numbers...
+    expect(out.steps[0].usage.costUsd).toBe(0.01);
+    // ...but the run's totals only count the work this run did.
+    expect(out.totals).toEqual({ inputTokens: 5, outputTokens: 5, costUsd: 0.02, durationMs: 3000 });
+  });
+
   it("leaves the total duration open while a step is still running", () => {
     const run = {
       id: "run",

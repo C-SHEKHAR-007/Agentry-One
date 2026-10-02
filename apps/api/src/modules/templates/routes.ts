@@ -1,6 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../db/client.js";
-import { createTemplate, dependenciesOf, handleWorkflowSettled, runTemplate, TemplateError, updateTemplate, validateTemplateDryRun } from "./service.js";
+import {
+  createTemplate,
+  dependenciesOf,
+  handleWorkflowSettled,
+  retryTemplateRun,
+  runTemplate,
+  TemplateError,
+  updateTemplate,
+  validateTemplateDryRun,
+} from "./service.js";
 import { addSchedule, removeSchedule, ScheduleError } from "./scheduler.js";
 import type { TemplateStepInput } from "./types.js";
 import { authorize, viaProject } from "../../auth/access.js";
@@ -32,6 +41,8 @@ interface TemplateBody {
   description?: string;
   steps: TemplateStepInput[];
 }
+
+const RetryBody = z.object({ fromStepOrder: z.number().int().min(0).optional() });
 
 const ACTIVE_RUN_STATUSES = ["pending", "running", "awaiting_review", "cancelling"];
 
@@ -202,6 +213,21 @@ export async function templatesRoutes(app: FastifyInstance) {
           dependsOn: [...dependenciesOf(s.templateStep)],
         })),
     }));
+  });
+
+  // A new run with the same inputs that reuses this run's completed steps:
+  // from the first step that didn't complete, or from `fromStepOrder`.
+  app.post<{ Params: { id: string } }>("/template-runs/:id/retry", async (req, reply) => {
+    const { fromStepOrder } = parse(RetryBody, req.body ?? {});
+    if (!(await authorize(req, reply, "templateRun", req.params.id))) return;
+    try {
+      const run = await retryTemplateRun(req.params.id, fromStepOrder);
+      return reply.code(201).send(run);
+    } catch (err) {
+      const e = domainError(err);
+      if (e) return reply.code(e.statusCode).send({ error: e.message });
+      throw err;
+    }
   });
 
   app.post<{ Params: { id: string } }>("/template-runs/:id/cancel", async (req, reply) => {

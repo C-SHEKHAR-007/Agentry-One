@@ -42,6 +42,8 @@ const RunStepNode = memo(function RunStepNode({ data }: NodeProps<RunNodeData>) 
   const tokens = u.inputTokens + u.outputTokens;
   const running = step.status === "running";
   const pending = step.status === "pending";
+  // A retry's reused step: the earlier run's output, not new work.
+  const reused = Boolean(step.reusedFromStepId);
 
   return (
     <div
@@ -82,13 +84,15 @@ const RunStepNode = memo(function RunStepNode({ data }: NodeProps<RunNodeData>) 
           <p className="line-clamp-2 text-[11px] text-destructive/90">{u.error ?? "Failed"}</p>
         ) : pending ? (
           <p className="text-[11px] text-muted-foreground">Waiting for upstream steps</p>
+        ) : reused ? (
+          <p className="truncate text-[11px] text-muted-foreground">Output reused from the earlier run</p>
         ) : (
           <p className="truncate font-mono text-[11px] text-muted-foreground">{u.model ?? "—"}</p>
         )}
       </div>
 
       <div className="flex items-center gap-3 border-t border-border/60 px-3.5 py-2 font-mono text-[11px] text-muted-foreground">
-        <span className={cn("mr-auto font-sans font-semibold", tone.text)}>{st.label}</span>
+        <span className={cn("mr-auto font-sans font-semibold", tone.text)}>{reused ? "Reused" : st.label}</span>
         <span className="tabular">{formatDuration(u.durationMs)}</span>
         <span className="tabular">{tokens > 0 ? `${formatTokens(tokens, { compact: true })} tok` : u.attempts > 1 ? `${u.attempts} attempts` : "—"}</span>
       </div>
