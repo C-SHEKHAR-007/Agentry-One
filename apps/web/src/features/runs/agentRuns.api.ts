@@ -2,7 +2,9 @@ import { baseApi } from "../../services/api/baseApi";
 import { FALLBACK_POLL_MS, poll } from "../../services/api/polling";
 import { routes } from "../../services/api/routes";
 import { LIST } from "../../services/api/tags";
-import type { ArtifactItem, RecentWorkflow, RunLogLine, Workflow, WorkflowEvent } from "../../models";
+import type { ArtifactItem, Page, RecentWorkflow, RunLogLine, Workflow, WorkflowEvent } from "../../models";
+
+const PAGE_SIZE = 30;
 
 export interface StartAgentRunBody {
   projectId: string;
@@ -18,6 +20,12 @@ export const agentRunsApi = baseApi.injectEndpoints({
     recentAgentRuns: build.query<RecentWorkflow[], { limit?: number; status?: string }>({
       query: (p) => routes.workflows.recent(p),
       providesTags: (res) => [...(res ?? []).map((w) => ({ type: "Workflow" as const, id: w.id })), { type: "Workflow", id: LIST }],
+    }),
+    /** All agent runs, newest first, a page at a time (the Runs page). */
+    agentRunsPage: build.infiniteQuery<Page<RecentWorkflow>, { status?: string }, string | null>({
+      infiniteQueryOptions: { initialPageParam: null, getNextPageParam: (last) => last.nextCursor },
+      query: ({ queryArg, pageParam }) => routes.workflows.recentPage({ status: queryArg.status, limit: PAGE_SIZE, cursor: pageParam }),
+      providesTags: (res) => [...(res?.pages ?? []).flatMap((p) => p.items).map((w) => ({ type: "Workflow" as const, id: w.id })), { type: "Workflow", id: LIST }],
     }),
     agentRun: build.query<Workflow, string>({
       query: (id) => routes.workflows.detail(id),
@@ -60,6 +68,7 @@ export const agentRunsApi = baseApi.injectEndpoints({
 
 export const {
   useRecentAgentRunsQuery,
+  useAgentRunsPageInfiniteQuery,
   useAgentRunQuery,
   useAgentRunEventsQuery,
   useAgentRunLogsQuery,

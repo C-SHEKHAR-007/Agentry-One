@@ -5,6 +5,7 @@ import { advanceStep, reapStaleWorkflows, startWorkflow, WorkflowError } from ".
 import { artifactUrl, withArtifactUrls } from "../artifacts/urls.js";
 import { authorize, requireAdmin, viaProject } from "../../auth/access.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
+import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
 const StartWorkflowBody = z.object({
   agentId: nonEmpty(100),
@@ -41,14 +42,15 @@ export async function workflowsRoutes(app: FastifyInstance) {
 
   // Cross-project listing for the dashboard/executions views. The static
   // "recent" segment wins over the :id param route in Fastify's router.
-  app.get<{ Querystring: { limit?: string; status?: string } }>(
+  app.get<{ Querystring: { limit?: string; status?: string; paged?: string; cursor?: string } }>(
     "/workflows/recent",
     async (req) => {
       const limit = Math.min(Number(req.query.limit ?? 10) || 10, 100);
-      const workflows = await prisma.workflow.findMany({
-        where: { ...viaProject(req), ...(req.query.status ? { status: req.query.status } : {}) },
-        orderBy: { createdAt: "desc" },
-        take: limit,
+      const page = pageQuery(req.query);
+      const rows = await prisma.workflow.findMany({
+        where: { AND: [{ ...viaProject(req), ...(req.query.status ? { status: req.query.status } : {}) }, page.where] },
+        orderBy: NEWEST_FIRST,
+        take: page.take(limit),
         include: {
           project: { select: { id: true, name: true } },
           agent: { select: { name: true } },
@@ -67,7 +69,8 @@ export async function workflowsRoutes(app: FastifyInstance) {
         },
       });
 
-      return Promise.all(
+      const { items: workflows, nextCursor } = toPage(rows, limit);
+      const summaries = await Promise.all(
         workflows.map(async (w) => {
           let durationMs: number | null = null;
           const runs = w.steps.flatMap((s) => s.job?.runs ?? []);
@@ -100,6 +103,7 @@ export async function workflowsRoutes(app: FastifyInstance) {
           };
         }),
       );
+      return page.paged ? { items: summaries, nextCursor } : summaries;
     },
   );
 

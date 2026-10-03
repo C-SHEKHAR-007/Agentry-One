@@ -1,11 +1,14 @@
+import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Bot, RefreshCw, Workflow as WorkflowIcon } from "lucide-react";
-import { useReapStaleRunsMutation, useRecentAgentRuns } from "../agentRuns.api";
-import { useWorkflowRuns } from "../runs.api";
+import { useAgentRunsPageInfiniteQuery, useReapStaleRunsMutation } from "../agentRuns.api";
+import { useWorkflowRunsPageInfiniteQuery } from "../runs.api";
+import { FALLBACK_POLL_MS, poll } from "../../../services/api/polling";
 import { errorMessage } from "../../../services/http/errors";
 import type { RunSummary } from "../../../models";
 import { ExecutionsTable } from "../../../components/common/ExecutionsTable";
+import { LoadMore } from "../../../components/common/LoadMore";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { StatusBadge } from "../../../components/common/StatusBadge";
 import { StepChain } from "../../../components/common/StepChain";
@@ -87,8 +90,15 @@ export function ExecutionsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const { data: workflows, isLoading } = useRecentAgentRuns(50, status === "all" ? undefined : status);
-  const { data: runs, isLoading: runsLoading } = useWorkflowRuns(status, 50);
+  // A page at a time; currentData so a new status filter never shows the
+  // previous filter's rows.
+  const agentRuns = useAgentRunsPageInfiniteQuery({ status: status === "all" ? undefined : status }, poll(FALLBACK_POLL_MS));
+  const workflowRuns = useWorkflowRunsPageInfiniteQuery({ status }, poll(FALLBACK_POLL_MS));
+  const workflows = useMemo(() => agentRuns.currentData?.pages.flatMap((p) => p.items), [agentRuns.currentData]);
+  const runs = useMemo(() => workflowRuns.currentData?.pages.flatMap((p) => p.items), [workflowRuns.currentData]);
+  const isLoading = !workflows;
+  const runsLoading = !runs;
+  const count = (rows: unknown[] | undefined, more: boolean) => (rows ? `${rows.length}${more ? "+" : ""}` : undefined);
 
   const [reap, { isLoading: reaping }] = useReapStaleRunsMutation();
   const reapMutation = {
@@ -125,8 +135,8 @@ export function ExecutionsPage() {
       <div className="mb-4 flex w-full items-center gap-1 rounded-lg border border-border/60 bg-muted/30 p-0.5 sm:w-fit" role="tablist" aria-label="Run type">
         {(
           [
-            ["workflows", "Workflow runs", WorkflowIcon, runs?.length],
-            ["agents", "Agent runs", Bot, workflows?.length],
+            ["workflows", "Workflow runs", WorkflowIcon, count(runs, workflowRuns.hasNextPage)],
+            ["agents", "Agent runs", Bot, count(workflows, agentRuns.hasNextPage)],
           ] as const
         ).map(([t, label, Icon, n]) => (
           <button
@@ -148,11 +158,33 @@ export function ExecutionsPage() {
       <Card glass>
         <CardContent className="pt-5">
           {type === "workflows" ? (
-            runsLoading ? <Skeleton className="h-64" /> : <WorkflowRunsTable runs={runs ?? []} />
+            runsLoading ? (
+              <Skeleton className="h-64" />
+            ) : (
+              <>
+                <WorkflowRunsTable runs={runs ?? []} />
+                <LoadMore
+                  shown={runs?.length ?? 0}
+                  hasMore={workflowRuns.hasNextPage}
+                  loading={workflowRuns.isFetchingNextPage}
+                  onLoad={() => workflowRuns.fetchNextPage()}
+                  noun="workflow runs"
+                />
+              </>
+            )
           ) : isLoading ? (
             <Skeleton className="h-64" />
           ) : (
-            <ExecutionsTable workflows={workflows ?? []} />
+            <>
+              <ExecutionsTable workflows={workflows ?? []} />
+              <LoadMore
+                shown={workflows?.length ?? 0}
+                hasMore={agentRuns.hasNextPage}
+                loading={agentRuns.isFetchingNextPage}
+                onLoad={() => agentRuns.fetchNextPage()}
+                noun="agent runs"
+              />
+            </>
           )}
         </CardContent>
       </Card>

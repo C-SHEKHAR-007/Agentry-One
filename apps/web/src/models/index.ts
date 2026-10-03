@@ -16,3 +16,4 @@ export * from "./settings";
 export * from "./socialAccounts";
 export * from "./studio";
 export * from "./integrations";
+export * from "./paging";

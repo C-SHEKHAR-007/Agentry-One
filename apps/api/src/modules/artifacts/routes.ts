@@ -6,6 +6,7 @@ import { authorize, viaProject } from "../../auth/access.js";
 import { resolveArtifactPath } from "./storage.js";
 import { downloadBlobStream } from "./azureClient.js";
 import { artifactUrl, isAzureKey, withArtifactUrls } from "./urls.js";
+import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
 /** Media types a browser may render inline without being able to run script
  * in our origin. Everything else (notably text/html and image/svg+xml, which
@@ -43,10 +44,12 @@ export async function artifactsRoutes(app: FastifyInstance) {
   });
 
   // Flat cross-project listing for the gallery.
-  app.get<{ Querystring: { limit?: string; projectId?: string; kind?: string } }>("/artifacts", async (req) => {
+  app.get<{ Querystring: { limit?: string; projectId?: string; kind?: string; paged?: string; cursor?: string } }>("/artifacts", async (req) => {
     const limit = Math.min(Number(req.query.limit ?? 50) || 50, 100);
-    const artifacts = await prisma.artifact.findMany({
+    const page = pageQuery(req.query);
+    const rows = await prisma.artifact.findMany({
       where: {
+        ...page.where,
         ...(req.query.kind ? { kind: req.query.kind } : {}),
         workflowStep: {
           workflow: {
@@ -55,8 +58,8 @@ export async function artifactsRoutes(app: FastifyInstance) {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-      take: limit,
+      orderBy: NEWEST_FIRST,
+      take: page.take(limit),
       include: {
         workflowStep: {
           select: {
@@ -66,7 +69,8 @@ export async function artifactsRoutes(app: FastifyInstance) {
         },
       },
     });
-    return Promise.all(
+    const { items: artifacts, nextCursor } = toPage(rows, limit);
+    const out = await Promise.all(
       artifacts.map(async (a) => {
         const { previewUrl, downloadUrl } = await withArtifactUrls(a);
         return {
@@ -85,6 +89,7 @@ export async function artifactsRoutes(app: FastifyInstance) {
         };
       }),
     );
+    return page.paged ? { items: out, nextCursor } : out;
   });
 
   app.get<{ Params: { id: string } }>("/artifacts/:id", async (req, reply) => {

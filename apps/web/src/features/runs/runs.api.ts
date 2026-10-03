@@ -3,7 +3,7 @@ import { FALLBACK_POLL_MS, poll, useLiveInterval } from "../../services/api/poll
 import { routes } from "../../services/api/routes";
 import { LIST } from "../../services/api/tags";
 import { LIVE_STATUSES } from "../../lib/status";
-import type { RunDetail, RunSummary } from "../../models";
+import type { Page, RunDetail, RunSummary } from "../../models";
 
 /** Workflow (multi-step) runs: /template-runs. */
 export const runsApi = baseApi.injectEndpoints({
@@ -11,6 +11,12 @@ export const runsApi = baseApi.injectEndpoints({
     workflowRuns: build.query<RunSummary[], { status?: string; limit?: number }>({
       query: (p) => routes.runs.list(p),
       providesTags: (res) => [...(res ?? []).map((r) => ({ type: "Run" as const, id: r.id })), { type: "Run", id: LIST }],
+    }),
+    /** All workflow runs, newest first, a page at a time (the Runs page). */
+    workflowRunsPage: build.infiniteQuery<Page<RunSummary>, { status?: string }, string | null>({
+      infiniteQueryOptions: { initialPageParam: null, getNextPageParam: (last) => last.nextCursor },
+      query: ({ queryArg, pageParam }) => routes.runs.listPage({ status: queryArg.status, limit: 30, cursor: pageParam }),
+      providesTags: (res) => [...(res?.pages ?? []).flatMap((p) => p.items).map((r) => ({ type: "Run" as const, id: r.id })), { type: "Run", id: LIST }],
     }),
     workflowRun: build.query<RunDetail, string>({
       query: (id) => routes.runs.detail(id),
@@ -29,7 +35,7 @@ export const runsApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useWorkflowRunsQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation } = runsApi;
+export const { useWorkflowRunsQuery, useWorkflowRunsPageInfiniteQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation } = runsApi;
 
 /** Runs list ("active" for the dashboard, "all" or one status for Runs). */
 export const useWorkflowRuns = (status: string = "active", limit = 6) =>

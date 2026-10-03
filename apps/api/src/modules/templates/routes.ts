@@ -16,6 +16,7 @@ import { authorize, viaProject } from "../../auth/access.js";
 import { WorkflowError } from "../workflows/service.js";
 import { RUN_DETAIL_INCLUDE, withRunUsage } from "./runUsage.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
+import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
 const TemplateBodySchema = z.object({
   name: nonEmpty(200),
@@ -170,18 +171,20 @@ export async function templatesRoutes(app: FastifyInstance) {
   // Workflow runs, newest first, with enough per-step state to draw each
   // run's step chain. ?status=active (default: in flight or waiting on a
   // person, for the dashboard), all, or one status.
-  app.get<{ Querystring: { limit?: string; status?: string } }>("/template-runs", async (req) => {
+  app.get<{ Querystring: { limit?: string; status?: string; paged?: string; cursor?: string } }>("/template-runs", async (req) => {
     const limit = Math.min(Math.max(Number(req.query.limit ?? 6) || 6, 1), 100);
+    const page = pageQuery(req.query);
     const status = req.query.status ?? "active";
     const statusFilter =
       status === "all" ? {} : status === "active" ? { status: { in: ACTIVE_RUN_STATUSES } } : { status };
-    const runs = await prisma.templateRun.findMany({
+    const rows = await prisma.templateRun.findMany({
       where: {
+        ...page.where,
         ...statusFilter,
         template: viaProject(req),
       },
-      orderBy: { createdAt: "desc" },
-      take: limit,
+      orderBy: NEWEST_FIRST,
+      take: page.take(limit),
       include: {
         template: { select: { id: true, name: true, project: { select: { id: true, name: true } } } },
         steps: {
@@ -194,8 +197,9 @@ export async function templatesRoutes(app: FastifyInstance) {
         },
       },
     });
+    const { items: runs, nextCursor } = toPage(rows, limit);
     const agentNames = new Map((await prisma.agent.findMany({ select: { id: true, name: true } })).map((a) => [a.id, a.name]));
-    return runs.map((r) => ({
+    const out = runs.map((r) => ({
       id: r.id,
       status: r.status,
       createdAt: r.createdAt,
@@ -213,6 +217,7 @@ export async function templatesRoutes(app: FastifyInstance) {
           dependsOn: [...dependenciesOf(s.templateStep)],
         })),
     }));
+    return page.paged ? { items: out, nextCursor } : out;
   });
 
   // A new run with the same inputs that reuses this run's completed steps:

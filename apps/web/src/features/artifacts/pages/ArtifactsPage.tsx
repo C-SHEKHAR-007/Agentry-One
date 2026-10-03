@@ -19,12 +19,13 @@ import {
 import {
   useArtifactDownloadUrlQuery,
   useArtifactPreviewUrlQuery,
-  useArtifactsQuery,
+  useArtifactsPageInfiniteQuery,
   useArtifactTextQuery,
 } from "../artifacts.api";
 import { useProjectsQuery } from "../../projects/projects.api";
 import type { ArtifactListItem } from "../../../models";
 import { formatBytes, timeAgo } from "../../../lib/format";
+import { LoadMore } from "../../../components/common/LoadMore";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { Button } from "../../../components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
@@ -294,6 +295,9 @@ function PreviewDialog({
   );
 }
 
+/** Matches the page size in artifacts.api (each page's cards animate in from the start). */
+const ARTIFACT_PAGE_SIZE = 48;
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function ArtifactsPage() {
   const [projectId, setProjectId] = useState("");
@@ -301,11 +305,11 @@ export function ArtifactsPage() {
   const [preview, setPreview] = useState<ArtifactListItem | null>(null);
 
   const { data: projects } = useProjectsQuery();
-  const { data: artifacts, isLoading } = useArtifactsQuery({
-    limit: 60,
-    projectId: projectId || undefined,
-    kind: kind || undefined,
-  });
+  // A page at a time; currentData so a new filter never shows the previous
+  // filter's artifacts.
+  const pages = useArtifactsPageInfiniteQuery({ projectId: projectId || undefined, kind: kind || undefined });
+  const artifacts = useMemo(() => pages.currentData?.pages.flatMap((p) => p.items), [pages.currentData]);
+  const isLoading = !artifacts;
 
   const kinds = useMemo(
     () => [...new Set((artifacts ?? []).map((a) => a.kind))],
@@ -361,12 +365,20 @@ export function ArtifactsPage() {
             <ArtifactCard
               key={a.id}
               artifact={a}
-              index={i}
+              index={i % ARTIFACT_PAGE_SIZE}
               onPreview={setPreview}
             />
           ))}
         </div>
       </AnimatePresence>
+
+      <LoadMore
+        shown={artifacts?.length ?? 0}
+        hasMore={pages.hasNextPage}
+        loading={pages.isFetchingNextPage}
+        onLoad={() => pages.fetchNextPage()}
+        noun="artifacts"
+      />
 
       <PreviewDialog artifact={preview} onClose={() => setPreview(null)} />
     </div>

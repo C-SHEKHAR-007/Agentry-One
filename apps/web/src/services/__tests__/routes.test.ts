@@ -15,6 +15,12 @@ describe("routes", () => {
     expect(routes.providers.list()).toBe("/providers");
   });
 
+  it("asks for a page, with the cursor once there is one", () => {
+    expect(routes.runs.listPage({ status: "all", limit: 30 })).toBe("/template-runs?paged=1&limit=30&status=all");
+    expect(routes.workflows.recentPage({ limit: 30, cursor: "abc=" })).toBe("/workflows/recent?paged=1&limit=30&cursor=abc%3D");
+    expect(routes.artifacts.listPage({ limit: 48, cursor: null, kind: "image" })).toBe("/artifacts?paged=1&limit=48&kind=image");
+  });
+
   it("gives absolute URLs for files and streams", () => {
     expect(routes.files.download("x")).toBe("/api/artifacts/x/download");
     expect(routes.files.attachment("x")).toBe("/api/artifacts/x/download?disposition=attachment");

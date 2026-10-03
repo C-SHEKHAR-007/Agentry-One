@@ -14,6 +14,9 @@ const q = (params: Record<string, string | number | boolean | undefined | null>)
   return str ? `?${str}` : "";
 };
 const id = (v: string) => encodeURIComponent(v);
+/** Query params for one page of a newest-first list (see models/paging). */
+type PageParams = { limit?: number; cursor?: string | null };
+const paged = ({ limit, cursor }: PageParams) => ({ paged: 1, limit, cursor });
 
 export const routes = {
   auth: {
@@ -62,6 +65,7 @@ export const routes = {
   },
   workflows: {
     recent: (p: { limit?: number; status?: string } = {}) => `/workflows/recent${q(p)}`,
+    recentPage: (p: PageParams & { status?: string }) => `/workflows/recent${q({ ...paged(p), status: p.status })}`,
     detail: (workflowId: string) => `/workflows/${id(workflowId)}`,
     steps: (workflowId: string) => `/workflows/${id(workflowId)}/steps`,
     events: (workflowId: string) => `/workflows/${id(workflowId)}/events`,
@@ -82,12 +86,15 @@ export const routes = {
   },
   runs: {
     list: (p: { status?: string; limit?: number } = {}) => `/template-runs${q(p)}`,
+    listPage: (p: PageParams & { status?: string }) => `/template-runs${q({ ...paged(p), status: p.status })}`,
     detail: (runId: string) => `/template-runs/${id(runId)}`,
     cancel: (runId: string) => `/template-runs/${id(runId)}/cancel`,
     retry: (runId: string) => `/template-runs/${id(runId)}/retry`,
   },
   artifacts: {
     list: (p: { limit?: number; projectId?: string; kind?: string } = {}) => `/artifacts${q(p)}`,
+    listPage: (p: PageParams & { projectId?: string; kind?: string }) =>
+      `/artifacts${q({ ...paged(p), projectId: p.projectId, kind: p.kind })}`,
     detail: (artifactId: string) => `/artifacts/${id(artifactId)}`,
     download: (artifactId: string) => `/artifacts/${id(artifactId)}/download`,
     sasPreview: (artifactId: string) => `/artifacts/${id(artifactId)}/sas/preview`,
