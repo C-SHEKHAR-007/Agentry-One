@@ -87,6 +87,7 @@ services:
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
       INSTAGRAM_CLIENT_ID: ${INSTAGRAM_CLIENT_ID:-}
       INSTAGRAM_CLIENT_SECRET: ${INSTAGRAM_CLIENT_SECRET:-}
+      INSTAGRAM_HELPER_URL: ${INSTAGRAM_HELPER_URL:-}
     volumes:
       # Read-write: Agent Studio scaffolds new agents here, and the worker
       # supervisor picks them up from the same directory.

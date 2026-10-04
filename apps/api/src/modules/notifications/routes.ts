@@ -3,6 +3,7 @@ import { prisma, notificationEmitter } from "../../db/client.js";
 import { getDefaultUserId } from "../projects/defaultUser.js";
 import { openSse } from "../../http/sse.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
+import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
 const NotificationBody = z.object({
   type: z.enum(["info", "success", "warning", "error"]),
@@ -17,14 +18,18 @@ export async function notificationsRoutes(app: FastifyInstance) {
   const getUserId = (req: any) =>
     req.principal?.kind === "user" ? req.principal.user.id : getDefaultUserId();
 
-  app.get("/notifications", async (req, reply) => {
+  // Newest first: the latest 100, or pages of `limit` with ?paged=1.
+  app.get<{ Querystring: { limit?: string; paged?: string; cursor?: string } }>("/notifications", async (req) => {
     const userId = getUserId(req);
-    const notifications = await prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+    const page = pageQuery(req.query);
+    const limit = page.paged ? Math.min(Number(req.query.limit ?? 30) || 30, 100) : 100;
+    const rows = await prisma.notification.findMany({
+      where: { userId, ...page.where },
+      orderBy: NEWEST_FIRST,
+      take: page.take(limit),
     });
-    return notifications;
+    const { items, nextCursor } = toPage(rows, limit);
+    return page.paged ? { items, nextCursor } : items;
   });
 
   app.get("/notifications/stream", async (req, reply) => {

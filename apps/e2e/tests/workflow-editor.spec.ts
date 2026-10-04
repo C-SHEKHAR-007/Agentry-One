@@ -73,7 +73,10 @@ test("workflow editor: canvas, step sidebar, edit, validate, save, form view", a
   await page.reload();
   await expect(page.locator(".react-flow__node-step")).toHaveCount(3);
 
-  // Remove step 3 (with confirmation) from the sidebar.
+  // Remove step 3 (with confirmation) from the sidebar. With a live worker,
+  // other tests' failing jobs raise toasts over the sidebar's corner; they're
+  // not what this test is about, so keep them out of the way.
+  await page.addStyleTag({ content: 'section[aria-label^="Notifications"] { display: none !important; }' });
   await page.locator('[data-id="step-2"]').click();
   await page.getByRole("button", { name: "Remove step" }).click();
   await page.getByRole("button", { name: "Remove", exact: true }).click();

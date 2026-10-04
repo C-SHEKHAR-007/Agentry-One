@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { activityEmitter, prisma, type ActivitySignal } from "../../db/client.js";
 import { authorize, scopedUserId, viaProject } from "../../auth/access.js";
 import { openSse } from "../../http/sse.js";
+import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
 function eventSummary(type: string, payload: unknown): Record<string, unknown> | null {
   const p = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
@@ -42,17 +43,19 @@ export async function eventsRoutes(app: FastifyInstance) {
 
   // Recent activity feed. job.progress is written once per progress tick and
   // would drown everything else, so it is excluded here.
-  app.get<{ Querystring: { limit?: string; projectId?: string } }>("/events", async (req) => {
+  app.get<{ Querystring: { limit?: string; projectId?: string; paged?: string; cursor?: string } }>("/events", async (req) => {
     const limit = Math.min(Number(req.query.limit ?? 20) || 20, 100);
-    const events = await prisma.event.findMany({
+    const page = pageQuery(req.query);
+    const rows = await prisma.event.findMany({
       where: {
+        ...page.where,
         type: { not: "job.progress" },
         // Only workflow-attached events can be attributed to a project, so a
         // scoped caller sees exactly the events of their own workflows.
         workflow: { ...viaProject(req), ...(req.query.projectId ? { projectId: req.query.projectId } : {}) },
       },
-      orderBy: { createdAt: "desc" },
-      take: limit,
+      orderBy: NEWEST_FIRST,
+      take: page.take(limit),
       include: {
         workflow: {
           select: {
@@ -64,7 +67,8 @@ export async function eventsRoutes(app: FastifyInstance) {
         },
       },
     });
-    return events.map((e) => ({
+    const { items: events, nextCursor } = toPage(rows, limit);
+    const out = events.map((e) => ({
       id: e.id,
       type: e.type,
       createdAt: e.createdAt,
@@ -77,6 +81,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       projectId: e.workflow?.projectId ?? null,
       projectName: e.workflow?.project?.name ?? null,
     }));
+    return page.paged ? { items: out, nextCursor } : out;
   });
 
   // Chronological timeline for one workflow. job-level events (job.progress,

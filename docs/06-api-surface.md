@@ -47,6 +47,19 @@ Roughly 20 endpoints — scoped to "enough to actually run both agents end to en
 | `GET` | `/artifacts/:id` | Metadata for one artifact (kind, mime type, size, checksum). |
 | `GET` | `/artifacts/:id/download` | Stream the actual bytes. |
 
+## Integrations
+
+The Instagram browser-login helper, proxied (see `10-deployment.md`):
+
+| Method | Path | |
+| --- | --- | --- |
+| GET | `/integrations/instagram/browser-login/status` | `{ online, ready, session }`; `online: false` when the helper isn't running |
+| POST | `/integrations/instagram/browser-login/start` | body `{ projectId }`; opens Chrome on the helper's desktop |
+| GET | `/integrations/instagram/browser-login/session` | `{ status: idle \| in_progress \| success \| failed \| closed, handle, error, elapsed }` |
+| POST | `/integrations/instagram/browser-login/cancel` | closes the login window |
+
+`start`, `session` and `cancel` answer `503 helper_offline` when the helper can't be reached.
+
 ## Settings
 
 | Method | Path | Purpose |

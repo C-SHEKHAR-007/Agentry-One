@@ -182,8 +182,11 @@ export async function statsRoutes(app: FastifyInstance) {
     const days = Math.min(Math.max(Number(req.query.days ?? 30) || 30, 1), 365);
 
     const [rows, pricingSettings] = await Promise.all([
-      prisma.$queryRaw<{ day: Date; provider_type: string | null; jobs: bigint }[]>`
-        SELECT date_trunc('day', jr.finished_at) AS day, j.provider_type, COUNT(*)::bigint AS jobs
+      prisma.$queryRaw<{ day: Date; provider_type: string | null; jobs: bigint; recorded_usd: number | null; unpriced: bigint; free: bigint }[]>`
+        SELECT date_trunc('day', jr.finished_at) AS day, j.provider_type, COUNT(*)::bigint AS jobs,
+               SUM(jr.cost_usd) AS recorded_usd,
+               COUNT(*) FILTER (WHERE jr.cost_usd IS NULL)::bigint AS unpriced,
+               COUNT(*) FILTER (WHERE jr.cost_usd = 0)::bigint AS free
         FROM job_runs jr JOIN jobs j ON j.id = jr.job_id
         WHERE jr.status = 'completed' AND jr.finished_at >= NOW() - make_interval(days => ${days}::int)
         GROUP BY 1, 2 ORDER BY 1`,
@@ -203,6 +206,9 @@ export async function statsRoutes(app: FastifyInstance) {
       day: dayKey(new Date(r.day)),
       providerType: r.provider_type,
       jobs: Number(r.jobs),
+      recordedUsd: r.recorded_usd ?? 0,
+      unpricedJobs: Number(r.unpriced),
+      freeJobs: Number(r.free),
     }));
 
     return { ...computeCosts(costRows, pricing, referenceUsd), pricing, referenceUsd, days };

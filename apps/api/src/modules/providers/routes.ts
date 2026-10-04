@@ -1,9 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { adminForWrites } from "../../auth/access.js";
+import { parse, z } from "../../http/validate.js";
 import { prisma } from "../../db/client.js";
 import { encryptSecret } from "./crypto.js";
 import { discoverProviderModels } from "./discovery.js";
 import { assertSafeOutboundUrl, UnsafeUrlError } from "../../http/ssrf.js";
+
+const price = z.number().min(0).max(100_000).nullable().optional();
+const ModelPrices = z.object({ inputPricePerMTok: price, outputPricePerMTok: price });
 
 /** Validates a user-supplied provider baseUrl; returns an error reply body or null. */
 async function checkBaseUrl(baseUrl: string | undefined | null): Promise<string | null> {
@@ -270,9 +274,12 @@ export async function providersRoutes(app: FastifyInstance) {
       outputTypes: string[];
       contextLength?: number;
       metadata?: Record<string, unknown>;
+      inputPricePerMTok?: number | null;
+      outputPricePerMTok?: number | null;
     };
   }>("/models", async (req, reply) => {
     const { providerConfigId, modelId, name, description, inputTypes, outputTypes, contextLength, metadata } = req.body;
+    const prices = parse(ModelPrices, req.body);
 
     const provider = await prisma.providerConfig.findUnique({ where: { id: providerConfigId } });
     if (!provider) return reply.code(404).send({ error: "Provider not found" });
@@ -288,6 +295,7 @@ export async function providersRoutes(app: FastifyInstance) {
         outputTypes: outputTypes?.length ? outputTypes : ["text"],
         contextLength,
         metadata: (metadata || {}) as object,
+        ...prices,
         isActive: true,
       },
       update: {
@@ -297,10 +305,17 @@ export async function providersRoutes(app: FastifyInstance) {
         outputTypes,
         contextLength,
         metadata: (metadata || {}) as object,
+        ...prices,
       },
     });
 
     return reply.code(201).send(model);
+  });
+
+  // A model's token prices (USD per million tokens); null clears one.
+  app.patch<{ Params: { id: string } }>("/models/:id", async (req) => {
+    const prices = parse(ModelPrices, req.body);
+    return prisma.model.update({ where: { id: req.params.id }, data: prices });
   });
 
   // Delete / deactivate a model

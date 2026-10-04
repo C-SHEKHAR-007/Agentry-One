@@ -310,18 +310,21 @@ model ProviderConfig {
 }
 
 model Model {
-  id               String   @id @default(uuid())
-  providerConfigId String   @map("provider_config_id")
-  modelId          String   @map("model_id")
-  name             String
-  description      String?
-  inputTypes       String[] @default(["text"]) @map("input_types")
-  outputTypes      String[] @default(["text"]) @map("output_types")
-  contextLength    Int?     @map("context_length")
-  metadata         Json     @default("{}")
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid())
+  providerConfigId   String   @map("provider_config_id")
+  modelId            String   @map("model_id")
+  name               String
+  description        String?
+  inputTypes         String[] @default(["text"]) @map("input_types")
+  outputTypes        String[] @default(["text"]) @map("output_types")
+  contextLength      Int?     @map("context_length")
+  /// USD per million input / output tokens; empty = use discovery pricing or the per-job price.
+  inputPricePerMTok  Float?   @map("input_price_per_mtok")
+  outputPricePerMTok Float?   @map("output_price_per_mtok")
+  metadata           Json     @default("{}")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   providerConfig ProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
 
@@ -384,28 +387,37 @@ model TemplateRun {
   templateId String   @map("template_id")
   status     String   @default("pending")
   runInputs  Json     @map("run_inputs")
+  /// The run this one retries (it reuses that run's completed steps).
+  retryOfId  String?  @map("retry_of_id")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   template Template          @relation(fields: [templateId], references: [id], onDelete: Cascade)
   steps    TemplateRunStep[]
+  retryOf  TemplateRun?      @relation("RunRetries", fields: [retryOfId], references: [id], onDelete: SetNull)
+  retries  TemplateRun[]     @relation("RunRetries")
 
   @@index([templateId, createdAt])
+  @@index([retryOfId])
   @@map("template_runs")
 }
 
 model TemplateRunStep {
-  id             String   @id @default(uuid())
-  templateRunId  String   @map("template_run_id")
-  templateStepId String   @map("template_step_id")
-  workflowId     String?  @map("workflow_id")
-  status         String   @default("pending")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid())
+  templateRunId    String   @map("template_run_id")
+  templateStepId   String   @map("template_step_id")
+  workflowId       String?  @map("workflow_id")
+  status           String   @default("pending")
+  /// Set when a retry reused this step's output instead of running it again.
+  reusedFromStepId String?  @map("reused_from_step_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  templateRun  TemplateRun  @relation(fields: [templateRunId], references: [id], onDelete: Cascade)
-  templateStep TemplateStep @relation(fields: [templateStepId], references: [id], onDelete: Cascade)
-  workflow     Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  templateRun  TemplateRun       @relation(fields: [templateRunId], references: [id], onDelete: Cascade)
+  templateStep TemplateStep      @relation(fields: [templateStepId], references: [id], onDelete: Cascade)
+  workflow     Workflow?         @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  reusedFrom   TemplateRunStep?  @relation("ReusedSteps", fields: [reusedFromStepId], references: [id], onDelete: SetNull)
+  reusedBy     TemplateRunStep[] @relation("ReusedSteps")
 
   @@index([templateRunId])
   @@index([workflowId])

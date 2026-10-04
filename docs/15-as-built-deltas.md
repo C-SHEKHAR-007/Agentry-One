@@ -24,7 +24,8 @@ Docs `01`–`14` are the design blueprint, written **before** the build. The bui
 ## Frontend deltas
 
 - Stack as recommended (TanStack Query, React Router, `@rjsf/core`) **except**: plain **Tailwind** utility classes, not shadcn/ui — at this page count a component library added setup cost without payoff.
-- The web image bakes the API key in at **build time** (`VITE_AGENTRY_API_KEY` build arg) since Vite inlines env vars — rotating the key requires rebuilding the web image.
+- **v2.2:** TanStack Query was replaced by **Redux Toolkit + RTK Query**, and `fetch` by one **axios** client. All API paths live in `src/services/api/routes.ts` and all API types in `src/models/`; pages moved into `src/features/<area>/`. See `apps/web/README.md`.
+- The web app holds no API key: it signs in with a session cookie, and `AGENTRY_API_KEY` is only for workers and scripts. (Early builds baked the key into the bundle at build time; that was removed.)
 - The nginx config in the web container reproduces the dev-time `/api` proxy (with buffering off for SSE), so the SPA is same-origin in both modes.
 
 ## Known gaps carried forward (not regressions — never built)

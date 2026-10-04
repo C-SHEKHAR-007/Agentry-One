@@ -1,0 +1,53 @@
+import { baseApi } from "../../services/api/baseApi";
+import { FALLBACK_POLL_MS, poll, useLiveInterval } from "../../services/api/polling";
+import { routes } from "../../services/api/routes";
+import { LIST } from "../../services/api/tags";
+import { LIVE_STATUSES } from "../../lib/status";
+import type { Page, RunDetail, RunSummary } from "../../models";
+
+/** Workflow (multi-step) runs: /template-runs. */
+export const runsApi = baseApi.injectEndpoints({
+  endpoints: (build) => ({
+    workflowRuns: build.query<RunSummary[], { status?: string; limit?: number }>({
+      query: (p) => routes.runs.list(p),
+      providesTags: (res) => [...(res ?? []).map((r) => ({ type: "Run" as const, id: r.id })), { type: "Run", id: LIST }],
+    }),
+    /** All workflow runs, newest first, a page at a time (the Runs page). */
+    workflowRunsPage: build.infiniteQuery<Page<RunSummary>, { status?: string }, string | null>({
+      infiniteQueryOptions: { initialPageParam: null, getNextPageParam: (last) => last.nextCursor },
+      query: ({ queryArg, pageParam }) => routes.runs.listPage({ status: queryArg.status, limit: 30, cursor: pageParam }),
+      providesTags: (res) => [...(res?.pages ?? []).flatMap((p) => p.items).map((r) => ({ type: "Run" as const, id: r.id })), { type: "Run", id: LIST }],
+    }),
+    workflowRun: build.query<RunDetail, string>({
+      query: (id) => routes.runs.detail(id),
+      providesTags: (_res, _err, id) => [{ type: "Run", id }],
+    }),
+    cancelWorkflowRun: build.mutation<void, string>({
+      query: (id) => ({ url: routes.runs.cancel(id), method: "POST" }),
+      invalidatesTags: (_res, _err, id) => [{ type: "Run", id }, { type: "Run", id: LIST }, "Workflow"],
+    }),
+    /** A new run that reuses this run's completed steps: from the first step
+     * that didn't complete, or from `fromStepOrder`. */
+    retryWorkflowRun: build.mutation<{ id: string }, { runId: string; fromStepOrder?: number }>({
+      query: ({ runId, fromStepOrder }) => ({ url: routes.runs.retry(runId), method: "POST", body: { fromStepOrder } }),
+      invalidatesTags: [{ type: "Run", id: LIST }, { type: "Template", id: LIST }, { type: "Stats", id: "overview" }, { type: "Event", id: LIST }],
+    }),
+  }),
+});
+
+export const { useWorkflowRunsQuery, useWorkflowRunsPageInfiniteQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation } = runsApi;
+
+/** Runs list ("active" for the dashboard, "all" or one status for Runs). */
+export const useWorkflowRuns = (status: string = "active", limit = 6) =>
+  useWorkflowRunsQuery({ status, limit }, poll(FALLBACK_POLL_MS));
+
+/** One run, polled every 2s while it's live (for in-step progress, which
+ * isn't pushed); step starts/finishes also arrive via the activity stream. */
+export function useWorkflowRunLive(runId: string | undefined, ms = 2000) {
+  const state = runsApi.endpoints.workflowRun.useQueryState(runId ?? "", { skip: !runId });
+  const interval = useLiveInterval(state.data?.status, LIVE_STATUSES, ms);
+  const result = useWorkflowRunQuery(runId ?? "", { skip: !runId, ...poll(interval) });
+  // RTK Query keeps the last result in `data` after switching to skip; with
+  // no run selected there is no run.
+  return runId ? result : { ...result, data: undefined, isError: false };
+}

@@ -160,5 +160,4 @@ export class CspSafeValidator<T = unknown, S extends StrictRJSFSchema = RJSFSche
 
 /** Drop-in for `import validator from "@rjsf/validator-ajv8"` (also typed
  * for any form data). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const cspSafeValidator = new CspSafeValidator<any>();

@@ -2,7 +2,7 @@
 // SYNC. Pure so the canvas/form editors can validate live; the server runs
 // the identical checks again as the save-time hard gate.
 
-import type { InputMappingValue } from "../api/types";
+import type { InputMappingValue } from "../models";
 
 export interface UpstreamStepInfo {
   stepOrder: number;
