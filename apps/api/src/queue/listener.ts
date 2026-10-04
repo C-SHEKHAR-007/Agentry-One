@@ -8,7 +8,7 @@ import { resolveArtifactPath } from "../modules/artifacts/storage.js";
 import { jobOutcomes, trackQueue } from "../http/metrics.js";
 import { handleWorkflowSettled } from "../modules/templates/service.js";
 import { advanceOrCompleteWorkflow } from "../modules/workflows/service.js";
-import { classifyProgress, completionLine, parseUsage, perJobPrice, type LogLevel } from "./telemetry.js";
+import { classifyProgress, completionLine, parseUsage, priceAttempt, type LogLevel } from "./telemetry.js";
 
 async function fileStats(storageKey: string): Promise<{ sizeBytes: bigint; checksum: string } | null> {
   if (storageKey.startsWith("azure://")) return null;
@@ -268,7 +268,7 @@ export function wireQueueListeners(queueName: string): void {
 
     const usage = parseUsage((result.metrics as { usage?: unknown } | undefined)?.usage);
     const model = usage?.model ?? job.providerModel;
-    const costUsd = await perJobPrice(job.providerType);
+    const costUsd = await priceAttempt(job, model, usage);
     const finishedAt = new Date();
     const latestRun = await prisma.jobRun.findFirst({ where: { jobId }, orderBy: { attemptNumber: "desc" } });
     const durationMs = latestRun?.startedAt ? finishedAt.getTime() - latestRun.startedAt.getTime() : null;

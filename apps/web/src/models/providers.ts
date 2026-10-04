@@ -33,6 +33,9 @@ export interface DiscoveredModel {
   inputTypes: string[];
   outputTypes: string[];
   contextLength?: number | null;
+  /** USD per million tokens; null = discovery pricing or the per-job price. */
+  inputPricePerMTok?: number | null;
+  outputPricePerMTok?: number | null;
   metadata?: Record<string, unknown>;
   isActive?: boolean;
   providerConfigId?: string;
@@ -70,4 +73,12 @@ export interface CreateModelBody {
   inputTypes: string[];
   outputTypes: string[];
   contextLength?: number;
+  inputPricePerMTok?: number | null;
+  outputPricePerMTok?: number | null;
+}
+
+/** PATCH /models/:id: a model's token prices (null clears one). */
+export interface ModelPricesBody {
+  inputPricePerMTok: number | null;
+  outputPricePerMTok: number | null;
 }

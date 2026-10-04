@@ -1,4 +1,4 @@
-import { Check, Cpu, Layers, Star, Trash2, Zap } from "lucide-react";
+import { Check, CircleDollarSign, Cpu, Layers, Star, Trash2, Zap } from "lucide-react";
 import type { DiscoveredModel } from "../../../models";
 
 type Meta = { speedEstimate?: string; parameter_size?: string; quantization_level?: string; format?: string; pricing?: { prompt?: string | number } };
@@ -12,6 +12,7 @@ export function ModelCard({
   deleting,
   onSetDefault,
   onDelete,
+  onEditPrices,
 }: {
   m: DiscoveredModel;
   providerType: string;
@@ -20,6 +21,7 @@ export function ModelCard({
   deleting: boolean;
   onSetDefault: () => void;
   onDelete: () => void;
+  onEditPrices: () => void;
 }) {
   const metadata = (m.metadata ?? {}) as Meta;
   const lowerId = m.modelId.toLowerCase();
@@ -48,7 +50,10 @@ export function ModelCard({
 
   // Pricing
   let pricingText = "";
-  if (metadata.pricing?.prompt) {
+  const fmt = (n: number) => `$${Number(n.toFixed(4))}`;
+  if (m.inputPricePerMTok != null || m.outputPricePerMTok != null) {
+    pricingText = `${fmt(m.inputPricePerMTok ?? 0)} / ${fmt(m.outputPricePerMTok ?? 0)} per 1M`;
+  } else if (metadata.pricing?.prompt) {
     const promptCost = (Number(metadata.pricing.prompt) * 1000000).toFixed(2);
     pricingText = `$${promptCost}/1M in`;
   } else if (providerType.includes("ollama") || providerType.includes("duckduckgo") || providerType.includes("pyttsx3") || providerType.includes("sd_turbo")) {
@@ -94,6 +99,15 @@ export function ModelCard({
               <span>Set</span>
             </button>
           )}
+          <button
+            type="button"
+            title="Token prices"
+            aria-label={`Token prices for ${m.name || m.modelId}`}
+            onClick={onEditPrices}
+            className="p-1 rounded text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+          >
+            <CircleDollarSign className="h-3 w-3" />
+          </button>
           <button
             type="button"
             title="Delete model"

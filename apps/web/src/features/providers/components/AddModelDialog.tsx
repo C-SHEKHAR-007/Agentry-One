@@ -11,7 +11,8 @@ import { Label } from "../../../components/ui/label";
 import { Spinner } from "../../../components/ui/spinner";
 import { useCreateModelMutation } from "../providers.api";
 
-const EMPTY_MODEL = { modelId: "", name: "", description: "", inputTypes: ["text"], outputTypes: ["text"], contextLength: "128000" };
+const EMPTY_MODEL = { modelId: "", name: "", description: "", inputTypes: ["text"], outputTypes: ["text"], contextLength: "128000", inputPrice: "", outputPrice: "" };
+const toPrice = (v: string) => (v.trim() === "" ? undefined : Number(v));
 
 /** Adds a model to a provider by hand (for endpoints that can't list theirs). */
 export function AddModelDialog({ providerId, onClose }: { providerId: string | null; onClose: () => void }) {
@@ -31,6 +32,8 @@ export function AddModelDialog({ providerId, onClose }: { providerId: string | n
         inputTypes: modelForm.inputTypes,
         outputTypes: modelForm.outputTypes,
         contextLength: modelForm.contextLength ? parseInt(modelForm.contextLength, 10) : undefined,
+        inputPricePerMTok: toPrice(modelForm.inputPrice),
+        outputPricePerMTok: toPrice(modelForm.outputPrice),
       })
         .unwrap()
         .then(() => {
@@ -130,6 +133,33 @@ export function AddModelDialog({ providerId, onClose }: { providerId: string | n
                     placeholder="128000"
                     value={modelForm.contextLength}
                     onChange={(e) => setModelForm({ ...modelForm, contextLength: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Input price, $ per 1M tokens (Optional)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 3"
+                    value={modelForm.inputPrice}
+                    onChange={(e) => setModelForm({ ...modelForm, inputPrice: e.target.value })}
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Output price, $ per 1M tokens (Optional)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 15"
+                    value={modelForm.outputPrice}
+                    onChange={(e) => setModelForm({ ...modelForm, outputPrice: e.target.value })}
                     className="h-9 text-xs font-mono"
                   />
                 </div>

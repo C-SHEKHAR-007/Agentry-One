@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyProgress, completionLine, formatMs, parseUsage } from "../src/queue/telemetry.js";
+import { classifyProgress, completionLine, formatMs, parseUsage, tokenCost, tokenRates } from "../src/queue/telemetry.js";
 import { withRunUsage, type RunDetail } from "../src/modules/templates/runUsage.js";
 
 describe("parseUsage", () => {
@@ -167,5 +167,30 @@ describe("withRunUsage", () => {
     expect(out.steps[0].usage).toMatchObject({ finishedAt: null, durationMs: null, progressPercent: 45 });
     expect(out.steps[1].usage.attempts).toBe(0);
     expect(out.totals.durationMs).toBeNull();
+  });
+});
+
+describe("token pricing", () => {
+  const model = (input: number | null, output: number | null, metadata: unknown = {}) => ({ inputPricePerMTok: input, outputPricePerMTok: output, metadata });
+
+  it("uses the model's own prices first", () => {
+    expect(tokenRates(model(3, 15, { pricing: { prompt: "0.000001", completion: "0.000002" } }))).toEqual({ input: 3, output: 15 });
+    expect(tokenRates(model(2, null))).toEqual({ input: 2, output: 0 });
+  });
+
+  it("falls back to the per-token price the provider reported at discovery", () => {
+    expect(tokenRates(model(null, null, { pricing: { prompt: "0.000003", completion: "0.000015" } }))).toEqual({ input: 3, output: 15 });
+  });
+
+  it("has no token price for unpriced or unknown models (they use the per-job price)", () => {
+    expect(tokenRates(model(null, null))).toBeNull();
+    expect(tokenRates(model(null, null, { pricing: { prompt: "", completion: "abc" } }))).toBeNull();
+    expect(tokenRates(null)).toBeNull();
+  });
+
+  it("prices an attempt's tokens per million", () => {
+    // 1,200 in at $3/M + 300 out at $15/M = 0.0036 + 0.0045
+    expect(tokenCost({ input: 3, output: 15 }, 1200, 300)).toBeCloseTo(0.0081, 10);
+    expect(tokenCost({ input: 0, output: 0 }, 5000, 5000)).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { baseApi } from "../../services/api/baseApi";
 import { routes } from "../../services/api/routes";
 import { LIST } from "../../services/api/tags";
-import type { CreateModelBody, CreateProviderBody, DiscoveredModel, ProviderConfig, UpdateProviderBody } from "../../models";
+import type { CreateModelBody, CreateProviderBody, DiscoveredModel, ModelPricesBody, ProviderConfig, UpdateProviderBody } from "../../models";
 
 // Any provider change can change which models exist and which are defaults.
 const PROVIDERS_AND_MODELS = [
@@ -50,6 +50,10 @@ export const providersApi = baseApi.injectEndpoints({
       query: (body) => ({ url: routes.models.create, method: "POST", body }),
       invalidatesTags: PROVIDERS_AND_MODELS,
     }),
+    setModelPrices: build.mutation<DiscoveredModel, { id: string } & ModelPricesBody>({
+      query: ({ id, ...body }) => ({ url: routes.models.detail(id), method: "PATCH", body }),
+      invalidatesTags: PROVIDERS_AND_MODELS,
+    }),
     deleteModel: build.mutation<void, string>({
       query: (id) => ({ url: routes.models.detail(id), method: "DELETE" }),
       invalidatesTags: PROVIDERS_AND_MODELS,
@@ -67,5 +71,6 @@ export const {
   useSetDefaultProviderMutation,
   useSetDefaultModelMutation,
   useCreateModelMutation,
+  useSetModelPricesMutation,
   useDeleteModelMutation,
 } = providersApi;

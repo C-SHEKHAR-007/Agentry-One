@@ -47,6 +47,9 @@ export function PricingEditor() {
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Per-job prices for providers whose models have no token prices. A change applies to runs from now on; past runs keep the cost they were recorded with.
+      </p>
       {pricing.map((s) => (
         <div key={s.key} className="flex flex-wrap items-center gap-3">
           <span className="w-full text-sm text-muted-foreground sm:w-72">

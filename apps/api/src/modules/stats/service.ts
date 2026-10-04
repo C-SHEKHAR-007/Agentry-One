@@ -196,6 +196,12 @@ export interface CostRow {
   day: string; // YYYY-MM-DD
   providerType: string | null;
   jobs: number;
+  /** Sum of the costs recorded when the jobs finished (by tokens or per job). */
+  recordedUsd?: number;
+  /** Jobs with no recorded cost (they predate cost recording): priced now at the per-job price. */
+  unpricedJobs?: number;
+  /** Jobs whose recorded cost was zero (local / free): counted as savings. */
+  freeJobs?: number;
 }
 
 export interface CostBreakdown {
@@ -206,12 +212,15 @@ export interface CostBreakdown {
   perDay: { date: string; usd: number; savedUsd: number; jobs: number }[];
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
+// Token-priced runs cost fractions of a cent, so keep four decimals.
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
 
-/** Attribute real spend per provider from day x providerType job counts.
- * Savings = jobs that ran on a zero-cost (local) provider x the reference
- * per-job price of a premium API. Jobs with a null providerType predate
- * attribution and are counted separately, never priced. */
+/** Attribute real spend per provider per day. Spend is what each job cost
+ * when it finished (recorded by tokens or per job); jobs from before costs
+ * were recorded are priced at today's per-job price. Savings = jobs that cost
+ * nothing (local) x the reference per-job price of a premium API. Jobs with a
+ * null providerType predate attribution and are counted separately, never
+ * priced. Rows without the recorded fields are treated as all unpriced. */
 export function computeCosts(
   rows: CostRow[],
   pricing: Record<string, { perJobUsd: number }>,
@@ -233,11 +242,13 @@ export function computeCosts(
       unattributedJobs += row.jobs;
     } else {
       const price = priceFor(row.providerType);
-      const usd = price * row.jobs;
+      const unpriced = row.unpricedJobs ?? row.jobs;
+      const usd = (row.recordedUsd ?? 0) + price * unpriced;
       totalUsd += usd;
       dayAgg.usd += usd;
-      if (price === 0) {
-        const saved = referenceUsd * row.jobs;
+      const free = (row.freeJobs ?? 0) + (price === 0 ? unpriced : 0);
+      if (free > 0) {
+        const saved = referenceUsd * free;
         savedUsd += saved;
         dayAgg.savedUsd += saved;
       }
@@ -250,14 +261,14 @@ export function computeCosts(
   }
 
   return {
-    totalUsd: round2(totalUsd),
-    savedUsd: round2(savedUsd),
+    totalUsd: round4(totalUsd),
+    savedUsd: round4(savedUsd),
     unattributedJobs,
     perProvider: [...perProvider.entries()]
-      .map(([providerType, v]) => ({ providerType, jobs: v.jobs, usd: round2(v.usd) }))
+      .map(([providerType, v]) => ({ providerType, jobs: v.jobs, usd: round4(v.usd) }))
       .sort((a, b) => b.jobs - a.jobs),
     perDay: [...perDay.entries()]
-      .map(([date, v]) => ({ date, usd: round2(v.usd), savedUsd: round2(v.savedUsd), jobs: v.jobs }))
+      .map(([date, v]) => ({ date, usd: round4(v.usd), savedUsd: round4(v.savedUsd), jobs: v.jobs }))
       .sort((a, b) => a.date.localeCompare(b.date)),
   };
 }

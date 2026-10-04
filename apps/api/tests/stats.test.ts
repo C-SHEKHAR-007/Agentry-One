@@ -160,6 +160,24 @@ describe("computeCosts", () => {
     expect(c.totalUsd).toBe(0);
     expect(c.savedUsd).toBeCloseTo(0.3);
   });
+
+  it("adds up the costs recorded when jobs finished, pricing only older unrecorded jobs now", () => {
+    const c = computeCosts(
+      [
+        // Token-priced text runs: recorded cost, none free.
+        { day: "2026-10-01", providerType: "openrouter", jobs: 3, recordedUsd: 0.0123, unpricedJobs: 0, freeJobs: 0 },
+        // Stability: 2 recorded at $0.04, 1 from before recording (today's price).
+        { day: "2026-10-01", providerType: "stability_ai", jobs: 3, recordedUsd: 0.08, unpricedJobs: 1, freeJobs: 0 },
+        // Local runs recorded at $0: savings.
+        { day: "2026-10-02", providerType: "sd_turbo_local", jobs: 4, recordedUsd: 0, unpricedJobs: 0, freeJobs: 4 },
+      ],
+      pricing,
+      0.04,
+    );
+    expect(c.totalUsd).toBeCloseTo(0.0123 + 0.08 + 0.04, 6);
+    expect(c.savedUsd).toBeCloseTo(0.16, 6);
+    expect(c.perProvider.find((p) => p.providerType === "openrouter")?.usd).toBeCloseTo(0.0123, 6);
+  });
 });
 
 describe("estimateCostSavedUsd", () => {

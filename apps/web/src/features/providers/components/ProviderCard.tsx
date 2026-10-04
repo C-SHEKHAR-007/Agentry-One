@@ -14,7 +14,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import type { ProviderConfig } from "../../../models";
+import type { DiscoveredModel, ProviderConfig } from "../../../models";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -31,6 +31,7 @@ export interface ProviderCardActions {
   addModel: () => void;
   setDefaultModel: (modelId: string) => void;
   deleteModel: (id: string) => void;
+  editModelPrices: (model: DiscoveredModel) => void;
 }
 
 /** A configured provider: identity, actions, and its models drawer. */
@@ -256,6 +257,7 @@ export function ProviderCard({
                               deleting={pending.deleteModel}
                               onSetDefault={() => on.setDefaultModel(m.modelId)}
                               onDelete={() => on.deleteModel(m.id)}
+                              onEditPrices={() => on.editModelPrices(m)}
                             />
                           ))}
             </div>

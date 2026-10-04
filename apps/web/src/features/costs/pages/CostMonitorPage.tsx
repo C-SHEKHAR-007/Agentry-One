@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { CircleDollarSign, HelpCircle, PiggyBank, Zap } from "lucide-react";
 import { useCostsQuery } from "../../stats/stats.api";
+import { formatUsd } from "../../../lib/format";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { PricingEditor } from "../../../components/common/PricingEditor";
 import { StatCard } from "../../../components/common/StatCard";
@@ -29,7 +30,7 @@ export function CostMonitorPage() {
     <div className="space-y-6">
       <PageHeader
         title="Cost Monitor"
-        description="Real spend per provider from per-job attribution; savings compare zero-cost local runs against the reference premium price."
+        description="What each run cost when it finished: by tokens for models with token prices (set them in AI Providers), otherwise the per-job price. Savings compare free local runs against the reference premium price."
         actions={
           <Select value={String(days)} onChange={(e) => setDays(Number(e.target.value))} className="w-36">
             <option value="14">Last 14 days</option>
@@ -45,14 +46,14 @@ export function CostMonitorPage() {
             <StatCard
               icon={CircleDollarSign}
               label="Spend"
-              value={`$${data.totalUsd.toFixed(2)}`}
+              value={formatUsd(data.totalUsd)}
               sub={`last ${days} days`}
               color="hsl(var(--chart-1))"
             />
             <StatCard
               icon={PiggyBank}
               label="Saved (est.)"
-              value={`$${data.savedUsd.toFixed(2)}`}
+              value={formatUsd(data.savedUsd)}
               sub={`vs. $${data.referenceUsd}/job premium`}
               color="hsl(var(--chart-2))"
               delay={0.05}
@@ -118,7 +119,7 @@ export function CostMonitorPage() {
                   <Tooltip
                     cursor={{ fill: "hsl(var(--secondary) / 0.5)" }}
                     content={
-                      <ChartTooltip formatter={(v, n) => (n.includes("USD") ? `$${v.toFixed(2)}` : String(v))} />
+                      <ChartTooltip formatter={(v, n) => (n.includes("USD") ? formatUsd(v) : String(v))} />
                     }
                   />
                   <Bar
@@ -171,7 +172,7 @@ export function CostMonitorPage() {
                       <span className="min-w-0 flex-1 truncate">{p.providerType}</span>
                       <span className="text-muted-foreground">{p.jobs}</span>
                       <span className="w-16 text-right text-muted-foreground">
-                        ${p.usd.toFixed(2)}
+                        {formatUsd(p.usd)}
                       </span>
                     </div>
                   ))}

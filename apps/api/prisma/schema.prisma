@@ -310,18 +310,21 @@ model ProviderConfig {
 }
 
 model Model {
-  id               String   @id @default(uuid())
-  providerConfigId String   @map("provider_config_id")
-  modelId          String   @map("model_id")
-  name             String
-  description      String?
-  inputTypes       String[] @default(["text"]) @map("input_types")
-  outputTypes      String[] @default(["text"]) @map("output_types")
-  contextLength    Int?     @map("context_length")
-  metadata         Json     @default("{}")
-  isActive         Boolean  @default(true) @map("is_active")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(uuid())
+  providerConfigId   String   @map("provider_config_id")
+  modelId            String   @map("model_id")
+  name               String
+  description        String?
+  inputTypes         String[] @default(["text"]) @map("input_types")
+  outputTypes        String[] @default(["text"]) @map("output_types")
+  contextLength      Int?     @map("context_length")
+  /// USD per million input / output tokens; empty = use discovery pricing or the per-job price.
+  inputPricePerMTok  Float?   @map("input_price_per_mtok")
+  outputPricePerMTok Float?   @map("output_price_per_mtok")
+  metadata           Json     @default("{}")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   providerConfig ProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
 

@@ -55,6 +55,49 @@ export function classifyProgress(data: unknown): ProgressMessage {
 
 /** The per-job price configured for a provider type (Cost Monitor pricing),
  * or null when the job has no provider. */
+/** A model's token prices in USD per million tokens: its own prices if set,
+ * else the per-token prices the provider reported at discovery (OpenRouter
+ * gives `pricing.prompt` / `pricing.completion` in USD per token). */
+export function tokenRates(model: {
+  inputPricePerMTok: number | null;
+  outputPricePerMTok: number | null;
+  metadata: unknown;
+} | null): { input: number; output: number } | null {
+  if (!model) return null;
+  if (model.inputPricePerMTok !== null || model.outputPricePerMTok !== null) {
+    return { input: model.inputPricePerMTok ?? 0, output: model.outputPricePerMTok ?? 0 };
+  }
+  const pricing = (model.metadata as { pricing?: { prompt?: unknown; completion?: unknown } } | null)?.pricing;
+  const perToken = (v: unknown) => (v === undefined || v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  const input = perToken(pricing?.prompt);
+  const output = perToken(pricing?.completion);
+  if (input === null && output === null) return null;
+  return { input: (input ?? 0) * 1_000_000, output: (output ?? 0) * 1_000_000 };
+}
+
+/** USD for one attempt's tokens at the given rates. */
+export function tokenCost(rates: { input: number; output: number }, inputTokens: number, outputTokens: number): number {
+  return Math.round(((inputTokens * rates.input + outputTokens * rates.output) / 1_000_000) * 1e8) / 1e8;
+}
+
+/** What a finished attempt cost: by tokens when it reported them and its
+ * model has token prices, else the provider's flat per-job price. */
+export async function priceAttempt(
+  job: { providerConfigId: string | null; providerType: string | null },
+  model: string | null,
+  usage: RunUsage | null,
+): Promise<number | null> {
+  if (job.providerConfigId && model && usage && (usage.inputTokens !== null || usage.outputTokens !== null)) {
+    const row = await prisma.model.findUnique({
+      where: { providerConfigId_modelId: { providerConfigId: job.providerConfigId, modelId: model } },
+      select: { inputPricePerMTok: true, outputPricePerMTok: true, metadata: true },
+    });
+    const rates = tokenRates(row);
+    if (rates) return tokenCost(rates, usage.inputTokens ?? 0, usage.outputTokens ?? 0);
+  }
+  return perJobPrice(job.providerType);
+}
+
 export async function perJobPrice(providerType: string | null): Promise<number | null> {
   if (!providerType) return null;
   const setting = await prisma.setting.findFirst({ where: { scope: "global", key: `pricing.${providerType}` } });

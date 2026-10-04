@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Bot, Compass, Cpu, Image as ImageIcon, Layers, Plus, Radio, Search, Server, Sparkles, Volume2, X } from "lucide-react";
-import type { ProviderConfig } from "../../../models";
+import type { DiscoveredModel, ProviderConfig } from "../../../models";
 import { useCapabilitiesQuery } from "../../agents/agents.api";
 import {
   useDeleteModelMutation,
@@ -16,6 +16,7 @@ import { ProviderCard } from "../components/ProviderCard";
 import { RegisterProviderDialog } from "../components/RegisterProviderDialog";
 import { EditProviderDialog } from "../components/EditProviderDialog";
 import { AddModelDialog } from "../components/AddModelDialog";
+import { ModelPriceDialog } from "../components/ModelPriceDialog";
 import { errorMessage } from "../../../services/http/errors";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { StatCard } from "../../../components/common/StatCard";
@@ -30,6 +31,7 @@ export function ProvidersPage() {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingProvider, setEditingProvider] = useState<ProviderConfig | null>(null);
   const [addModelForProvider, setAddModelForProvider] = useState<string | null>(null);
+  const [pricingModel, setPricingModel] = useState<DiscoveredModel | null>(null);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [modelSearchQuery, setModelSearchQuery] = useState<Record<string, string>>({});
 
@@ -186,6 +188,7 @@ export function ProvidersPage() {
                   .unwrap()
                   .then(() => toast.success(`Default model set to "${modelId}"`))
                   .catch(fail()),
+              editModelPrices: setPricingModel,
               deleteModel: (id) =>
                 removeModel(id)
                   .unwrap()
@@ -218,6 +221,7 @@ export function ProvidersPage() {
       <RegisterProviderDialog open={showAddModal} onClose={() => setShowAddModal(false)} capabilities={capabilities} onCreated={expand} />
       <EditProviderDialog provider={editingProvider} onClose={() => setEditingProvider(null)} />
       <AddModelDialog providerId={addModelForProvider} onClose={() => setAddModelForProvider(null)} />
+      <ModelPriceDialog model={pricingModel} onClose={() => setPricingModel(null)} />
     </div>
   );
 }
