@@ -16,6 +16,8 @@ export interface ArtifactListItem extends Artifact {
   projectId: string;
   projectName: string;
   agentId: string;
+  /** The start of a text artifact's contents (null for other kinds). */
+  textPreview?: string | null;
 }
 
 /** An artifact as listed for a run (GET /workflows/:id/artifacts), with URLs. */

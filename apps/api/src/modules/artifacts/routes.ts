@@ -7,6 +7,7 @@ import { resolveArtifactPath } from "./storage.js";
 import { downloadBlobStream } from "./azureClient.js";
 import { artifactUrl, isAzureKey, withArtifactUrls } from "./urls.js";
 import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
+import { textPreview } from "./textPreview.js";
 
 /** Media types a browser may render inline without being able to run script
  * in our origin. Everything else (notably text/html and image/svg+xml, which
@@ -44,12 +45,40 @@ export async function artifactsRoutes(app: FastifyInstance) {
   });
 
   // Flat cross-project listing for the gallery.
-  app.get<{ Querystring: { limit?: string; projectId?: string; kind?: string; paged?: string; cursor?: string } }>("/artifacts", async (req) => {
+  // Every artifact kind the caller can see (for the gallery's filter, which
+  // would otherwise only know the kinds among the cards it has loaded).
+  app.get<{ Querystring: { projectId?: string } }>("/artifacts/kinds", async (req) => {
+    const rows = await prisma.artifact.findMany({
+      where: { workflowStep: { workflow: { ...viaProject(req), ...(req.query.projectId ? { projectId: req.query.projectId } : {}) } } },
+      distinct: ["kind"],
+      select: { kind: true },
+      orderBy: { kind: "asc" },
+    });
+    return rows.map((r) => r.kind);
+  });
+
+  app.get<{ Querystring: { limit?: string; projectId?: string; kind?: string; q?: string; paged?: string; cursor?: string } }>("/artifacts", async (req) => {
     const limit = Math.min(Number(req.query.limit ?? 50) || 50, 100);
     const page = pageQuery(req.query);
+    // Search by kind, project or agent (contents aren't indexed).
+    const q = req.query.q?.trim().slice(0, 100);
+    const contains = (v: string) => ({ contains: v, mode: "insensitive" as const });
     const rows = await prisma.artifact.findMany({
       where: {
-        ...page.where,
+        // Both the cursor and the search are ORs, so they're ANDed together.
+        AND: [
+          page.where,
+          q
+            ? {
+                OR: [
+                  { kind: contains(q) },
+                  { workflowStep: { workflow: { project: { name: contains(q) } } } },
+                  { workflowStep: { workflow: { agentId: contains(q) } } },
+                  { workflowStep: { workflow: { agent: { name: contains(q) } } } },
+                ],
+              }
+            : {},
+        ],
         ...(req.query.kind ? { kind: req.query.kind } : {}),
         workflowStep: {
           workflow: {
@@ -86,6 +115,7 @@ export async function artifactsRoutes(app: FastifyInstance) {
           agentId: a.workflowStep.workflow.agentId,
           previewUrl,
           downloadUrl,
+          textPreview: await textPreview(a),
         };
       }),
     );

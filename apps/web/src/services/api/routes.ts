@@ -93,8 +93,9 @@ export const routes = {
   },
   artifacts: {
     list: (p: { limit?: number; projectId?: string; kind?: string } = {}) => `/artifacts${q(p)}`,
-    listPage: (p: PageParams & { projectId?: string; kind?: string }) =>
-      `/artifacts${q({ ...paged(p), projectId: p.projectId, kind: p.kind })}`,
+    listPage: (p: PageParams & { projectId?: string; kind?: string; q?: string }) =>
+      `/artifacts${q({ ...paged(p), projectId: p.projectId, kind: p.kind, q: p.q })}`,
+    kinds: (projectId?: string) => `/artifacts/kinds${q({ projectId })}`,
     detail: (artifactId: string) => `/artifacts/${id(artifactId)}`,
     download: (artifactId: string) => `/artifacts/${id(artifactId)}/download`,
     sasPreview: (artifactId: string) => `/artifacts/${id(artifactId)}/sas/preview`,

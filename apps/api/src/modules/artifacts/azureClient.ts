@@ -195,3 +195,9 @@ export async function downloadBlobStream(blobName: string) {
     contentType: downloadResponse.contentType,
   };
 }
+
+/** The first `count` bytes of a blob (for text previews). */
+export async function downloadBlobHead(blobName: string, count: number): Promise<Buffer> {
+  const blobClient = getBlobServiceClient().getContainerClient(getContainerName()).getBlobClient(blobName);
+  return blobClient.downloadToBuffer(0, count);
+}

@@ -12,7 +12,12 @@ export const artifactsApi = baseApi.injectEndpoints({
       providesTags: (res) => [...(res ?? []).map((a) => ({ type: "Artifact" as const, id: a.id })), { type: "Artifact", id: "LIST" }],
     }),
     /** Artifacts, newest first, a page at a time (the Artifacts page). */
-    artifactsPage: build.infiniteQuery<Page<ArtifactListItem>, { projectId?: string; kind?: string }, string | null>({
+    /** Every kind the caller has artifacts of (for the filter). */
+    artifactKinds: build.query<string[], string | void>({
+      query: (projectId) => routes.artifacts.kinds(projectId || undefined),
+      providesTags: [{ type: "Artifact", id: "LIST" }],
+    }),
+    artifactsPage: build.infiniteQuery<Page<ArtifactListItem>, { projectId?: string; kind?: string; q?: string }, string | null>({
       infiniteQueryOptions: { initialPageParam: null, getNextPageParam: (last) => last.nextCursor },
       query: ({ queryArg, pageParam }) => routes.artifacts.listPage({ ...queryArg, limit: 48, cursor: pageParam }),
       providesTags: (res) => [...(res?.pages ?? []).flatMap((p) => p.items).map((a) => ({ type: "Artifact" as const, id: a.id })), { type: "Artifact", id: "LIST" }],
@@ -33,4 +38,4 @@ export const artifactsApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useArtifactsQuery, useArtifactsPageInfiniteQuery, useArtifactPreviewUrlQuery, useArtifactDownloadUrlQuery, useArtifactTextQuery } = artifactsApi;
+export const { useArtifactsQuery, useArtifactsPageInfiniteQuery, useArtifactKindsQuery, useArtifactPreviewUrlQuery, useArtifactDownloadUrlQuery, useArtifactTextQuery } = artifactsApi;
