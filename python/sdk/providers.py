@@ -286,6 +286,20 @@ def _generate_anthropic(ctx: dict, prompt: str, **kwargs) -> str:
     return "".join(c.get("text", "") for c in content if c.get("type") == "text")
 
 
+def speakable_text(text: str) -> str:
+    """Text as the local TTS engine can read it: no emoji or other symbols
+    (Unicode category S*) and no control characters (C*) other than line
+    breaks and tabs. With an emoji in it, espeak via pyttsx3 crashes in its
+    callback and silently writes no audio file -- and captions are full of
+    them. Letters, digits and punctuation in any script are kept."""
+    import unicodedata
+
+    kept = "".join(
+        ch for ch in text if ch in "\n\t" or not unicodedata.category(ch).startswith(("S", "C"))
+    )
+    return " ".join(kept.split()) if kept.strip() else ""
+
+
 def _generate_pyttsx3_local(text: str, out_path: str, voice: str | None = None) -> None:
     """Fully offline text-to-speech via the system's own TTS engine (espeak on
     Linux, NSSpeechSynthesizer on macOS, SAPI5 on Windows) -- no API key, no
@@ -306,8 +320,14 @@ def _generate_pyttsx3_local(text: str, out_path: str, voice: str | None = None) 
             if voice.lower() in (v.name or "").lower() or voice.lower() in (v.id or "").lower():
                 engine.setProperty("voice", v.id)
                 break
-    engine.save_to_file(text, out_path)
+    spoken = speakable_text(text)
+    if not spoken:
+        raise ValueError("Nothing to speak: the text has no words once emoji and symbols are removed.")
+    engine.save_to_file(spoken, out_path)
     engine.runAndWait()
+    # The engine reports failures only through its callbacks; check the result.
+    if not os.path.exists(out_path) or os.path.getsize(out_path) == 0:
+        raise RuntimeError("The local TTS engine produced no audio for this text.")
 
 
 class CapabilityClient:

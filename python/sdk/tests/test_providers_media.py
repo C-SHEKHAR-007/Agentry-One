@@ -79,6 +79,8 @@ def test_generate_image_stability(mock_requests):
 def test_generate_audio_pyttsx3(mock_pyttsx3, tmp_path):
     mock_engine = MagicMock()
     mock_pyttsx3.return_value = mock_engine
+    # Like the real engine, write the audio file when asked to.
+    mock_engine.save_to_file.side_effect = lambda _text, path: open(path, "wb").write(b"RIFF")
 
     # Configure engine properties
     mock_voice = MagicMock()
@@ -100,3 +102,33 @@ def test_generate_audio_pyttsx3(mock_pyttsx3, tmp_path):
     mock_engine.setProperty.assert_called_with("voice", "en-us")
     mock_engine.save_to_file.assert_called_with("Hello world", out_path)
     mock_engine.runAndWait.assert_called_once()
+
+
+def test_tts_drops_emoji_and_symbols_but_keeps_words():
+    from sdk.providers import speakable_text
+
+    caption = "🌟 Big news — AI agents for small businesses! 💬 Tell us ✨ #ai\nNaïve café, 東京"
+    assert speakable_text(caption) == "Big news — AI agents for small businesses! Tell us #ai Naïve café, 東京"
+    assert speakable_text("✨🌟💬") == ""
+
+
+def test_generate_audio_speaks_the_cleaned_text(mock_pyttsx3, tmp_path):
+    engine = MagicMock()
+    mock_pyttsx3.return_value = engine
+    engine.save_to_file.side_effect = lambda _text, path: open(path, "wb").write(b"RIFF")
+    out = str(tmp_path / "caption.wav")
+    CapabilityClient({"providerType": "local"}).generate_audio("Launch day 🚀 is here ✨", out)
+    engine.save_to_file.assert_called_with("Launch day is here", out)
+
+
+def test_generate_audio_fails_clearly_when_no_file_is_written(mock_pyttsx3, tmp_path):
+    engine = MagicMock()
+    mock_pyttsx3.return_value = engine  # writes nothing, like espeak on bad input
+    with pytest.raises(RuntimeError, match="produced no audio"):
+        CapabilityClient({"providerType": "local"}).generate_audio("Hello", str(tmp_path / "x.wav"))
+
+
+def test_generate_audio_refuses_text_with_no_words(mock_pyttsx3, tmp_path):
+    mock_pyttsx3.return_value = MagicMock()
+    with pytest.raises(ValueError, match="Nothing to speak"):
+        CapabilityClient({"providerType": "local"}).generate_audio("🌟✨", str(tmp_path / "x.wav"))
