@@ -6,6 +6,7 @@ import { useSystemHealth } from "../../stats/stats.api";
 import { errorMessage } from "../../../services/http/errors";
 import { useTheme } from "../../shell/theme";
 import { cn } from "../../../lib/utils";
+import { ThemeTransitionPicker } from "../components/ThemeTransitionPicker";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { PricingEditor } from "../../../components/common/PricingEditor";
 import { SystemHealthPanel } from "../../../components/common/SystemHealthPanel";
@@ -65,7 +66,7 @@ export function SettingsPage() {
           <CardTitle>Appearance</CardTitle>
           <CardDescription>Theme preference is stored in this browser.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex gap-2">
             {THEME_OPTIONS.map((opt) => {
               const Icon = opt.icon;
@@ -73,7 +74,7 @@ export function SettingsPage() {
               return (
                 <button
                   key={opt.value}
-                  onClick={() => setTheme(opt.value)}
+                  onClick={(e) => setTheme(opt.value, e.currentTarget)}
                   className={cn(
                     "flex flex-1 flex-col items-center gap-2 rounded-lg border px-4 py-3 text-sm transition-colors",
                     active
@@ -88,6 +89,7 @@ export function SettingsPage() {
               );
             })}
           </div>
+          <ThemeTransitionPicker />
         </CardContent>
       </Card>
 

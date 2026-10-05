@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useAppDispatch, useAppSelector } from "../../app/hooks";
 import { setTheme as setThemeAction, type Theme } from "./ui.slice";
+import { originOf, switchThemeAnimated } from "./themeTransition";
 
 const systemPrefersDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches;
 const resolveTheme = (t: Theme): "light" | "dark" => (t === "system" ? (systemPrefersDark() ? "dark" : "light") : t);
@@ -20,7 +22,8 @@ export function ThemeSync() {
   return null;
 }
 
-/** Current theme, what it resolves to, and a setter. Same shape as before. */
+/** Current theme, what it resolves to, and a setter. Pass the clicked
+ * element to `setTheme` and the change spreads out from it. */
 export function useTheme() {
   const dispatch = useAppDispatch();
   const theme = useAppSelector((s) => s.ui.theme);
@@ -33,6 +36,22 @@ export function useTheme() {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [theme]);
-  const setTheme = useCallback((t: Theme) => dispatch(setThemeAction(t)), [dispatch]);
+  const setTheme = useCallback(
+    (t: Theme, from?: Element | null) => {
+      const toDark = resolveTheme(t) === "dark";
+      const looksChanged = document.documentElement.classList.contains("dark") !== toDark;
+      switchThemeAnimated({
+        // Switch synchronously, so the browser captures the new theme.
+        apply: () => {
+          flushSync(() => dispatch(setThemeAction(t)));
+          document.documentElement.classList.toggle("dark", toDark);
+        },
+        // Nothing to animate when the colours stay the same (e.g. System -> Dark at night).
+        origin: looksChanged ? originOf(from) : null,
+        toDark,
+      });
+    },
+    [dispatch],
+  );
   return { theme, resolved, setTheme };
 }

@@ -291,3 +291,59 @@ body {
     opacity: 0;
   }
 }
+
+/* ── Theme switch ─────────────────────────────────────────────────────────
+ * A circle spreading from the clicked button (features/shell/themeTransition).
+ * --vt-x/--vt-y: its centre; --vt-r: the radius that covers the window. */
+@property --vt-radius {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+html.vt-grow::view-transition-old(root),
+html.vt-grow::view-transition-new(root),
+html.vt-shrink::view-transition-old(root),
+html.vt-shrink::view-transition-new(root),
+html.vt-soft::view-transition-old(root),
+html.vt-soft::view-transition-new(root) {
+  /* Replace the browser's default cross-fade with the circle. */
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.vt-grow::view-transition-new(root) {
+  clip-path: circle(var(--vt-radius) at var(--vt-x) var(--vt-y));
+  animation: vt-reveal var(--vt-duration, 650ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Shrink: the old theme sits on top and folds back into the button. */
+html.vt-shrink::view-transition-old(root) {
+  z-index: 2;
+  clip-path: circle(var(--vt-radius) at var(--vt-x) var(--vt-y));
+  animation: vt-conceal var(--vt-duration, 650ms) cubic-bezier(0.64, 0, 0.78, 0) both;
+}
+html.vt-shrink::view-transition-new(root) {
+  z-index: 1;
+}
+
+html.vt-soft::view-transition-new(root) {
+  -webkit-mask-image: radial-gradient(circle at var(--vt-x) var(--vt-y), #000 calc(var(--vt-radius) - 140px), transparent var(--vt-radius));
+  mask-image: radial-gradient(circle at var(--vt-x) var(--vt-y), #000 calc(var(--vt-radius) - 140px), transparent var(--vt-radius));
+  animation: vt-reveal var(--vt-duration, 650ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+html.vt-instant-colors *,
+html.vt-instant-colors *::before,
+html.vt-instant-colors *::after {
+  transition: none !important;
+}
+
+@keyframes vt-reveal {
+  from { --vt-radius: 0px; }
+  to { --vt-radius: var(--vt-r); }
+}
+@keyframes vt-conceal {
+  from { --vt-radius: var(--vt-r); }
+  to { --vt-radius: 0px; }
+}

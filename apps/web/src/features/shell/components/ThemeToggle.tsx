@@ -9,7 +9,7 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon"
       aria-label="Toggle theme"
-      onClick={() => setTheme(resolved === "dark" ? "light" : "dark")}
+      onClick={(e) => setTheme(resolved === "dark" ? "light" : "dark", e.currentTarget)}
     >
       {resolved === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
     </Button>

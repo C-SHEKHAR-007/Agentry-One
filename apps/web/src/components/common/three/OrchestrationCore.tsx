@@ -208,7 +208,12 @@ export default function OrchestrationCore({ activity = 2, nodes = 7, className }
       }
     };
     recolor();
-    const themeObserver = new MutationObserver(recolor);
+    // Redraw at once (not on the next frame): a theme switch animates from a
+    // snapshot taken right after the class changes.
+    const themeObserver = new MutationObserver(() => {
+      recolor();
+      renderer.render(scene, camera);
+    });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     // ── Sizing, pointer parallax, visibility ─────────────────────────────
