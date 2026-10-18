@@ -66,6 +66,4 @@ export function filterModels(models: DiscoveredModel[], query: string, selectedM
   });
 }
 
-/** The model a provider uses unless told otherwise. */
-export const currentModelOf = (p: ProviderConfig): string =>
-  (p.config?.model as string | undefined) || (p.models && p.models.length > 0 ? p.models[0].modelId : "");
+export { currentModelOf } from "../../lib/providerModel";

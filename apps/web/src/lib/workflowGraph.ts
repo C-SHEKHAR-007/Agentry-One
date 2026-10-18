@@ -44,28 +44,65 @@ export function computeDepths(steps: GraphStep[]): Map<number, number> {
 }
 
 export const NODE_WIDTH = 248;
-export const COLUMN_GAP = 64;
-export const ROW_GAP = 28;
+/** Room between columns for the edges' kind labels ("text", "search brief"). */
+export const COLUMN_GAP = 96;
+export const ROW_GAP = 40;
 export const NODE_HEIGHT = 156;
 
+/** An artifact kind as people read it: "search_brief" -> "search brief". */
+export const kindLabel = (kind: string) => kind.replace(/_/g, " ");
+
+/** Inputs a step card lists before "+N more". */
+export const NODE_MAX_INPUTS = 3;
+
+/**
+ * The rendered height of a step card (components/common/graph/WorkflowNodes),
+ * so stacked cards never overlap: the title can take two lines, up to three
+ * inputs are listed, and the output chips wrap onto more rows.
+ */
+export function estimateNodeHeight(card: { name: string; inputs: number; outputs: string[] }): number {
+  const nameLines = card.name.length > 21 ? 2 : 1;
+  const header = 24 + Math.max(36, 17 + 20 * nameLines) + 1;
+  const rows = Math.min(card.inputs, NODE_MAX_INPUTS);
+  const body = 20 + (rows === 0 ? 24 : rows * 16 + (rows - 1) * 4) + (card.inputs > NODE_MAX_INPUTS ? 21 : 0);
+  if (card.outputs.length === 0) return header + body;
+  // Chips wrap after the "Outputs" label inside the card's 214px of content.
+  const chipWidth = (k: string) => 16 + kindLabel(k).length * 7.5;
+  let lines = 1;
+  let used = 62;
+  for (const k of card.outputs) {
+    const w = chipWidth(k);
+    if (used + 6 + w > 214) {
+      lines += 1;
+      used = w;
+    } else used += 6 + w;
+  }
+  return header + body + 1 + 16 + lines * 21 + (lines - 1) * 6;
+}
+
 /** Left-to-right layered layout: one column per depth, columns vertically
- * centred on each other so the graph reads as a flow. */
-export function layoutSteps(steps: GraphStep[], originX = 0): Map<number, { x: number; y: number }> {
+ * centred on each other so the graph reads as a flow. `heightOf` gives each
+ * card's height (default: NODE_HEIGHT), so taller cards push the next one down. */
+export function layoutSteps(
+  steps: GraphStep[],
+  originX = 0,
+  heightOf: (s: GraphStep) => number = () => NODE_HEIGHT,
+): Map<number, { x: number; y: number }> {
   const depths = computeDepths(steps);
   const columns = new Map<number, GraphStep[]>();
   for (const s of [...steps].sort((a, b) => a.stepOrder - b.stepOrder)) {
     const d = depths.get(s.stepOrder) ?? 0;
     columns.set(d, [...(columns.get(d) ?? []), s]);
   }
-  const tallest = Math.max(1, ...[...columns.values()].map((c) => c.length));
-  const fullHeight = tallest * NODE_HEIGHT + (tallest - 1) * ROW_GAP;
+  const heightOfColumn = (col: GraphStep[]) => col.reduce((h, s) => h + heightOf(s), 0) + (col.length - 1) * ROW_GAP;
+  const fullHeight = Math.max(NODE_HEIGHT, ...[...columns.values()].map(heightOfColumn));
   const out = new Map<number, { x: number; y: number }>();
   for (const [depth, col] of columns) {
-    const colHeight = col.length * NODE_HEIGHT + (col.length - 1) * ROW_GAP;
-    const top = (fullHeight - colHeight) / 2;
-    col.forEach((s, i) => {
-      out.set(s.stepOrder, { x: originX + depth * (NODE_WIDTH + COLUMN_GAP), y: top + i * (NODE_HEIGHT + ROW_GAP) });
-    });
+    let y = (fullHeight - heightOfColumn(col)) / 2;
+    for (const s of col) {
+      out.set(s.stepOrder, { x: originX + depth * (NODE_WIDTH + COLUMN_GAP), y });
+      y += heightOf(s) + ROW_GAP;
+    }
   }
   return out;
 }
@@ -120,7 +157,7 @@ export function fieldIssues(
       else {
         const kinds = producesFor(source);
         if (!kinds.includes(v.artifactKind)) {
-          issues[field] = `${stepLabel(v.stepOrder)} doesn't produce ${v.artifactKind} (it outputs ${kinds.join(", ") || "nothing"}).`;
+          issues[field] = `${stepLabel(v.stepOrder)} doesn't produce ${kindLabel(v.artifactKind)} (it outputs ${kinds.map(kindLabel).join(", ") || "nothing"}).`;
         }
       }
     } else if (v.kind === "fromRunInput" && !v.field.trim()) {

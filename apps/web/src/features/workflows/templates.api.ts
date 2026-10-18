@@ -65,7 +65,7 @@ export const templatesApi = baseApi.injectEndpoints({
       query: (templateId) => routes.templates.schedules(templateId),
       providesTags: (_res, _err, templateId) => [{ type: "Schedule", id: templateId }],
     }),
-    addSchedule: build.mutation<Schedule, { templateId: string; cronExpr: string; runInputs: Record<string, unknown> }>({
+    addSchedule: build.mutation<Schedule, { templateId: string; cronExpr: string; timezone?: string; runInputs: Record<string, unknown> }>({
       query: ({ templateId, ...body }) => ({ url: routes.templates.schedule(templateId), method: "POST", body }),
       invalidatesTags: (_res, _err, { templateId }) => [{ type: "Schedule", id: templateId }, { type: "Template", id: LIST }],
     }),

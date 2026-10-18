@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Layers, Network, Plus, RotateCw, Sparkles } from "lucide-react";
@@ -7,15 +8,17 @@ import { errorMessage } from "../../../services/http/errors";
 import { useNow } from "../../../hooks/useNow";
 import { formatDuration, formatTokens, formatUsd, timeAgo } from "../../../lib/format";
 import { AGENT_TO_ROLE, ROLE_ORDER, type Role } from "../../../lib/studioPlan";
+import { withVersion } from "../../../lib/stepVersions";
 import { cn } from "../../../lib/utils";
 import { Button, buttonVariants } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import { PipelineStrip } from "./PipelineStrip";
-import { LIVE_RUN_STATUSES } from "./roles";
+import { LIVE_RUN_STATUSES, ROLES } from "./roles";
 import { OutputCard } from "./run/OutputCard";
 import { PostPreview } from "./run/PostPreview";
 import { PublishPanel } from "./run/PublishPanel";
 import { type RunStep } from "./run/shared";
+import { VersionControls } from "./run/VersionControls";
 
 /** A Content Studio creation is a workflow run (GET /template-runs/:id). */
 export type TemplateRun = RunDetail;
@@ -58,6 +61,26 @@ export function RunView({
           onOpen(next.id);
         })
         .catch((err) => toast.error(errorMessage(err))),
+  };
+
+  // The version of each output the person picked to look at (and publish).
+  const [picked, setPicked] = useState<{ runId: string; byRole: Partial<Record<Role, string>> }>({ runId: run.id, byRole: {} });
+  const pickedFor = picked.runId === run.id ? picked.byRole : {};
+  const shown = (r: Role) => withVersion(byRole.get(r), run, pickedFor[r]);
+  const controls = (r: Role, what: string) => {
+    const step = byRole.get(r);
+    if (!step || live) return undefined;
+    return (
+      <VersionControls
+        run={run}
+        step={step}
+        what={what}
+        takesNote={"prompt" in step.templateStep.inputMapping}
+        shownWorkflowId={shown(r)?.workflowId ?? null}
+        onPick={(workflowId) => setPicked({ runId: run.id, byRole: { ...pickedFor, [r]: workflowId } })}
+        onOpen={onOpen}
+      />
+    );
   };
 
   const hasPost = byRole.has("text") || byRole.has("image");
@@ -115,18 +138,27 @@ export function RunView({
         )}
       </Card>
 
-      {hasPost && <PostPreview textStep={byRole.get("text")} imageStep={byRole.get("image")} runLive={live} runId={run.id} />}
+      {hasPost && (
+        <PostPreview
+          textStep={shown("text")}
+          imageStep={shown("image")}
+          runLive={live}
+          runId={run.id}
+          textControls={controls("text", "caption")}
+          imageControls={controls("image", "visual")}
+        />
+      )}
 
       <div className="grid items-start gap-4 xl:grid-cols-2">
         {others.map((r) => (
-          <OutputCard key={r} role={r} step={byRole.get(r)} runLive={live} runId={run.id} wide={r === "video" || r === "search"} />
+          <OutputCard key={r} role={r} step={shown(r)} runLive={live} runId={run.id} wide={r === "video" || r === "search"} controls={controls(r, ROLES[r].label.toLowerCase())} />
         ))}
       </div>
 
       {byRole.has("publish") ? (
         <OutputCard role="publish" step={byRole.get("publish")!} runLive={live} runId={run.id} wide />
       ) : (
-        <PublishPanel projectId={projectId} accounts={accounts} textStep={byRole.get("text")} imageStep={byRole.get("image")} />
+        <PublishPanel projectId={projectId} accounts={accounts} textStep={shown("text")} imageStep={shown("image")} />
       )}
     </div>
   );

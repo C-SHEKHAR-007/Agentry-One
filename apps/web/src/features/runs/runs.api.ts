@@ -28,14 +28,19 @@ export const runsApi = baseApi.injectEndpoints({
     }),
     /** A new run that reuses this run's completed steps: from the first step
      * that didn't complete, or from `fromStepOrder`. */
-    retryWorkflowRun: build.mutation<{ id: string }, { runId: string; fromStepOrder?: number }>({
-      query: ({ runId, fromStepOrder }) => ({ url: routes.runs.retry(runId), method: "POST", body: { fromStepOrder } }),
+    retryWorkflowRun: build.mutation<{ id: string }, { runId: string; fromStepOrder?: number; onlyStep?: boolean; note?: string }>({
+      query: ({ runId, ...body }) => ({ url: routes.runs.retry(runId), method: "POST", body }),
       invalidatesTags: [{ type: "Run", id: LIST }, { type: "Template", id: LIST }, { type: "Stats", id: "overview" }, { type: "Event", id: LIST }],
+    }),
+    /** Extra versions of one step of a finished run, each its own run. */
+    workflowRunVariants: build.mutation<Array<{ id: string }>, { runId: string; stepOrder: number; count?: number; note?: string }>({
+      query: ({ runId, ...body }) => ({ url: routes.runs.variants(runId), method: "POST", body }),
+      invalidatesTags: (_res, _err, { runId }) => [{ type: "Run", id: runId }, { type: "Run", id: LIST }, { type: "Stats", id: "overview" }, { type: "Event", id: LIST }],
     }),
   }),
 });
 
-export const { useWorkflowRunsQuery, useWorkflowRunsPageInfiniteQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation } = runsApi;
+export const { useWorkflowRunsQuery, useWorkflowRunsPageInfiniteQuery, useWorkflowRunQuery, useCancelWorkflowRunMutation, useRetryWorkflowRunMutation, useWorkflowRunVariantsMutation } = runsApi;
 
 /** Runs list ("active" for the dashboard, "all" or one status for Runs). */
 export const useWorkflowRuns = (status: string = "active", limit = 6) =>

@@ -5,19 +5,24 @@ import { cspSafeValidator as validator } from "../../../lib/schemaValidator";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { BookmarkPlus, Sparkles } from "lucide-react";
+import { Play } from "lucide-react";
 import { useAgentQuery } from "../agents.api";
 import { useProjectsQuery } from "../../projects/projects.api";
 import { useCreatePromptMutation, usePromptsQuery } from "../../prompts/prompts.api";
 import { useProvidersQuery } from "../../providers/providers.api";
 import { useStartAgentRunMutation } from "../../runs/agentRuns.api";
 import { errorMessage } from "../../../services/http/errors";
+import { buildUiSchema, promptFieldOf, type SchemaProperty } from "../../../lib/submitForm";
+import { currentModelOf } from "../../../lib/providerModel";
+import type { Prompt } from "../../../models/prompts";
 import { PageHeader } from "../../../components/common/PageHeader";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Label } from "../../../components/ui/label";
 import { Select } from "../../../components/ui/select";
 import { Skeleton } from "../../../components/ui/skeleton";
+import { SUBMIT_WIDGETS, type SubmitFormContext } from "../components/submit/FormWidgets";
+import { RunPreview } from "../components/submit/RunPreview";
 
 export function SubmitAgentPage() {
   const { agentId } = useParams();
@@ -30,24 +35,25 @@ export function SubmitAgentPage() {
   const { data: projects } = useProjectsQuery();
   const { data: prompts } = usePromptsQuery(agentId ?? "", { skip: !agentId });
 
-  // The field a saved prompt targets: a string field literally named "prompt",
-  // else the first string field in the schema.
-  const promptField = useMemo(() => {
-    const props = agent?.manifest.steps[0]?.inputSchema.properties ?? {};
-    if (props.prompt?.type === "string") return "prompt";
-    return Object.entries(props).find(([, v]) => v.type === "string")?.[0] ?? null;
-  }, [agent]);
+  const inputSchema = agent?.manifest.steps[0]?.inputSchema;
+  const properties = inputSchema?.properties as Record<string, SchemaProperty> | undefined;
+  const promptField = useMemo(() => promptFieldOf(properties), [properties]);
+  const uiSchema = useMemo(() => buildUiSchema(properties, promptField), [properties, promptField]);
+
+  const insertPrompt = (p: Prompt) => {
+    if (!promptField) return;
+    setFormData((d) => ({ ...d, [promptField]: p.template }));
+    toast.success(`Inserted "${p.key}" v${p.version}`);
+  };
 
   const [createPrompt] = useCreatePromptMutation();
-  const savePrompt = {
-    mutate: (template: string) => {
-      const key = window.prompt("Save prompt as (key):", "my-prompt");
-      if (!key?.trim() || !agentId) return;
-      createPrompt({ agentId, key: key.trim(), template })
-        .unwrap()
-        .then((p) => toast.success(`Saved "${p.key}" v${p.version}`))
-        .catch((err) => toast.error(errorMessage(err)));
-    },
+  const savePrompt = (template: string) => {
+    const key = window.prompt("Save prompt as (key):", "my-prompt");
+    if (!key?.trim() || !agentId) return;
+    createPrompt({ agentId, key: key.trim(), template })
+      .unwrap()
+      .then((p) => toast.success(`Saved "${p.key}" v${p.version}`))
+      .catch((err) => toast.error(errorMessage(err)));
   };
 
   // "Use in run" from the prompt library links here with ?prompt=<id>:
@@ -99,8 +105,8 @@ export function SubmitAgentPage() {
 
   // rjsf's validator annotates the schema it's given; cached API data is
   // frozen, so hand it a copy.
-  const inputSchema = agent?.manifest.steps[0]?.inputSchema;
   const schema = useMemo(() => (inputSchema ? (structuredClone(inputSchema) as RJSFSchema) : undefined), [inputSchema]);
+  const formContext: SubmitFormContext = { prompts, onInsertPrompt: insertPrompt, onSavePrompt: savePrompt };
 
   if (agentLoadFailed) return <NotFoundPage what="agent" />;
   if (!agent || !schema) {
@@ -112,99 +118,86 @@ export function SubmitAgentPage() {
     );
   }
 
+  const provider = activeProviders.find((p) => p.id === providerConfigId);
+  const noProvider = Boolean(requiredCapability) && activeProviders.length === 0;
+
   return (
-    <div className="max-w-2xl mx-auto">
-      <PageHeader
-        title={`Run ${agent.name}`}
-        description="Form generated automatically from this agent's input schema."
-      />
+    <div className="mx-auto max-w-5xl">
+      <PageHeader title={`Run ${agent.name}`} description={agent.description} />
 
-      <Card glass>
-        <CardContent className="space-y-5 pt-5">
-          <div>
-            <Label>Project</Label>
-            <Select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">Select a project...</option>
-              {projects?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Card glass>
+          <CardContent className="space-y-5 pt-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="submit-project">Project</Label>
+                <Select id="submit-project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
+                  <option value="">Select a project...</option>
+                  {projects?.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
-          {requiredCapability && (
-            <div>
-              <Label>AI Provider / Model ({requiredCapability})</Label>
-              {activeProviders.length === 0 ? (
-                <div className="mt-1.5 flex items-center justify-between rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
-                  <span>No active provider configured for capability "{requiredCapability}".</span>
-                  <Link to="/providers" className="font-semibold underline ml-2 hover:text-warning-foreground">
-                    Register Provider →
-                  </Link>
+              {requiredCapability && (
+                <div>
+                  <Label htmlFor="submit-provider">Provider ({requiredCapability})</Label>
+                  {noProvider ? (
+                    <div className="mt-1.5 rounded-lg border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+                      No active provider.{" "}
+                      <Link to="/providers" className="font-semibold underline">
+                        Register one →
+                      </Link>
+                    </div>
+                  ) : (
+                    <Select id="submit-provider" value={providerConfigId} onChange={(e) => setProviderConfigId(e.target.value)}>
+                      <option value="">Use system default provider</option>
+                      {activeProviders.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.providerType}){p.isDefault ? " — default" : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </div>
-              ) : (
-                <Select value={providerConfigId} onChange={(e) => setProviderConfigId(e.target.value)}>
-                  <option value="">Use system default provider</option>
-                  {activeProviders.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.providerType}){p.isDefault ? " — default" : ""}
-                    </option>
-                  ))}
-                </Select>
               )}
             </div>
-          )}
 
-          {promptField && (prompts?.length || formData[promptField]) ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              {prompts && prompts.length > 0 && (
-                <Select
-                  value=""
-                  onChange={(e) => {
-                    const p = prompts.find((x) => x.id === e.target.value);
-                    if (p) {
-                      setFormData((d) => ({ ...d, [promptField]: p.template }));
-                      toast.success(`Inserted "${p.key}" v${p.version}`);
-                    }
-                  }}
-                  className="h-8 w-56"
-                >
-                  <option value="">Insert saved prompt...</option>
-                  {prompts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.key} v{p.version}
-                    </option>
-                  ))}
-                </Select>
-              )}
-              {Boolean(formData[promptField]) && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => savePrompt.mutate(String(formData[promptField]))}
-                >
-                  <BookmarkPlus className="h-3.5 w-3.5" /> Save current prompt
+            {projectId ? (
+              <Form
+                schema={schema}
+                uiSchema={uiSchema}
+                widgets={SUBMIT_WIDGETS}
+                formContext={formContext}
+                validator={validator}
+                formData={formData}
+                onChange={({ formData }) => setFormData(formData ?? {})}
+                onSubmit={({ formData }) => submit(formData ?? {})}
+                className="rjsf-form"
+              >
+                <Button type="submit" className="mt-2" disabled={startState.isLoading || noProvider}>
+                  <Play className="h-4 w-4" /> {startState.isLoading ? "Starting…" : "Run agent"}
                 </Button>
-              )}
-            </div>
-          ) : null}
+              </Form>
+            ) : (
+              <p className="text-sm text-muted-foreground">Pick a project to fill in the inputs.</p>
+            )}
+            {startState.isError && <p className="text-sm text-destructive">{errorMessage(startState.error)}</p>}
+          </CardContent>
+        </Card>
 
-          {projectId && (
-            <Form
-              schema={schema}
-              validator={validator}
-              formData={formData}
-              onChange={({ formData }) => setFormData(formData ?? {})}
-              onSubmit={({ formData }) => submit(formData ?? {})}
-              className="rjsf-form"
-            />
-          )}
-          {startState.isError && <p className="text-sm text-destructive">{errorMessage(startState.error)}</p>}
-        </CardContent>
-      </Card>
+        <div className="lg:sticky lg:top-0">
+          <RunPreview
+            agent={agent}
+            projectName={projects?.find((p) => p.id === projectId)?.name}
+            provider={provider}
+            model={provider ? currentModelOf(provider) : undefined}
+            noProvider={noProvider}
+          />
+        </div>
+      </div>
     </div>
   );
 }

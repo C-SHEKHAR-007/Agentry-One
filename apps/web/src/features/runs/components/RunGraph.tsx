@@ -16,7 +16,7 @@ import type { RunDetail } from "../../../models";
 import { formatDuration, formatTokens } from "../../../lib/format";
 import { statusStyle, TONE } from "../../../lib/status";
 import { cn } from "../../../lib/utils";
-import { COLUMN_GAP, layoutSteps, NODE_WIDTH, runInputsOf, type GraphStep } from "../../../lib/workflowGraph";
+import { COLUMN_GAP, kindLabel, layoutSteps, NODE_WIDTH, runInputsOf, type GraphStep } from "../../../lib/workflowGraph";
 import { stepIcon } from "../../../components/common/graph/stepVisuals";
 import { InputsNode } from "../../../components/common/graph/WorkflowNodes";
 import { StatusDot } from "../../../components/common/StatusBadge";
@@ -171,7 +171,7 @@ function Graph({
           if (seen.has(key)) continue;
           seen.add(key);
           const src = byOrder.get(v.stepOrder)!;
-          edges.push(edgeFor(`e-${v.stepOrder}-${s.templateStep.stepOrder}-${v.artifactKind}`, `step-${v.stepOrder}`, s, src.status === "completed", v.artifactKind));
+          edges.push(edgeFor(`e-${v.stepOrder}-${s.templateStep.stepOrder}-${v.artifactKind}`, `step-${v.stepOrder}`, s, src.status === "completed", kindLabel(v.artifactKind)));
         } else if (v.kind === "fromRunInput" && !seen.has("inputs") && inputs.length) {
           seen.add("inputs");
           edges.push(edgeFor(`e-in-${s.templateStep.stepOrder}`, INPUTS_ID, s, true));

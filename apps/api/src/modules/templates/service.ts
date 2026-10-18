@@ -211,7 +211,13 @@ export function planRetry(
   steps: { stepOrder: number; inputMapping: unknown }[],
   completedOrders: Set<number>,
   fromStepOrder?: number,
+  onlyStep = false,
 ): { rerun: Set<number>; reuse: Set<number> } {
+  // Regenerate one output: that step alone runs again; every other step,
+  // including the ones after it, keeps its output.
+  if (onlyStep && fromStepOrder !== undefined) {
+    return { rerun: new Set([fromStepOrder]), reuse: new Set(steps.map((s) => s.stepOrder).filter((o) => o !== fromStepOrder)) };
+  }
   const rerun = new Set<number>(
     fromStepOrder === undefined ? steps.map((s) => s.stepOrder).filter((o) => !completedOrders.has(o)) : [fromStepOrder],
   );
@@ -233,9 +239,22 @@ export function planRetry(
 
 const SETTLED_RUN_STATUSES = ["completed", "failed", "cancelled"];
 
+/** A step's input with a regenerate note added to its prompt. */
+export function applyNote(params: Record<string, unknown>, note: string | null | undefined): Record<string, unknown> {
+  if (!note?.trim() || typeof params.prompt !== "string") return params;
+  return { ...params, prompt: `${params.prompt}\n\nRevision note: ${note.trim()}` };
+}
+
+export interface RetryOptions {
+  /** Run only `fromStepOrder` again and keep every other step's output (regenerate one output). */
+  onlyStep?: boolean;
+  /** For onlyStep: appended to that step's prompt. */
+  note?: string;
+}
+
 /** Starts a new run of the same workflow with the same inputs, reusing the
  * outputs of the steps that completed and running the rest. */
-export async function retryTemplateRun(runId: string, fromStepOrder?: number) {
+export async function retryTemplateRun(runId: string, fromStepOrder?: number, opts: RetryOptions = {}) {
   const run = await prisma.templateRun.findUnique({
     where: { id: runId },
     include: {
@@ -260,7 +279,17 @@ export async function retryTemplateRun(runId: string, fromStepOrder?: number) {
   }
 
   const completedOrders = new Set(steps.filter((s) => runStepByStepId.get(s.id)!.status === "completed").map((s) => s.stepOrder));
-  const { rerun } = planRetry(steps, completedOrders, fromStepOrder);
+  if (opts.onlyStep || opts.note) {
+    if (fromStepOrder === undefined) throw new TemplateError("pick the step to regenerate", 400);
+    if (steps.some((s) => s.stepOrder !== fromStepOrder && !completedOrders.has(s.stepOrder))) {
+      throw new TemplateError("only a finished run can regenerate one output -- retry the run first", 409);
+    }
+    const target = steps.find((s) => s.stepOrder === fromStepOrder)!;
+    if (opts.note?.trim() && !("prompt" in (target.inputMapping as object))) {
+      throw new TemplateError("this step has no prompt to add a note to", 400);
+    }
+  }
+  const { rerun } = planRetry(steps, completedOrders, fromStepOrder, opts.onlyStep || Boolean(opts.note));
   if (rerun.size === 0) throw new TemplateError("every step of this run completed -- pick a step to run again", 409);
 
   await assertNoVersionDrift(steps);
@@ -273,7 +302,7 @@ export async function retryTemplateRun(runId: string, fromStepOrder?: number) {
       const original = runStepByStepId.get(s.id)!;
       return prisma.templateRunStep.create({
         data: rerun.has(s.stepOrder)
-          ? { templateRunId: retry.id, templateStepId: s.id, status: "pending" }
+          ? { templateRunId: retry.id, templateStepId: s.id, status: "pending", note: s.stepOrder === fromStepOrder ? opts.note?.trim() || null : null }
           : { templateRunId: retry.id, templateStepId: s.id, status: "completed", workflowId: original.workflowId, reusedFromStepId: original.id },
       });
     }),
@@ -365,7 +394,10 @@ async function advanceTemplateRun(templateRunId: string) {
   const runStepByStepId = new Map(allRunSteps.map((rs) => [rs.templateStepId, rs]));
   await Promise.all(
     readySteps.map(async (step) => {
-      const params = resolveParams(step.inputMapping as unknown as InputMapping, runInputs, upstreamArtifactsByStep);
+      const params = applyNote(
+        resolveParams(step.inputMapping as unknown as InputMapping, runInputs, upstreamArtifactsByStep),
+        runStepByStepId.get(step.id)!.note,
+      );
       await startTemplateRunStep(templateRunId, runStepByStepId.get(step.id)!.id, run.template.projectId, step.agentId, params);
     }),
   );

@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Check, ChevronLeft, ChevronRight, Copy, Download, ExternalLink, FileArchive, Headphones, X } from "lucide-react";
-import { useArtifactDownloadUrlQuery, useArtifactPreviewUrlQuery, useArtifactTextQuery } from "../artifacts.api";
-import type { ArtifactListItem } from "../../../models";
-import { formatBytes, timeAgo } from "../../../lib/format";
-import { TextBody } from "../../../components/common/TextBody";
-import { Button } from "../../../components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "../../../components/ui/dialog";
-import { Skeleton } from "../../../components/ui/skeleton";
-import { Spinner } from "../../../components/ui/spinner";
+import { useArtifactDownloadUrlQuery, useArtifactPreviewUrlQuery, useArtifactTextQuery } from "../../features/artifacts/artifacts.api";
+import type { ArtifactListItem } from "../../models";
+import { formatBytes, timeAgo } from "../../lib/format";
+import { TextBody } from "./TextBody";
+import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { Skeleton } from "../ui/skeleton";
+import { Spinner } from "../ui/spinner";
 import { isTextArtifact } from "./ArtifactCard";
 
 /** Full-screen viewer for the gallery: the artifact at `index`, with ← / →

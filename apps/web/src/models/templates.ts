@@ -31,7 +31,7 @@ export interface WorkflowSummary {
   project: { id: string; name: string };
   steps: Array<{ stepOrder: number; agentId: string; inputMapping: Record<string, InputMappingValue> }>;
   runs: Array<{ id: string; status: string; createdAt: string; updatedAt: string }>;
-  schedules: Array<{ id: string; cronExpr: string }>;
+  schedules: Array<{ id: string; cronExpr: string; timezone?: string | null }>;
   runCount: number;
 }
 
@@ -55,6 +55,8 @@ export interface Schedule {
   id: string;
   templateId?: string;
   cronExpr: string;
+  /** IANA timezone the expression is read in; null = the server's timezone. */
+  timezone?: string | null;
   isActive: boolean;
   createdAt: string;
 }

@@ -15,6 +15,7 @@ import type { TemplateStepInput } from "./types.js";
 import { authorize, viaProject } from "../../auth/access.js";
 import { WorkflowError } from "../workflows/service.js";
 import { RUN_DETAIL_INCLUDE, withRunUsage } from "./runUsage.js";
+import { loadRunFamily, stepVersions } from "./runVersions.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
 import { NEWEST_FIRST, pageQuery, toPage } from "../../http/paging.js";
 
@@ -26,6 +27,8 @@ const TemplateBodySchema = z.object({
 
 const ScheduleBody = z.object({
   cronExpr: nonEmpty(120),
+  /** IANA timezone, e.g. "Asia/Kolkata"; omitted = the server's timezone. */
+  timezone: z.string().max(64).optional(),
   runInputs: z.record(z.unknown()).default({}),
 });
 
@@ -43,7 +46,20 @@ interface TemplateBody {
   steps: TemplateStepInput[];
 }
 
-const RetryBody = z.object({ fromStepOrder: z.number().int().min(0).optional() });
+const RetryBody = z.object({
+  fromStepOrder: z.number().int().min(0).optional(),
+  /** Run only fromStepOrder again and keep every other output (regenerate one output). */
+  onlyStep: z.boolean().optional(),
+  /** Appended to that step's prompt ("warmer colours"). */
+  note: z.string().max(500).optional(),
+});
+
+/** Extra versions of one step of a finished run, made side by side. */
+const VariantsBody = z.object({
+  stepOrder: z.number().int().min(0),
+  count: z.number().int().min(1).max(4).default(2),
+  note: z.string().max(500).optional(),
+});
 
 const ACTIVE_RUN_STATUSES = ["pending", "running", "awaiting_review", "cancelling"];
 
@@ -59,7 +75,7 @@ export async function templatesRoutes(app: FastifyInstance) {
         project: { select: { id: true, name: true } },
         steps: { orderBy: { stepOrder: "asc" }, select: { stepOrder: true, agentId: true, inputMapping: true } },
         runs: { orderBy: { createdAt: "desc" }, take: 8, select: { id: true, status: true, createdAt: true, updatedAt: true } },
-        schedules: { where: { isActive: true }, select: { id: true, cronExpr: true } },
+        schedules: { where: { isActive: true }, select: { id: true, cronExpr: true, timezone: true } },
         _count: { select: { runs: true } },
       },
     });
@@ -165,7 +181,10 @@ export async function templatesRoutes(app: FastifyInstance) {
       });
     }
 
-    return run ? withRunUsage(run) : run;
+    if (!run) return run;
+    // Every version of each step across this run's retries (regenerates and variants).
+    const versions = stepVersions(await loadRunFamily(run.id));
+    return { ...withRunUsage(run), versions };
   });
 
   // Workflow runs, newest first, with enough per-step state to draw each
@@ -223,11 +242,28 @@ export async function templatesRoutes(app: FastifyInstance) {
   // A new run with the same inputs that reuses this run's completed steps:
   // from the first step that didn't complete, or from `fromStepOrder`.
   app.post<{ Params: { id: string } }>("/template-runs/:id/retry", async (req, reply) => {
-    const { fromStepOrder } = parse(RetryBody, req.body ?? {});
+    const { fromStepOrder, onlyStep, note } = parse(RetryBody, req.body ?? {});
     if (!(await authorize(req, reply, "templateRun", req.params.id))) return;
     try {
-      const run = await retryTemplateRun(req.params.id, fromStepOrder);
+      const run = await retryTemplateRun(req.params.id, fromStepOrder, { onlyStep, note });
       return reply.code(201).send(run);
+    } catch (err) {
+      const e = domainError(err);
+      if (e) return reply.code(e.statusCode).send({ error: e.message });
+      throw err;
+    }
+  });
+
+  // Variants: `count` regenerates of one step of a finished run, started side
+  // by side. Each is its own run (a retry of this one), so it shows up as a
+  // version of that step.
+  app.post<{ Params: { id: string } }>("/template-runs/:id/variants", async (req, reply) => {
+    const { stepOrder, count, note } = parse(VariantsBody, req.body ?? {});
+    if (!(await authorize(req, reply, "templateRun", req.params.id))) return;
+    try {
+      const runs = [];
+      for (let i = 0; i < count; i++) runs.push(await retryTemplateRun(req.params.id, stepOrder, { onlyStep: true, note }));
+      return reply.code(201).send(runs);
     } catch (err) {
       const e = domainError(err);
       if (e) return reply.code(e.statusCode).send({ error: e.message });
@@ -247,10 +283,10 @@ export async function templatesRoutes(app: FastifyInstance) {
   });
 
   app.post<{ Params: { id: string } }>("/templates/:id/schedule", async (req, reply) => {
-    const { cronExpr, runInputs } = parse(ScheduleBody, req.body);
+    const { cronExpr, runInputs, timezone } = parse(ScheduleBody, req.body);
     if (!(await authorize(req, reply, "template", req.params.id))) return;
     try {
-      const schedule = await addSchedule(req.params.id, cronExpr, runInputs);
+      const schedule = await addSchedule(req.params.id, cronExpr, runInputs, timezone);
       return reply.code(201).send(schedule);
     } catch (err) {
       const e = domainError(err);

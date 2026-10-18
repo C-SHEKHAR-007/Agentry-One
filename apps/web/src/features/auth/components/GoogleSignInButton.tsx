@@ -11,11 +11,11 @@ export function GoogleSignInButton({ label = "Sign in with Google" }: GoogleSign
   };
 
   return (
-    <div className="space-y-4 mb-4">
+    <div className="mb-5 space-y-5">
       <Button
         type="button"
         variant="outline"
-        className="w-full font-medium flex items-center justify-center gap-2.5 py-5 border-border/80 hover:bg-secondary/60 transition-all shadow-sm"
+        className="h-10 w-full gap-2.5 border-border/80 font-medium shadow-sm transition-all hover:bg-secondary/60"
         onClick={handleClick}
       >
         <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24">
@@ -38,12 +38,12 @@ export function GoogleSignInButton({ label = "Sign in with Google" }: GoogleSign
         </svg>
         <span>{label}</span>
       </Button>
-      <div className="relative my-4">
+      <div className="relative">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t border-border/60" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground font-medium">Or continue with email</span>
+          <span className="bg-card px-2 font-medium tracking-wide text-muted-foreground">Or continue with email</span>
         </div>
       </div>
     </div>

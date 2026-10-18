@@ -14,7 +14,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import { AlertTriangle, LayoutDashboard, Maximize2, MousePointerClick, Plus } from "lucide-react";
 import type { TemplateDraft } from "../../hooks/useTemplateDraft";
-import { fieldIssues, layoutSteps, NODE_WIDTH, COLUMN_GAP, runInputsOf, stepLabel } from "../../../../lib/workflowGraph";
+import { estimateNodeHeight, fieldIssues, kindLabel, layoutSteps, NODE_WIDTH, COLUMN_GAP, runInputsOf, stepLabel } from "../../../../lib/workflowGraph";
 import { cn } from "../../../../lib/utils";
 import { Button } from "../../../../components/ui/button";
 import { nodeTypes, type InputsNodeData, type StepNodeData } from "../../../../components/common/graph/WorkflowNodes";
@@ -66,7 +66,10 @@ function Canvas({ draft }: { draft: TemplateDraft }) {
 
   const nodes: Node[] = useMemo(() => {
     const originX = INPUTS_WIDTH + COLUMN_GAP;
-    const auto = layoutSteps(draft.steps, originX);
+    const nameOf = (agentId: string) => draft.manifestsById.get(agentId)?.name ?? (agentId || "Choose an agent");
+    const auto = layoutSteps(draft.steps, originX, (s) =>
+      estimateNodeHeight({ name: nameOf(s.agentId), inputs: Object.keys(s.inputMapping).length, outputs: draft.producesFor(s) }),
+    );
     const runInputs = runInputsOf(draft.steps);
     const ys = [...auto.values()].map((p) => p.y);
     const midY = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 + 40 : 40;
@@ -134,7 +137,7 @@ function Canvas({ draft }: { draft: TemplateDraft }) {
           target: `step-${step.stepOrder}`,
           type: "smoothstep",
           animated: !invalid,
-          label: v.artifactKind,
+          label: kindLabel(v.artifactKind),
           style: { stroke: color, strokeWidth: 2 },
           markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
           labelStyle: { fill: invalid ? "hsl(var(--destructive))" : "hsl(var(--foreground))", fontSize: 11, fontWeight: 600 },
@@ -195,7 +198,8 @@ function Canvas({ draft }: { draft: TemplateDraft }) {
         }}
         onPaneClick={() => setSelected(null)}
         nodesConnectable={false}
-        minZoom={0.3}
+        // Low enough that "fit" shows a long workflow whole on a phone.
+        minZoom={0.15}
         maxZoom={1.6}
         proOptions={{ hideAttribution: true }}
       >

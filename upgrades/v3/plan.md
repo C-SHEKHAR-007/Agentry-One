@@ -1,6 +1,6 @@
 # Agentry v3 — Product and UI plan
 
-> **Status: in progress.** v3.0 (quick wins) on `feature/v3.0-quick-wins`, 4 of 7 items done, each with its own commit:
+> **Status: in progress.** v3.0 (quick wins) is code-complete: all 7 items, each with its own commit. A1, I1, F1 and U3 are on `feature/v3.0-quick-wins` (merged); the rest are on `feature/v3-ux-refresh`, based on `feature/govt-job-agent`.
 >
 > | Item | Commit | Date |
 > |---|---|---|
@@ -8,10 +8,22 @@
 > | I1 Paging on runs, events, notifications, artifacts | `79474df` | 3 Oct |
 > | F1 Per-token pricing | `9f4645f` | 4 Oct |
 > | U3 Artifacts: text previews, viewer, search, every kind | `b8ef9b7` | 5 Oct |
+> | U1 Submit agent: Studio layout, "What will run", richer fields | `9060245` | 18 Oct |
+> | U2 Run inputs grouped by step, schedule builder (and B5) | `ec36c7c` | 18 Oct |
+> | U4 Projects: cards with 30-day stats, project tabs | `907b9eb` | 18 Oct |
+> | A2 Regenerate one output and E1 variants in Studio | `1ee8f9d` | 18 Oct |
 >
-> Still to do in v3.0: U1 Submit agent, U2 run inputs and cron builder, U4 Projects, A2 regenerate one output and E1 variants in Studio. Then deploy to the local stack (two new migrations). v3.1 onwards waits on the decisions in §11.
+> Checked on 18 Oct against a throwaway stack (its own Postgres, Redis, API and worker): the API smoke test (60 checks), the full browser suite with no worker (47 passed, 3 skipped) and with a live worker (48 passed, 2 skipped), and a screenshot review of the redesigned pages in light and dark, desktop and phone. The skips need a fake Instagram helper, at least 48 artifacts, or (no-worker run) a live worker. The review found two issues on the Submit page, fixed in `6c9c915`; the specs were updated for the new screens in `272d5db`.
 >
-> Found while building: editing a workflow deletes its past runs' step records, so a run from before an edit can't be retried (C1 workflow versions fixes this). Artifact search covers project, agent and kind; content search comes with knowledge bases (D2). A provider's default model needs a model entry before it can have token prices.
+> Still to do: deploy to the local stack (four new migrations: `template_run_retry`, `model_token_prices`, `schedule_timezone`, `run_step_note`; each was applied to a copy of the local database first). v3.1 onwards waits on the decisions in §11.
+>
+> Found while building:
+> - Editing a workflow deletes its past runs' step records, so a run from before an edit can't be retried (C1 workflow versions fixes this). Artifact search covers project, agent and kind; content search comes with knowledge bases (D2). A provider's default model needs a model entry before it can have token prices.
+> - Schedules ran in the server's timezone (UTC in the containers), so "Tuesday 09:00" fired at 14:30 in India. Schedules now store their IANA timezone; ones made before keep server time.
+> - Run inputs were sent as text, so an integer field got "4" and failed validation; they are now typed from the agent's schema.
+> - The web tests need Node 22 (jsdom 30); under Node 20 they fail to load.
+> - Agent manifests come back from Postgres jsonb with their keys reordered, so generated forms can't rely on the schema's field order.
+> - E1 is per output ("3 variants" on a card) rather than a composer switch: each variant is a regenerate of a finished run, so it reuses the other outputs, and the version switcher picks what gets published.
 
 **Branch:** a new `feature/v3-*` branch per phase, from `feature/v2.2-architecture` once that is merged.
 **Delivery:** one commit per workstream as it passes the gate; nothing is pushed.

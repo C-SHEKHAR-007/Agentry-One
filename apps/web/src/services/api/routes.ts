@@ -90,6 +90,7 @@ export const routes = {
     detail: (runId: string) => `/template-runs/${id(runId)}`,
     cancel: (runId: string) => `/template-runs/${id(runId)}/cancel`,
     retry: (runId: string) => `/template-runs/${id(runId)}/retry`,
+    variants: (runId: string) => `/template-runs/${id(runId)}/variants`,
   },
   artifacts: {
     list: (p: { limit?: number; projectId?: string; kind?: string } = {}) => `/artifacts${q(p)}`,

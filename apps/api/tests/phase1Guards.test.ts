@@ -57,6 +57,11 @@ describe("validateCron", () => {
   it("rejects sub-minute schedules", () => {
     expect(() => validateCron("*/5 * * * * *")).toThrow(/once per minute/);
   });
+  it("accepts an IANA timezone and rejects an unknown one", () => {
+    expect(() => validateCron("0 9 * * 2", "Asia/Kolkata")).not.toThrow();
+    expect(() => validateCron("0 9 * * 2", null)).not.toThrow();
+    expect(() => validateCron("0 9 * * 2", "Mars/Olympus")).toThrow(/unknown timezone/);
+  });
 });
 
 describe("validateStepInput", () => {
