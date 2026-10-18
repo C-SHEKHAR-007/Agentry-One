@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDepths, consumersOf, fieldIssues, layoutSteps, runInputsOf, type GraphStep } from "../workflowGraph";
+import { computeDepths, consumersOf, estimateNodeHeight, fieldIssues, kindLabel, layoutSteps, ROW_GAP, runInputsOf, type GraphStep } from "../workflowGraph";
 
 // The content-brief shape: search -> writer -> voice -> video, sketch -> video.
 const steps: GraphStep[] = [
@@ -38,6 +38,14 @@ describe("computeDepths / layoutSteps", () => {
     // steps 0 and 2 share column 0 but not a row
     expect(pos.get(0)!.x).toBe(pos.get(2)!.x);
     expect(pos.get(0)!.y).not.toBe(pos.get(2)!.y);
+  });
+
+  it("stacks cards by their own heights, so a tall card never overlaps the next", () => {
+    const tall = new Set([0]);
+    const heightOf = (st: GraphStep) => (tall.has(st.stepOrder) ? 320 : 140);
+    const pos = layoutSteps(steps, 0, heightOf);
+    // steps 0 and 2 share column 0: step 2 starts below step 0's full height.
+    expect(pos.get(2)!.y - pos.get(0)!.y).toBe(320 + ROW_GAP);
   });
 
   it("tolerates dangling and self references", () => {
@@ -83,5 +91,25 @@ describe("fieldIssues", () => {
     expect(issues.audioPath).toMatch(/earlier step/);
     expect(issues.caption).toMatch(/no longer exists/);
     expect(issues.durationSec).toMatch(/Required/);
+  });
+});
+
+describe("estimateNodeHeight / kindLabel", () => {
+  const base = { name: "Sketch Agent", inputs: 2, outputs: ["image"] };
+
+  it("grows with a two-line name, more inputs and wrapped output chips", () => {
+    const h = estimateNodeHeight(base);
+    expect(estimateNodeHeight({ ...base, name: "Web Search & Trend Agent" })).toBeGreaterThan(h);
+    expect(estimateNodeHeight({ ...base, inputs: 3 })).toBeGreaterThan(h);
+    // "+N more" adds a line, but the list itself stops at three.
+    expect(estimateNodeHeight({ ...base, inputs: 9 })).toBe(estimateNodeHeight({ ...base, inputs: 4 }));
+    // Four kinds don't fit on one row next to "Outputs".
+    expect(estimateNodeHeight({ ...base, outputs: ["text", "image", "audio", "search_brief"] })).toBeGreaterThan(h);
+    expect(estimateNodeHeight({ ...base, outputs: [] })).toBeLessThan(h);
+  });
+
+  it("reads artifact kinds as words", () => {
+    expect(kindLabel("search_brief")).toBe("search brief");
+    expect(kindLabel("text")).toBe("text");
   });
 });

@@ -14,7 +14,7 @@ export function TemplateFormView({ draft }: { draft: TemplateDraft }) {
   const [confirmRemove, setConfirmRemove] = useState<number | null>(null);
 
   return (
-    <div className="mx-auto max-w-3xl pb-10">
+    <div className="mx-auto w-full max-w-3xl pb-10">
       <ol className="relative space-y-4 before:absolute before:bottom-16 before:left-[19px] before:top-6 before:w-px before:bg-border">
         {draft.steps.map((step, index) => {
           const agent = draft.manifestsById.get(step.agentId);
@@ -50,7 +50,7 @@ export function TemplateFormView({ draft }: { draft: TemplateDraft }) {
                         {agent?.name ?? (step.agentId || "Choose an agent")}
                       </span>
                     </span>
-                    <span className="hidden items-center gap-1 sm:flex">
+                    <span className="hidden max-w-[50%] flex-wrap items-center justify-end gap-1 sm:flex">
                       {draft.producesFor(step).map((k) => (
                         <KindChip key={k} kind={k} />
                       ))}

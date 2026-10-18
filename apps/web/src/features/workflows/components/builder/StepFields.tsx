@@ -5,7 +5,7 @@ import type { InputMappingValue } from "../../../../models";
 import { useSocialAccountsQuery } from "../../../integrations/socialAccounts.api";
 import type { FieldSchema } from "../../../../models";
 import type { TemplateDraft } from "../../hooks/useTemplateDraft";
-import { consumersOf, fieldIssues, stepLabel } from "../../../../lib/workflowGraph";
+import { consumersOf, fieldIssues, kindLabel, stepLabel } from "../../../../lib/workflowGraph";
 import { cn } from "../../../../lib/utils";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -138,7 +138,7 @@ export function StepFields({ draft, index, compact = false }: { draft: TemplateD
               <ul className="space-y-1 text-xs text-muted-foreground">
                 {consumers.map((c) => (
                   <li key={`${c.stepOrder}-${c.field}`} className="flex items-center gap-1.5">
-                    <ArrowRight className="h-3 w-3" /> {c.artifactKind} feeds <strong className="font-medium text-foreground">{stepLabel(c.stepOrder)}</strong> ·{" "}
+                    <ArrowRight className="h-3 w-3" /> {kindLabel(c.artifactKind)} feeds <strong className="font-medium text-foreground">{stepLabel(c.stepOrder)}</strong> ·{" "}
                     <code>{c.field}</code>
                   </li>
                 ))}
@@ -293,7 +293,7 @@ function FieldMapping({
               const all = kinds.includes(current.artifactKind) ? kinds : [...kinds, current.artifactKind];
               return all.map((k) => (
                 <option key={k} value={k}>
-                  {k}
+                  {kindLabel(k)}
                 </option>
               ));
             })()}

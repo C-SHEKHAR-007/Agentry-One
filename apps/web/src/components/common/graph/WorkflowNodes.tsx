@@ -3,7 +3,7 @@ import { Handle, Position, type NodeProps } from "reactflow";
 import { AlertTriangle, Keyboard, Link2, PenLine } from "lucide-react";
 import type { InputMappingValue } from "../../../models";
 import { cn } from "../../../lib/utils";
-import { NODE_WIDTH } from "../../../lib/workflowGraph";
+import { kindLabel, NODE_MAX_INPUTS, NODE_WIDTH } from "../../../lib/workflowGraph";
 import { KindChip } from "./stepVisuals";
 
 export interface StepNodeData {
@@ -22,7 +22,7 @@ export interface StepNodeData {
 const handleClass = "!h-2.5 !w-2.5 !border-2 !border-background !bg-muted-foreground/60";
 
 function describe(v: InputMappingValue, sourceLabel: (order: number) => string): { icon: typeof PenLine; text: string } {
-  if (v.kind === "fromStep") return { icon: Link2, text: `${sourceLabel(v.stepOrder)} · ${v.artifactKind}` };
+  if (v.kind === "fromStep") return { icon: Link2, text: `${sourceLabel(v.stepOrder)} · ${kindLabel(v.artifactKind)}` };
   if (v.kind === "fromRunInput") return { icon: Keyboard, text: v.field ? `run input · ${v.field}` : "run input" };
   const s = v.value === undefined || v.value === null ? "" : String(v.value);
   return { icon: PenLine, text: s ? `"${s}"` : "not set" };
@@ -30,7 +30,7 @@ function describe(v: InputMappingValue, sourceLabel: (order: number) => string):
 
 export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>) {
   const Icon = data.icon;
-  const shown = data.mappings.slice(0, 3);
+  const shown = data.mappings.slice(0, NODE_MAX_INPUTS);
   const hidden = data.mappings.length - shown.length;
   return (
     <div
@@ -51,12 +51,18 @@ export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Step {data.number}</p>
-          <p className={cn("truncate text-sm font-semibold", !data.agentName && "text-muted-foreground")}>
+          <p
+            title={data.agentName ?? undefined}
+            className={cn("line-clamp-2 break-words text-sm font-semibold leading-5", !data.agentName && "text-muted-foreground")}
+          >
             {data.agentName ?? "Choose an agent"}
           </p>
         </div>
         {data.issueCount > 0 && (
-          <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+          <span
+            title={`${data.issueCount} ${data.issueCount === 1 ? "issue" : "issues"}`}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive"
+          >
             <AlertTriangle className="h-3 w-3" /> {data.issueCount}
           </span>
         )}
@@ -80,7 +86,7 @@ export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeData>
         {hidden > 0 && <p className="text-[11px] text-muted-foreground">+{hidden} more</p>}
       </div>
       {data.produces.length > 0 && (
-        <div className="flex items-center gap-1.5 border-t border-border/60 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 border-t border-border/60 px-4 py-2">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Outputs</span>
           {data.produces.map((k) => (
             <KindChip key={k} kind={k} />
