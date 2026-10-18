@@ -372,6 +372,8 @@ model WorkflowSchedule {
   id         String   @id @default(uuid())
   templateId String   @map("template_id")
   cronExpr   String   @map("cron_expr")
+  /// IANA timezone the cron expression is read in; null = the server's.
+  timezone   String?
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

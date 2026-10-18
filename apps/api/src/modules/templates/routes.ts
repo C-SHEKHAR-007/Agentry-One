@@ -26,6 +26,8 @@ const TemplateBodySchema = z.object({
 
 const ScheduleBody = z.object({
   cronExpr: nonEmpty(120),
+  /** IANA timezone, e.g. "Asia/Kolkata"; omitted = the server's timezone. */
+  timezone: z.string().max(64).optional(),
   runInputs: z.record(z.unknown()).default({}),
 });
 
@@ -59,7 +61,7 @@ export async function templatesRoutes(app: FastifyInstance) {
         project: { select: { id: true, name: true } },
         steps: { orderBy: { stepOrder: "asc" }, select: { stepOrder: true, agentId: true, inputMapping: true } },
         runs: { orderBy: { createdAt: "desc" }, take: 8, select: { id: true, status: true, createdAt: true, updatedAt: true } },
-        schedules: { where: { isActive: true }, select: { id: true, cronExpr: true } },
+        schedules: { where: { isActive: true }, select: { id: true, cronExpr: true, timezone: true } },
         _count: { select: { runs: true } },
       },
     });
@@ -247,10 +249,10 @@ export async function templatesRoutes(app: FastifyInstance) {
   });
 
   app.post<{ Params: { id: string } }>("/templates/:id/schedule", async (req, reply) => {
-    const { cronExpr, runInputs } = parse(ScheduleBody, req.body);
+    const { cronExpr, runInputs, timezone } = parse(ScheduleBody, req.body);
     if (!(await authorize(req, reply, "template", req.params.id))) return;
     try {
-      const schedule = await addSchedule(req.params.id, cronExpr, runInputs);
+      const schedule = await addSchedule(req.params.id, cronExpr, runInputs, timezone);
       return reply.code(201).send(schedule);
     } catch (err) {
       const e = domainError(err);

@@ -16,10 +16,21 @@ export class ScheduleError extends Error {
 
 const schedulerId = (scheduleId: string) => `schedule-${scheduleId}`;
 
-export function validateCron(cronExpr: string): void {
+/** True when `tz` is an IANA timezone this runtime knows. */
+export function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function validateCron(cronExpr: string, timezone?: string | null): void {
+  if (timezone && !isValidTimezone(timezone)) throw new ScheduleError(`unknown timezone: ${timezone}`);
   let interval;
   try {
-    interval = cronParser.parseExpression(cronExpr);
+    interval = cronParser.parseExpression(cronExpr, timezone ? { tz: timezone } : {});
   } catch (err) {
     throw new ScheduleError(`invalid cron expression: ${(err as Error).message}`);
   }
@@ -30,10 +41,10 @@ export function validateCron(cronExpr: string): void {
   }
 }
 
-export async function addSchedule(templateId: string, cronExpr: string, runInputs: unknown) {
-  validateCron(cronExpr);
+export async function addSchedule(templateId: string, cronExpr: string, runInputs: unknown, timezone?: string | null) {
+  validateCron(cronExpr, timezone);
   const schedule = await prisma.workflowSchedule.create({
-    data: { templateId, cronExpr, isActive: true },
+    data: { templateId, cronExpr, timezone: timezone || null, isActive: true },
   });
 
   try {
@@ -42,7 +53,7 @@ export async function addSchedule(templateId: string, cronExpr: string, runInput
     // and was never the jobId, which is why deleted schedules kept firing).
     await getQueue(SCHEDULER_QUEUE_NAME).upsertJobScheduler(
       schedulerId(schedule.id),
-      { pattern: cronExpr },
+      timezone ? { pattern: cronExpr, tz: timezone } : { pattern: cronExpr },
       { name: "run-template", data: { templateId, scheduleId: schedule.id, runInputs } },
     );
   } catch (err) {
