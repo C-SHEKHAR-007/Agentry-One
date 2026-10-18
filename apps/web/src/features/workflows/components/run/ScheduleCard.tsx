@@ -38,7 +38,7 @@ export function ScheduleCard({ templateId, runInputs }: { templateId: string; ru
       <CardContent className="space-y-4 pt-5">
         <div>
           <h3 className="text-sm font-semibold">Schedule</h3>
-          <p className="text-xs text-muted-foreground">Run it on repeat with the inputs on the left.</p>
+          <p className="text-xs text-muted-foreground">Run it on repeat with the inputs you filled in.</p>
         </div>
 
         <CronBuilder value={cronExpr} onChange={setCronExpr} timezone={timezone} />

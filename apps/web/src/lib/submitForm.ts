@@ -42,13 +42,22 @@ export function widgetFor(name: string, prop: SchemaProperty, promptField: strin
   return "default";
 }
 
-/** rjsf uiSchema: one widget per top-level field (unknown fields keep rjsf's default). */
-export function buildUiSchema(properties: Record<string, SchemaProperty> | undefined, promptField: string | null) {
-  const ui: Record<string, { "ui:widget": string; "ui:options"?: Record<string, unknown> }> = {};
+export type SubmitUiSchema = Record<string, { "ui:widget": string }> & { "ui:order"?: string[] };
+
+/** rjsf uiSchema: one widget per top-level field (unknown fields keep rjsf's
+ * default), and the prompt and other long text first. The schema's own key
+ * order can't be relied on: manifests come back from Postgres jsonb, which
+ * reorders keys (shortest first), so "seed" would lead and "prompt" trail. */
+export function buildUiSchema(properties: Record<string, SchemaProperty> | undefined, promptField: string | null): SubmitUiSchema {
+  const ui: SubmitUiSchema = {};
+  const first: string[] = [];
   for (const [name, prop] of Object.entries(properties ?? {})) {
     const w = widgetFor(name, prop, promptField);
     if (w !== "default") ui[name] = { "ui:widget": w };
+    if (w === "prompt") first.unshift(name);
+    else if (w === "textarea") first.push(name);
   }
+  if (first.length) ui["ui:order"] = [...first, "*"];
   return ui;
 }
 

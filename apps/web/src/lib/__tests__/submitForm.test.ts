@@ -28,7 +28,14 @@ describe("widgetFor", () => {
       negativePrompt: { "ui:widget": "textarea" },
       steps: { "ui:widget": "slider" },
       seed: { "ui:widget": "seed" },
+      "ui:order": ["prompt", "negativePrompt", "*"],
     });
+  });
+
+  it("puts the prompt first even when the schema lists it last (jsonb key order)", () => {
+    const fromDb = { seed: sketch.seed, steps: sketch.steps, width: sketch.width, height: sketch.height, prompt: sketch.prompt };
+    expect(buildUiSchema(fromDb, "prompt")["ui:order"]).toEqual(["prompt", "*"]);
+    expect(buildUiSchema({ width: sketch.width }, null)["ui:order"]).toBeUndefined();
   });
 
   it("shows short enums as chips and long ones as a dropdown", () => {

@@ -28,7 +28,7 @@ function PromptWidget({ id, value, onChange, onBlur, onFocus, disabled, readonly
   const ctx = (formContext ?? {}) as SubmitFormContext;
   const text = typeof value === "string" ? value : "";
   return (
-    <div className="space-y-2">
+    <div className="rjsf-widget space-y-2">
       <Textarea
         id={id}
         value={text}
@@ -79,7 +79,7 @@ function SliderWidget({ id, value, schema, onChange, disabled, readonly }: Widge
   const integer = isInteger(s);
   const current = typeof value === "number" ? value : typeof s.default === "number" ? s.default : min;
   return (
-    <div className="flex items-center gap-3">
+    <div className="rjsf-widget flex items-center gap-3">
       <input
         type="range"
         aria-label={`${s.title ?? id} slider`}
@@ -89,7 +89,7 @@ function SliderWidget({ id, value, schema, onChange, disabled, readonly }: Widge
         value={current}
         disabled={disabled || readonly}
         onChange={(e) => onChange(toNumber(e.target.value, integer))}
-        className="h-2 flex-1 cursor-pointer accent-[hsl(var(--primary))] !border-0 !p-0"
+        className="h-2 flex-1 cursor-pointer accent-[hsl(var(--primary))]"
       />
       <Input
         id={id}
@@ -111,7 +111,7 @@ function SliderWidget({ id, value, schema, onChange, disabled, readonly }: Widge
 function ChipsWidget({ id, value, options, onChange, disabled, readonly, required }: WidgetProps) {
   const choices = options.enumOptions ?? [];
   return (
-    <div id={id} role="radiogroup" className="flex flex-wrap gap-1.5">
+    <div id={id} role="radiogroup" className="rjsf-widget flex flex-wrap gap-1.5">
       {choices.map((o) => {
         const on = value === o.value;
         return (
@@ -139,7 +139,7 @@ function ChipsWidget({ id, value, options, onChange, disabled, readonly, require
 /** A seed box with a 🎲 button. Empty means a random seed per run. */
 function SeedWidget({ id, value, schema, onChange, disabled, readonly }: WidgetProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="rjsf-widget flex items-center gap-2">
       <Input
         id={id}
         type="number"
@@ -160,6 +160,7 @@ function TextareaWidget({ id, value, onChange, onBlur, onFocus, disabled, readon
   return (
     <Textarea
       id={id}
+      className="rjsf-widget"
       value={typeof value === "string" ? value : ""}
       rows={3}
       placeholder={placeholder}
