@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { LogOut, Menu, Search, Settings, UserCircle, Users } from "lucide-react";
 import { useAuth } from "../../auth/useAuth";
@@ -82,9 +82,16 @@ function HealthPill() {
   );
 }
 
-function UserMenu() {
+export function UserMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  // Escape closes the menu wherever focus is (it stays on the avatar after a click).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ");
   const displayName = fullName || user?.email || "…";
@@ -95,42 +102,51 @@ function UserMenu() {
       .map((s: string) => s[0]?.toUpperCase() ?? "")
       .join("") || "?";
 
+  const avatar = (size: string) =>
+    user?.avatarUrl ? (
+      <img
+        src={user.avatarUrl}
+        alt=""
+        className={cn(size, "rounded-full border border-border/60 object-cover shadow-md")}
+        referrerPolicy="no-referrer"
+      />
+    ) : (
+      <span className={cn(size, "inline-flex items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-md")}>
+        {initials}
+      </span>
+    );
+
   return (
     <div className="relative">
+      {/* Just the picture in the header; who is signed in shows in the menu. */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2.5 transition-colors hover:bg-muted"
+        className="flex items-center rounded-full p-0.5 transition-shadow hover:ring-2 hover:ring-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Account menu for ${displayName}`}
       >
-        {user?.avatarUrl ? (
-          <img
-            src={user.avatarUrl}
-            alt={displayName}
-            className="h-8 w-8 rounded-full object-cover shadow-md border border-border/60"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-md">
-            {initials}
-          </span>
-        )}
-        <span className="hidden text-left leading-tight sm:block">
-          <span className="block text-sm font-medium">{displayName}</span>
-          <span className="block text-[11px] capitalize text-muted-foreground">{user?.role}</span>
-        </span>
-        <svg className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        {avatar("h-8 w-8")}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
           <div
             role="menu"
-            className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl border border-border/60 bg-popover/95 p-1 shadow-xl backdrop-blur-sm"
+            className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-border/60 bg-popover/95 p-1 shadow-xl backdrop-blur-sm"
           >
+            <div className="mb-1 flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-3">
+              {avatar("h-10 w-10 shrink-0 text-sm")}
+              <div className="min-w-0">
+                {fullName && <p className="truncate text-sm font-medium">{fullName}</p>}
+                <p className={cn("truncate", fullName ? "text-xs text-muted-foreground" : "text-sm font-medium")} title={user?.email ?? undefined}>
+                  {user?.email}
+                </p>
+                {user?.role && (
+                  <span className="mt-1 inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium capitalize text-primary">{user.role}</span>
+                )}
+              </div>
+            </div>
             <Link
               to="/profile"
               onClick={() => setOpen(false)}
