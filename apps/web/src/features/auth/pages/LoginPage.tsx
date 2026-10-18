@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 import { useLoginMutation } from "../auth.api";
 import { errorMessage } from "../../../services/http/errors";
 import { useAuth } from "../useAuth";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../../../components/ui/button";
 import { AuthShell } from "../components/AuthShell";
-import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Spinner } from "../../../components/ui/spinner";
@@ -48,42 +46,37 @@ export function LoginPage() {
   };
 
   return (
-    <AuthShell>
-      <Card glass className="glow-border w-full max-w-sm border-transparent p-8">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="h-6 w-6" />
-          </span>
-          <h1 className="text-xl font-semibold">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your Agentry One workspace</p>
+    <AuthShell title="Welcome back" subtitle="Sign in to your Agentry One workspace" footer="No account yet? Ask the owner of this workspace to add you.">
+      <GoogleSignInButton />
+      <form onSubmit={submit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="login-email">Email</Label>
+          <Input
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            autoFocus
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
         </div>
-        <GoogleSignInButton />
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <Label>Email</Label>
-            <Input
-              type="email"
-              autoFocus
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label>Password</Label>
-            <Input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending && <Spinner />}
-            Sign in
-          </Button>
-        </form>
-      </Card>
+        <div className="space-y-1.5">
+          <Label htmlFor="login-password">Password</Label>
+          <Input
+            id="login-password"
+            type="password"
+            autoComplete="current-password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+          />
+        </div>
+        <Button type="submit" className="w-full" disabled={pending}>
+          {pending && <Spinner />}
+          Sign in
+        </Button>
+      </form>
     </AuthShell>
   );
 }

@@ -1,14 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 import { useSetupMutation } from "../auth.api";
 import { errorMessage } from "../../../services/http/errors";
 import { useAuth } from "../useAuth";
 import { GoogleSignInButton } from "../components/GoogleSignInButton";
 import { Button } from "../../../components/ui/button";
 import { AuthShell } from "../components/AuthShell";
-import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Spinner } from "../../../components/ui/spinner";
@@ -46,63 +44,64 @@ export function SetupPage() {
   };
 
   return (
-    <AuthShell>
-      <Card glass className="glow-border w-full max-w-sm border-transparent p-8">
-        <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Sparkles className="h-6 w-6" />
-          </span>
-          <h1 className="text-xl font-semibold">Set up Agentry One</h1>
-          <p className="text-sm text-muted-foreground">
-            Create the owner account for this workspace.
+    <AuthShell title="Set up Agentry One" subtitle="Create the owner account for this workspace.">
+      <GoogleSignInButton label="Sign up with Google" />
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="setup-first">First name</Label>
+            <Input
+              id="setup-first"
+              autoComplete="given-name"
+              autoFocus
+              value={form.firstName}
+              onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="setup-last">Last name</Label>
+            <Input
+              id="setup-last"
+              autoComplete="family-name"
+              value={form.lastName}
+              onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="setup-email">Email</Label>
+          <Input
+            id="setup-email"
+            type="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="setup-password">Password</Label>
+          <Input
+            id="setup-password"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            aria-describedby="setup-password-hint"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
+          />
+          <p id="setup-password-hint" className="text-xs text-muted-foreground">
+            At least 8 characters.
           </p>
         </div>
-        <GoogleSignInButton label="Sign up with Google" />
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label>First Name</Label>
-              <Input
-                autoFocus
-                value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                required
-              />
-            </div>
-            <div>
-              <Label>Last Name</Label>
-              <Input
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-          <div>
-            <Label>Email</Label>
-            <Input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label>Password (min 8 characters)</Label>
-            <Input
-              type="password"
-              minLength={8}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={pending}>
-            {pending && <Spinner />}
-            Create owner account
-          </Button>
-        </form>
-      </Card>
+        <Button type="submit" className="w-full" disabled={pending}>
+          {pending && <Spinner />}
+          Create owner account
+        </Button>
+      </form>
     </AuthShell>
   );
 }
