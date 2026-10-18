@@ -10,3 +10,6 @@ venv/
 output/
 dist-e2e/
 *.tsbuildinfo
+
+# Local credentials reference -- never commit
+/confidential/
