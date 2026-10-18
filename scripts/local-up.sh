@@ -5,11 +5,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The bundled postgres/redis services aren't used here, but the base file
-# requires their passwords; satisfy it without touching .env.
-export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-unused-external-db}"
-export REDIS_PASSWORD="${REDIS_PASSWORD:-unused-external-redis}"
-
 compose=(docker compose -f docker-compose.yml -f docker-compose.local.yml)
 if [ "$#" -gt 0 ]; then
   exec "${compose[@]}" "$@"

@@ -1,0 +1,64 @@
+{
+  "id": "govt-job-agent",
+  "name": "Govt Job Notification Agent",
+  "version": "1.0.0",
+  "description": "Finds government job notifications on the web, extracts their details with an LLM and sends them to Sarkari Duniya as draft posts for admin review.",
+  "entrypoint": {
+    "type": "python-worker",
+    "module": "agents.govt-job-agent.worker",
+    "queueName": "agent.govt-job-agent"
+  },
+  "steps": [
+    {
+      "key": "run",
+      "description": "Discover notifications, extract details, create draft posts",
+      "humanGate": false,
+      "requiresCapability": "text-generation",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Search query (e.g. \"SSC CGL 2026 notification\")"
+          },
+          "urls": {
+            "type": "string",
+            "title": "Notification page URLs, one per line (optional; used before search results)"
+          },
+          "categorySlug": {
+            "type": "string",
+            "title": "Sarkari Duniya category",
+            "enum": ["latest-jobs", "results", "admit-card", "answer-key", "admission", "syllabus"],
+            "default": "latest-jobs"
+          },
+          "stateSlug": {
+            "type": "string",
+            "title": "Sarkari Duniya state slug (e.g. all-india, bihar)",
+            "default": "all-india"
+          },
+          "maxCandidates": {
+            "type": "integer",
+            "title": "Max pages to process",
+            "default": 4,
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "producesArtifactKinds": ["ingest_report"],
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "created": { "type": "integer" },
+          "duplicates": { "type": "integer" },
+          "skipped": { "type": "integer" },
+          "failed": { "type": "integer" }
+        }
+      }
+    }
+  ],
+  "resources": { "cpu": 1, "memoryMb": 512, "gpu": false },
+  "concurrency": 1,
+  "timeoutSec": 1800,
+  "attempts": 1
+}
