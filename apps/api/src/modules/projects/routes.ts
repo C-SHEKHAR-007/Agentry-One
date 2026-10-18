@@ -5,6 +5,7 @@ import { artifactUrl } from "../artifacts/urls.js";
 import { Prisma } from "@prisma/client";
 import { authorize, projectWhere } from "../../auth/access.js";
 import { nonEmpty, parse, z } from "../../http/validate.js";
+import { emptyActivity, projectActivity } from "./activity.js";
 
 const ProjectBody = z.object({ name: nonEmpty(120) });
 
@@ -15,64 +16,7 @@ export async function projectsRoutes(app: FastifyInstance) {
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { workflows: true, templates: true } } },
     });
-    const ids = projects.map((p) => p.id);
-    if (ids.length === 0) return [];
-    const [activity, artifactRows] = await Promise.all([
-      // Project has no updatedAt column; derive last activity from its
-      // workflows instead of changing the schema.
-      prisma.workflow.groupBy({ by: ["projectId"], where: { projectId: { in: ids } }, _max: { updatedAt: true } }),
-      // Artifact count + latest image artifact per project in one pass
-      // (artifacts hang off workflow_steps, not projects directly).
-      prisma.$queryRaw<
-        {
-          project_id: string;
-          artifact_count: bigint;
-          cover_artifact_id: string | null;
-          cover_storage_key: string | null;
-          cover_mime_type: string | null;
-        }[]
-      >`
-        SELECT w.project_id,
-               COUNT(a.id)::bigint AS artifact_count,
-               (ARRAY_AGG(a.id ORDER BY a.created_at DESC)
-                  FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_artifact_id,
-               (ARRAY_AGG(a.storage_key ORDER BY a.created_at DESC)
-                  FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_storage_key,
-               (ARRAY_AGG(a.mime_type ORDER BY a.created_at DESC)
-                  FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_mime_type
-        FROM artifacts a
-        JOIN workflow_steps ws ON ws.id = a.workflow_step_id
-        JOIN workflows w ON w.id = ws.workflow_id
-        WHERE w.project_id IN (${Prisma.join(ids)})
-        GROUP BY w.project_id`,
-    ]);
-
-    const activityByProject = new Map(activity.map((a) => [a.projectId, a._max.updatedAt]));
-    const artifactsByProject = new Map(artifactRows.map((r) => [r.project_id, r]));
-
-    return Promise.all(
-      projects.map(async ({ _count, ...p }) => {
-        const art = artifactsByProject.get(p.id);
-        const coverPreviewUrl =
-          art?.cover_artifact_id && art.cover_storage_key
-            ? await artifactUrl(
-                { id: art.cover_artifact_id, kind: "image", storageKey: art.cover_storage_key, mimeType: art.cover_mime_type || "image/png" },
-                "preview",
-              )
-            : null;
-        return {
-          ...p,
-          counts: {
-            workflows: _count.workflows,
-            templates: _count.templates,
-            artifacts: art ? Number(art.artifact_count) : 0,
-          },
-          lastActivityAt: activityByProject.get(p.id) ?? null,
-          coverArtifactId: art?.cover_artifact_id ?? null,
-          coverPreviewUrl,
-        };
-      }),
-    );
+    return withSummaries(projects);
   });
 
   app.post("/projects", async (req, reply) => {
@@ -99,9 +43,13 @@ export async function projectsRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>("/projects/:id", async (req, reply) => {
     if (!(await authorize(req, reply, "project", req.params.id))) return;
-    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { workflows: true, templates: true } } },
+    });
     if (!project) return reply.code(404).send({ error: "project_not_found" });
-    return project;
+    const [summary] = await withSummaries([project]);
+    return summary;
   });
 
   app.patch<{ Params: { id: string } }>("/projects/:id", async (req, reply) => {
@@ -115,4 +63,70 @@ export async function projectsRoutes(app: FastifyInstance) {
     await prisma.project.delete({ where: { id: req.params.id } });
     return reply.code(204).send();
   });
+}
+
+type ProjectWithCounts = Prisma.ProjectGetPayload<{ include: { _count: { select: { workflows: true; templates: true } } } }>;
+
+/** Projects with their counts, last activity, cover image and 30-day run activity. */
+async function withSummaries(projects: ProjectWithCounts[]) {
+  const ids = projects.map((p) => p.id);
+  if (ids.length === 0) return [];
+  const [activity, artifactRows, runs] = await Promise.all([
+    // Project has no updatedAt column; derive last activity from its
+    // workflows instead of changing the schema.
+    prisma.workflow.groupBy({ by: ["projectId"], where: { projectId: { in: ids } }, _max: { updatedAt: true } }),
+    // Artifact count + latest image artifact per project in one pass
+    // (artifacts hang off workflow_steps, not projects directly).
+    prisma.$queryRaw<
+      {
+        project_id: string;
+        artifact_count: bigint;
+        cover_artifact_id: string | null;
+        cover_storage_key: string | null;
+        cover_mime_type: string | null;
+      }[]
+    >`
+      SELECT w.project_id,
+             COUNT(a.id)::bigint AS artifact_count,
+             (ARRAY_AGG(a.id ORDER BY a.created_at DESC)
+                FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_artifact_id,
+             (ARRAY_AGG(a.storage_key ORDER BY a.created_at DESC)
+                FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_storage_key,
+             (ARRAY_AGG(a.mime_type ORDER BY a.created_at DESC)
+                FILTER (WHERE a.mime_type LIKE 'image/%'))[1] AS cover_mime_type
+      FROM artifacts a
+      JOIN workflow_steps ws ON ws.id = a.workflow_step_id
+      JOIN workflows w ON w.id = ws.workflow_id
+      WHERE w.project_id IN (${Prisma.join(ids)})
+      GROUP BY w.project_id`,
+    projectActivity(ids),
+  ]);
+
+  const activityByProject = new Map(activity.map((a) => [a.projectId, a._max.updatedAt]));
+  const artifactsByProject = new Map(artifactRows.map((r) => [r.project_id, r]));
+
+  return Promise.all(
+    projects.map(async ({ _count, ...p }) => {
+      const art = artifactsByProject.get(p.id);
+      const coverPreviewUrl =
+        art?.cover_artifact_id && art.cover_storage_key
+          ? await artifactUrl(
+              { id: art.cover_artifact_id, kind: "image", storageKey: art.cover_storage_key, mimeType: art.cover_mime_type || "image/png" },
+              "preview",
+            )
+          : null;
+      return {
+        ...p,
+        counts: {
+          workflows: _count.workflows,
+          templates: _count.templates,
+          artifacts: art ? Number(art.artifact_count) : 0,
+        },
+        lastActivityAt: activityByProject.get(p.id) ?? null,
+        coverArtifactId: art?.cover_artifact_id ?? null,
+        coverPreviewUrl,
+        activity: runs.get(p.id) ?? emptyActivity(),
+      };
+    }),
+  );
 }

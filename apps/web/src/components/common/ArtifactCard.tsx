@@ -1,11 +1,11 @@
 import { motion } from "framer-motion";
 import { FileArchive, FileText, Headphones, Eye, Video as VideoIcon } from "lucide-react";
-import { useArtifactPreviewUrlQuery } from "../artifacts.api";
-import { stripMarkdown } from "../../../components/common/Markdown";
-import type { ArtifactListItem } from "../../../models";
-import { timeAgo } from "../../../lib/format";
-import { Skeleton } from "../../../components/ui/skeleton";
-import { Badge } from "../../../components/ui/badge";
+import { useArtifactPreviewUrlQuery } from "../../features/artifacts/artifacts.api";
+import { stripMarkdown } from "./Markdown";
+import type { ArtifactListItem } from "../../models";
+import { timeAgo } from "../../lib/format";
+import { Skeleton } from "../ui/skeleton";
+import { Badge } from "../ui/badge";
 
 /** Text-like outputs (captions, briefs, JSON) -- same rule as the API's text previews. */
 export const isTextArtifact = (a: { mimeType: string; kind: string }) =>

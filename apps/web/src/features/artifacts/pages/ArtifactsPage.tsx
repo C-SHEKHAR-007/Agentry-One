@@ -10,8 +10,8 @@ import { EmptyState } from "../../../components/ui/empty-state";
 import { Input } from "../../../components/ui/input";
 import { Select } from "../../../components/ui/select";
 import { Skeleton } from "../../../components/ui/skeleton";
-import { ArtifactCard } from "../components/ArtifactCard";
-import { ArtifactViewer } from "../components/ArtifactViewer";
+import { ArtifactCard } from "../../../components/common/ArtifactCard";
+import { ArtifactViewer } from "../../../components/common/ArtifactViewer";
 
 /** Matches the page size in artifacts.api (each page's cards animate in from the start). */
 const ARTIFACT_PAGE_SIZE = 48;
