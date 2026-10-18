@@ -1,6 +1,6 @@
 # Agentry v3 — Product and UI plan
 
-> **Status: in progress.** v3.0 (quick wins) is code-complete: all 7 items, each with its own commit. A1, I1, F1 and U3 are on `feature/v3.0-quick-wins` (merged); the rest are on `feature/v3.0-finish`, based on `feature/govt-job-agent`.
+> **Status: in progress.** v3.0 (quick wins) is code-complete: all 7 items, each with its own commit. A1, I1, F1 and U3 are on `feature/v3.0-quick-wins` (merged); the rest are on `feature/v3-ux-refresh`, based on `feature/govt-job-agent`.
 >
 > | Item | Commit | Date |
 > |---|---|---|
