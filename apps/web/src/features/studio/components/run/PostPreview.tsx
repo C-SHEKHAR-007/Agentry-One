@@ -8,7 +8,22 @@ import { Placeholder, StateIcon, StepMeta, StepStatusBody } from "./StepStates";
 import { type RunStep, mediaUrls, stateOf, useArtifactText, useStepArtifacts } from "./shared";
 
 /** The caption and visual together, laid out the way the post will look. */
-export function PostPreview({ textStep, imageStep, runLive, runId }: { textStep?: RunStep; imageStep?: RunStep; runLive: boolean; runId: string }) {
+export function PostPreview({
+  textStep,
+  imageStep,
+  runLive,
+  runId,
+  textControls,
+  imageControls,
+}: {
+  textStep?: RunStep;
+  imageStep?: RunStep;
+  runLive: boolean;
+  runId: string;
+  /** Versions / regenerate for the caption and the visual. */
+  textControls?: React.ReactNode;
+  imageControls?: React.ReactNode;
+}) {
   const { data: textArtifacts } = useStepArtifacts(textStep);
   const { data: imageArtifacts } = useStepArtifacts(imageStep);
   const text = textArtifacts?.find((a) => a.mimeType.startsWith("text/")) ?? textArtifacts?.[0];
@@ -40,6 +55,12 @@ export function PostPreview({ textStep, imageStep, runLive, runId }: { textStep?
         {textStep && <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><StateIcon state={textState} /> Caption</span>}
         {imageStep && <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><StateIcon state={imageState} /> Visual</span>}
       </div>
+      {(imageControls || textControls) && (
+        <div className={cn("grid gap-0", imageStep && textStep && "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
+          {imageStep && <div className="border-border/60 md:border-r">{imageControls}</div>}
+          {textStep && <div>{textControls}</div>}
+        </div>
+      )}
       <div className={cn("grid gap-0", imageStep && textStep && "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
         {imageStep && (
           <section aria-label="Visual" className="border-border/60 p-4 md:border-r">

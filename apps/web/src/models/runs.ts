@@ -73,6 +73,16 @@ export interface RunDetail {
     usage: StepUsage;
   }>;
   totals: { inputTokens: number; outputTokens: number; costUsd: number; durationMs: number | null };
+  /** Every finished output of each step across this run and its retries
+   * (regenerates and variants), oldest first, keyed by templateStep.id. */
+  versions?: Record<string, StepVersion[]>;
+}
+
+/** One output of a step: the workflow that made it, in which run. */
+export interface StepVersion {
+  workflowId: string;
+  runId: string;
+  createdAt: string;
 }
 
 /** One step of a workflow run (GET /template-runs/:id). */

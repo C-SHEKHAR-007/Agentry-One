@@ -10,7 +10,22 @@ import { ROLES } from "../roles";
 import { Placeholder, StateIcon, StepMeta, StepStatusBody } from "./StepStates";
 import { type RunStep, mediaUrls, stateOf, useArtifactText, useStepArtifacts } from "./shared";
 
-export function OutputCard({ role, step, runLive, runId, wide }: { role: Role; step?: RunStep; runLive: boolean; runId: string; wide: boolean }) {
+export function OutputCard({
+  role,
+  step,
+  runLive,
+  runId,
+  wide,
+  controls,
+}: {
+  role: Role;
+  step?: RunStep;
+  runLive: boolean;
+  runId: string;
+  wide: boolean;
+  /** Versions / regenerate for this output. */
+  controls?: React.ReactNode;
+}) {
   const meta = ROLES[role];
   const Icon = meta.icon;
   const state = stateOf(step, runLive);
@@ -27,6 +42,7 @@ export function OutputCard({ role, step, runLive, runId, wide }: { role: Role; s
         <h3 className="flex-1 text-sm font-semibold">{meta.label}</h3>
         <StateIcon state={state} />
       </div>
+      {controls}
 
       <div className="flex-1 p-4">
         <StepStatusBody role={role} step={step} state={state} runId={runId} />
